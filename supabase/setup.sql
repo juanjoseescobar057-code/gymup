@@ -240,6 +240,20 @@ create table if not exists public.coach_memory (
 );
 select public._apply_owner_rls('coach_memory');
 
+-- ─── EVENTOS DEL WEBHOOK DE REVENUECAT (idempotencia/orden) ──
+-- Sin RLS de owner: solo la Edge Function (service role) escribe/lee aquí.
+-- No confundir con user_profiles.is_premium, que es lo que el cliente lee.
+create table if not exists public.rc_webhook_events (
+  event_id text primary key,
+  user_id uuid,
+  event_type text not null,
+  event_timestamp_ms bigint not null,
+  environment text,
+  received_at timestamptz default now()
+);
+alter table public.rc_webhook_events enable row level security; -- sin políticas: solo service role
+create index if not exists rc_webhook_events_user on public.rc_webhook_events(user_id, event_timestamp_ms desc);
+
 -- ─── OBSERVABILIDAD PROPIA DE IA ─────────────────────────
 -- Una fila por llamada de IA: costo exacto, latencia, tokens, feature,
 -- turno, contexto de decisión del agente y score de calidad del mensaje.

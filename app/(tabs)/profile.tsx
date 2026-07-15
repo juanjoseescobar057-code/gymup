@@ -14,6 +14,7 @@ import { calculateDailyMacros } from '../../lib/openai';
 import { getAccountEmail, deleteAccountServerSide } from '../../lib/account';
 import { regenerateAdaptivePlan, saveAdaptedPlan } from '../../lib/adaptivePlan';
 import { canUseFeature } from '../../lib/subscription';
+import { resetPurchasesIdentity } from '../../lib/purchases';
 import AuthSheet from '../../Components/AuthSheet';
 import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
 import { MIN_AGE, MAX_AGE } from '../../lib/safety';
@@ -174,6 +175,7 @@ export default function ProfileScreen() {
                 if (error) console.log(`[DeleteAccount] ${t}:`, error.message);
               }
             }
+            await resetPurchasesIdentity(); // desvincula RevenueCat de este uid antes de perder la sesión
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);
@@ -218,6 +220,7 @@ export default function ProfileScreen() {
           text: 'Cerrar sesión',
           style: 'destructive',
           onPress: async () => {
+            await resetPurchasesIdentity(); // sin esto, el próximo usuario en este dispositivo hereda el RevenueCat de este
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);

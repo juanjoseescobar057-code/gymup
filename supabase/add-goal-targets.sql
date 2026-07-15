@@ -119,6 +119,18 @@ select b.*,
 from base b;
 grant select on public.v_user_traits to anon, authenticated;
 
+--   9. Eventos del webhook de RevenueCat (idempotencia/orden). Solo service role.
+create table if not exists public.rc_webhook_events (
+  event_id text primary key,
+  user_id uuid,
+  event_type text not null,
+  event_timestamp_ms bigint not null,
+  environment text,
+  received_at timestamptz default now()
+);
+alter table public.rc_webhook_events enable row level security;
+create index if not exists rc_webhook_events_user on public.rc_webhook_events(user_id, event_timestamp_ms desc);
+
 --   8. Perfil de salud (tamizaje PAR-Q+: lesiones, condiciones, banderas).
 create table if not exists public.health_profile (
   user_id uuid references auth.users(id) on delete cascade not null primary key,

@@ -35,6 +35,11 @@ const NOT_READY =
   'Pagos aún no disponibles en esta build. (Requiere el rebuild con RevenueCat y las keys configuradas.)';
 
 let configured = false;
+// uid con el que el SDK está configurado actualmente. Si cambia (nueva
+// sesión tras logout, sin matar el proceso), hay que re-identificar al SDK
+// — de lo contrario queda atado al usuario ANTERIOR y le atribuye compras
+// o entitlements de otra cuenta.
+let configuredForUid: string | null = null;
 
 // Carga perezosa: si el módulo nativo no está en esta build, no crashea.
 function rc(): any | null {
@@ -46,17 +51,41 @@ function rc(): any | null {
   }
 }
 
-/** Configura RevenueCat con la identidad del usuario (idempotente). */
+/** Configura RevenueCat con la identidad del usuario (idempotente por uid). */
 async function ensureConfigured(): Promise<any | null> {
   const P = rc();
   if (!P || !API_KEY) return null;
-  if (configured) return P;
   const { data: { session } } = await supabase.auth.getSession();
   const uid = session?.user?.id;
   if (!uid) return null;
-  await P.configure({ apiKey: API_KEY, appUserID: uid });
+  if (configured && configuredForUid === uid) return P;
+  if (configured && configuredForUid !== uid) {
+    // Cambio de usuario en el mismo proceso: re-identificar el SDK.
+    try { await P.logIn(uid); } catch { await P.configure({ apiKey: API_KEY, appUserID: uid }); }
+  } else {
+    await P.configure({ apiKey: API_KEY, appUserID: uid });
+  }
   configured = true;
+  configuredForUid = uid;
   return P;
+}
+
+/**
+ * Desvincula el SDK del usuario actual. Llamar SIEMPRE en logout/borrado de
+ * cuenta — sin esto, si un segundo usuario inicia sesión en el mismo
+ * proceso (flujo normal: signOut → onboarding → login), el SDK sigue
+ * atado al appUserID anterior y le atribuye entitlements/compras ajenas.
+ */
+export async function resetPurchasesIdentity(): Promise<void> {
+  const P = rc();
+  configured = false;
+  configuredForUid = null;
+  if (!P) return;
+  try {
+    await P.logOut();
+  } catch {
+    // Sin sesión previa de RevenueCat que cerrar, o SDK no inicializado: no es un error.
+  }
 }
 
 function hasPremium(customerInfo: any): boolean {
@@ -80,10 +109,16 @@ export async function purchasePlan(planId: string): Promise<{ ok: boolean; error
     const P = await ensureConfigured();
     if (!P) return { ok: false, error: NOT_READY };
 
-    // Buscar el paquete cuyo producto coincide con el plan pedido.
+    // Buscar el paquete cuyo producto coincide con el plan pedido. Coincidencia
+    // exacta o con el separador ':' de Play Billing (base plan id) — un
+    // startsWith desnudo matchearía de más si algún día existe un plan cuyo
+    // id es prefijo de otro (ej. "..._monthly" vs "..._monthly_promo").
     const offerings = await P.getOfferings();
     const packages = offerings?.current?.availablePackages ?? [];
-    const pkg = packages.find((p: any) => p?.product?.identifier?.startsWith(planId));
+    const pkg = packages.find((p: any) => {
+      const id = p?.product?.identifier ?? '';
+      return id === planId || id.startsWith(`${planId}:`);
+    });
     if (!pkg) return { ok: false, error: 'Plan no disponible en la tienda todavía.' };
 
     const { customerInfo } = await P.purchasePackage(pkg);

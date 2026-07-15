@@ -25,6 +25,7 @@ import { computeContextPressure } from '../lib/aiMetrics';
 import { track } from '../lib/analytics';
 import { canUseFeature, FREE_LIMITS } from '../lib/subscription';
 import { localDateKey } from '../lib/foodLogs';
+import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
 
 // Historial POR USUARIO: una clave global filtraba la conversación (y peor,
@@ -430,10 +431,15 @@ export default function CoachChatScreen() {
           contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingTop: 12, paddingBottom: 8, flexGrow: 1 }}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => (
-            <View style={[s.bubble, item.role === 'user' ? s.bubbleUser : s.bubbleCoach]}>
-              <Text style={item.role === 'user' ? s.bubbleUserTxt : s.bubbleCoachTxt}>
-                {item.content}
-              </Text>
+            <View>
+              <View style={[s.bubble, item.role === 'user' ? s.bubbleUser : s.bubbleCoach]}>
+                <Text style={item.role === 'user' ? s.bubbleUserTxt : s.bubbleCoachTxt}>
+                  {item.content}
+                </Text>
+              </View>
+              {item.role === 'assistant' && (
+                <ReportContentButton feature="coach_chat" content={item.content} label="🚩 Reportar respuesta" />
+              )}
             </View>
           )}
           ListEmptyComponent={

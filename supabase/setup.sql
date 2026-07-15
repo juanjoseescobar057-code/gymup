@@ -254,6 +254,23 @@ create table if not exists public.rc_webhook_events (
 alter table public.rc_webhook_events enable row level security; -- sin políticas: solo service role
 create index if not exists rc_webhook_events_user on public.rc_webhook_events(user_id, event_timestamp_ms desc);
 
+-- ─── REPORTES DE CONTENIDO DE IA (exigido por Google Play) ──
+-- El usuario reporta una respuesta de la IA (chat, postura, escaneo corporal,
+-- comida, nevera) como ofensiva, dañina o incorrecta. No borra ni oculta el
+-- contenido — solo queda auditable para revisión/mejora de moderación.
+create table if not exists public.ai_content_reports (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  feature text not null,           -- 'coach_chat' | 'posture' | 'body_scan' | 'food_scan' | 'fridge_scan'
+  reason text not null,            -- 'incorrect' | 'harmful' | 'offensive' | 'other'
+  note text,
+  content_snapshot text,           -- copia truncada de lo reportado, para poder revisarlo
+  status text not null default 'open' check (status in ('open', 'reviewed', 'dismissed')),
+  created_at timestamptz default now()
+);
+select public._apply_owner_rls('ai_content_reports');
+create index if not exists ai_content_reports_status on public.ai_content_reports(status, created_at desc);
+
 -- ─── OBSERVABILIDAD PROPIA DE IA ─────────────────────────
 -- Una fila por llamada de IA: costo exacto, latencia, tokens, feature,
 -- turno, contexto de decisión del agente y score de calidad del mensaje.

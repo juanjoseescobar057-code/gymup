@@ -131,6 +131,22 @@ create table if not exists public.rc_webhook_events (
 alter table public.rc_webhook_events enable row level security;
 create index if not exists rc_webhook_events_user on public.rc_webhook_events(user_id, event_timestamp_ms desc);
 
+--   10. Reportes de contenido de IA (exigido por Google Play). El usuario
+--       reporta una respuesta como ofensiva/dañina/incorrecta; queda
+--       auditable para revisión, no borra ni oculta el contenido original.
+create table if not exists public.ai_content_reports (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  feature text not null,
+  reason text not null,
+  note text,
+  content_snapshot text,
+  status text not null default 'open' check (status in ('open', 'reviewed', 'dismissed')),
+  created_at timestamptz default now()
+);
+select public._apply_owner_rls('ai_content_reports');
+create index if not exists ai_content_reports_status on public.ai_content_reports(status, created_at desc);
+
 --   8. Perfil de salud (tamizaje PAR-Q+: lesiones, condiciones, banderas).
 create table if not exists public.health_profile (
   user_id uuid references auth.users(id) on delete cascade not null primary key,

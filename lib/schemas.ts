@@ -103,8 +103,9 @@ export const PostureResultSchema = z.object({
   corrections: z.array(PostureCorrectionSchema).catch([]),
   encouragement: str,
   next_cue: str,
-  injury_risk: str,
-  injury_risk_level: z.enum(['none', 'low', 'medium', 'high']).catch('none'),
+  // Riesgo por PATRÓN DE TÉCNICA observado (no diagnóstico médico de lesión existente).
+  technique_risk: str,
+  technique_risk_level: z.enum(['none', 'low', 'medium', 'high']).catch('none'),
   stretches: z.array(StretchSchema).catch([]),
 });
 

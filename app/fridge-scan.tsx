@@ -21,6 +21,9 @@ import { canUseFeature } from '../lib/subscription';
 import { localDateKey } from '../lib/foodLogs';
 import { useUserStore } from '../store/userStore';
 import { track } from '../lib/analytics';
+import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../lib/cameraConsent';
+import CameraDisclosureModal from '../Components/CameraDisclosureModal';
+import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
 import type { FridgeAnalysis, Recipe } from '../lib/openai-features';
 
@@ -108,8 +111,25 @@ export default function FridgeScanScreen() {
   const [phase, setPhase] = useState<'intro' | 'analyzing' | 'result'>('intro');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [result, setResult] = useState<FridgeAnalysis | null>(null);
+  const [showCameraDisclosure, setShowCameraDisclosure] = useState(false);
 
+  // Disclosure de cámara (una sola vez): la galería no dispara el permiso
+  // sensible de cámara, así que solo se gatea la captura en vivo.
   async function pickPhoto(fromCamera: boolean) {
+    if (fromCamera && !(await hasSeenCameraDisclosure('fridge_scan'))) {
+      setShowCameraDisclosure(true);
+      return;
+    }
+    await doPickPhoto(fromCamera);
+  }
+
+  async function acceptCameraDisclosure() {
+    setShowCameraDisclosure(false);
+    await markCameraDisclosureSeen('fridge_scan');
+    await doPickPhoto(true);
+  }
+
+  async function doPickPhoto(fromCamera: boolean) {
     try {
       // Gating freemium (tope diario). Solo VERIFICAMOS aquí; el cupo se
       // consume al completar el análisis con éxito (cancelar la cámara o un
@@ -182,6 +202,13 @@ export default function FridgeScanScreen() {
   // INTRO
   if (phase === 'intro') {
     return (
+      <>
+      <CameraDisclosureModal
+        visible={showCameraDisclosure}
+        subject="tu nevera"
+        onAccept={acceptCameraDisclosure}
+        onCancel={() => setShowCameraDisclosure(false)}
+      />
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -226,6 +253,7 @@ export default function FridgeScanScreen() {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
+      </>
     );
   }
 
@@ -298,6 +326,7 @@ export default function FridgeScanScreen() {
           <TouchableOpacity style={s.secondaryBtn} onPress={() => router.replace('/(tabs)' as any)} activeOpacity={0.85}>
             <Text style={s.secondaryBtnTxt}>Volver al inicio</Text>
           </TouchableOpacity>
+          <ReportContentButton feature="fridge_scan" content={JSON.stringify(result)} />
 
           <View style={{ height: 40 }} />
         </ScrollView>

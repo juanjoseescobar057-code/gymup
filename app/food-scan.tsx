@@ -16,6 +16,9 @@ import { canUseFeature } from '../lib/subscription';
 import { localDateKey } from '../lib/foodLogs';
 import { useUserStore } from '../store/userStore';
 import { track } from '../lib/analytics';
+import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../lib/cameraConsent';
+import CameraDisclosureModal from '../Components/CameraDisclosureModal';
+import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
 
 type FoodResult = {
@@ -38,6 +41,7 @@ export default function FoodScanScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [result, setResult] = useState<FoodResult | null>(null);
   const [portion, setPortion] = useState(1); // multiplicador de porción
+  const [showCameraDisclosure, setShowCameraDisclosure] = useState(false);
 
   // Macros escalados por la porción elegida (lo que realmente se suma al día).
   const scaled = result ? {
@@ -52,7 +56,23 @@ export default function FoodScanScreen() {
 
   const totals = getDailyTotals();
 
+  // Disclosure de cámara (una sola vez): la galería no dispara el permiso
+  // sensible de cámara, así que solo se gatea la captura en vivo.
   async function pickPhoto(fromCamera: boolean) {
+    if (fromCamera && !(await hasSeenCameraDisclosure('food_scan'))) {
+      setShowCameraDisclosure(true);
+      return;
+    }
+    await doPickPhoto(fromCamera);
+  }
+
+  async function acceptCameraDisclosure() {
+    setShowCameraDisclosure(false);
+    await markCameraDisclosureSeen('food_scan');
+    await doPickPhoto(true);
+  }
+
+  async function doPickPhoto(fromCamera: boolean) {
     try {
       Keyboard.dismiss();
 
@@ -234,6 +254,13 @@ export default function FoodScanScreen() {
   // INTRO
   if (phase === 'intro') {
     return (
+      <>
+      <CameraDisclosureModal
+        visible={showCameraDisclosure}
+        subject="tu plato"
+        onAccept={acceptCameraDisclosure}
+        onCancel={() => setShowCameraDisclosure(false)}
+      />
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
           <TouchableOpacity style={s.back} onPress={() => router.back()}>
@@ -280,6 +307,7 @@ export default function FoodScanScreen() {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
+      </>
     );
   }
 
@@ -383,6 +411,7 @@ export default function FoodScanScreen() {
           <TouchableOpacity style={s.secondaryBtn} onPress={reset} activeOpacity={0.85}>
             <Text style={s.secondaryBtnTxt}>Descartar</Text>
           </TouchableOpacity>
+          <ReportContentButton feature="food_scan" content={JSON.stringify(result)} />
         </ScrollView>
       </SafeAreaView>
     );

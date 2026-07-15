@@ -16,6 +16,7 @@ import { track } from '../../lib/analytics';
 import { loadHealthSafe } from '../../lib/health';
 import { healthToPrompt, HEALTH_UNKNOWN_DIRECTIVE } from '../../lib/healthMath';
 import { router } from 'expo-router';
+import ReportContentButton from '../../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
 
 const EXERCISES = [
@@ -44,8 +45,10 @@ type PostureResult = {
   }[];
   encouragement: string;
   next_cue: string;
-  injury_risk: string;
-  injury_risk_level: 'none' | 'low' | 'medium' | 'high';
+  // Riesgo por PATRÓN DE TÉCNICA observado — feedback de coaching, no un
+  // diagnóstico médico de lesión. Ver AI_SAFETY_RULES y el prompt abajo.
+  technique_risk: string;
+  technique_risk_level: 'none' | 'low' | 'medium' | 'high';
   stretches: { name: string; duration: string; how: string }[];
 };
 
@@ -55,7 +58,7 @@ const SEVERITY_CONFIG = {
   error: { color: '#ff4444',     bg: 'rgba(255,68,68,0.10)',  icon: '🔴', label: 'Urgente'  },
 };
 
-const INJURY_COLORS = {
+const TECHNIQUE_RISK_COLORS = {
   none:   Colors.accent,
   low:    '#a8e063',
   medium: '#ff9d3a',
@@ -76,7 +79,8 @@ async function analyzePosture(imageUri: string, exerciseName: string, healthBloc
           },
           {
             type: 'text',
-            text: `Eres un coach de fitness experto en biomecánica y prevención de lesiones con 20 años de experiencia.
+            text: `Eres un coach de fitness experto en técnica de entrenamiento y biomecánica aplicada, con 20 años de experiencia.
+Tu rol es 100% coaching de técnica: comparas la postura observada contra la forma correcta del ejercicio y das correcciones accionables. NUNCA diagnosticas, evalúas ni descartas una lesión — eso solo lo hace un profesional de la salud. Si la foto sugiere una lesión ya existente (no un patrón de técnica arriesgado), dilo con empatía y remite a un profesional; no continúes analizando eso como si fuera parte del entrenamiento.
 ${AI_SAFETY_RULES}
 ${healthBlock ? `\n${healthBlock}\n(Las correcciones y estiramientos que recomiendes DEBEN respetar estas directivas.)\n` : ''}
 Se esperaba: persona haciendo "${exerciseName}".
@@ -108,8 +112,8 @@ SOLO JSON sin texto adicional:
   ],
   "encouragement": "Mensaje motivador específico de 1 oración sobre lo que ves.",
   "next_cue": "La UNA corrección más importante para la próxima repetición, muy corta.",
-  "injury_risk": "Descripción del riesgo de lesión según la postura observada en 1-2 oraciones.",
-  "injury_risk_level": "low",
+  "technique_risk": "Descripción del riesgo asociado al PATRÓN DE TÉCNICA observado (ej: sobrecarga en la rodilla por valgo si se repite con más peso) en 1-2 oraciones. Es una observación de forma de entrenamiento, NUNCA un diagnóstico médico — no afirmes que existe una lesión.",
+  "technique_risk_level": "low",
   "stretches": [
     {
       "name": "Estiramiento de cuádriceps",
@@ -126,7 +130,7 @@ SOLO JSON sin texto adicional:
 
 Si is_exercise_visible es false, igual llena todos los campos con feedback genérico de postura.
 severity: good=correcto, warn=mejorar, error=corregir urgente.
-injury_risk_level: none, low, medium, high.
+technique_risk_level: none, low, medium, high — qué tan urgente es corregir la técnica antes de subir peso/repeticiones. NO es una escala de gravedad médica.
 Incluye 3-6 corrections y 2-3 stretches relevantes para el ejercicio.`,
           },
         ],
@@ -257,7 +261,7 @@ export default function CoachScreen() {
       <SafeAreaView style={s.container}>
         <View style={s.header}>
           <Text style={s.headerTitle}>COACH DE POSTURA</Text>
-          <Text style={s.headerSub}>IA analiza tu técnica · detecta riesgo de lesión</Text>
+          <Text style={s.headerSub}>IA analiza tu técnica y te da correcciones específicas</Text>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -395,12 +399,12 @@ export default function CoachScreen() {
           <Text style={s.analyzingTitle}>Analizando postura</Text>
           <Text style={s.analyzingEx}>{selectedEx.emoji} {selectedEx.name}</Text>
           <Text style={s.analyzingMsg}>
-            GPT-4o está evaluando{'\n'}técnica, riesgo de lesión y correcciones...
+            GPT-4o está evaluando{'\n'}técnica, forma y correcciones...
           </Text>
           {[
             'Verificando si el ejercicio es visible...',
             'Evaluando ángulos articulares...',
-            'Detectando riesgo de lesión...',
+            'Comparando contra la forma correcta...',
             'Generando correcciones específicas...',
           ].map((msg, i) => (
             <View key={i} style={s.analyzingStep}>
@@ -423,7 +427,7 @@ export default function CoachScreen() {
 
     const goodCount = result.corrections.filter((c) => c.severity === 'good').length;
     const issueCount = result.corrections.filter((c) => c.severity !== 'good').length;
-    const injuryColor = INJURY_COLORS[result.injury_risk_level];
+    const techRiskColor = TECHNIQUE_RISK_COLORS[result.technique_risk_level];
 
     return (
       <SafeAreaView style={s.container}>
@@ -470,20 +474,25 @@ export default function CoachScreen() {
 
           <View style={{ paddingHorizontal: Spacing.lg }}>
 
-            {/* Riesgo de lesión */}
-            <View style={[s.injuryCard, { borderColor: injuryColor + '44', backgroundColor: injuryColor + '11' }]}>
+            {/* Riesgo por patrón de técnica (no es diagnóstico médico) */}
+            <View style={[s.injuryCard, { borderColor: techRiskColor + '44', backgroundColor: techRiskColor + '11' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <Text style={{ fontSize: 18 }}>
-                  {result.injury_risk_level === 'none' ? '🛡️' :
-                   result.injury_risk_level === 'low' ? '⚡' :
-                   result.injury_risk_level === 'medium' ? '⚠️' : '🚨'}
+                  {result.technique_risk_level === 'none' ? '🛡️' :
+                   result.technique_risk_level === 'low' ? '⚡' :
+                   result.technique_risk_level === 'medium' ? '⚠️' : '🚨'}
                 </Text>
-                <Text style={[s.injuryLabel, { color: injuryColor }]}>
-                  RIESGO DE LESIÓN: {result.injury_risk_level.toUpperCase()}
+                <Text style={[s.injuryLabel, { color: techRiskColor }]}>
+                  RIESGO POR TÉCNICA: {result.technique_risk_level.toUpperCase()}
                 </Text>
               </View>
-              <Text style={s.injuryTxt}>{result.injury_risk}</Text>
+              <Text style={s.injuryTxt}>{result.technique_risk}</Text>
+              <Text style={s.injuryDisclaimer}>
+                Esto es feedback de coaching sobre tu forma de entrenamiento, no un diagnóstico médico. Si sientes dolor agudo o algo no se siente bien, para y consulta a un profesional de la salud.
+              </Text>
             </View>
+
+            <ReportContentButton feature="posture" content={JSON.stringify(result)} />
 
             {/* Cue prioritario */}
             <View style={s.cueCard}>
@@ -629,6 +638,7 @@ const s = StyleSheet.create({
   injuryCard: { borderRadius: Radii.lg, borderWidth: 1, padding: Spacing.md, marginBottom: 12 },
   injuryLabel: { fontFamily: Fonts.bodySemi, fontSize: 11, letterSpacing: 0.6 },
   injuryTxt: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
+  injuryDisclaimer: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, lineHeight: 15, marginTop: 8 },
   cueCard: { backgroundColor: Colors.bgSelected, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md, marginBottom: 12 },
   cueTxt: { fontFamily: Fonts.bodyMedium, fontSize: 16, color: Colors.textPrimary, lineHeight: 24, marginTop: 8, fontStyle: 'italic' },
   correctionCard: { borderRadius: Radii.lg, borderWidth: 1, padding: Spacing.md, marginBottom: 8 },

@@ -23,6 +23,7 @@ import { parseAI, BodyAnalysisSchema, PhotoValidationSchema } from '../lib/schem
 import { aiChat } from '../lib/aiClient';
 import { canUseFeature } from '../lib/subscription';
 import { track } from '../lib/analytics';
+import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
 import { AI_SAFETY_RULES, clampFatPct, MEDICAL_DISCLAIMER, BODY_SCAN_CONSENT, MIN_AGE } from '../lib/safety';
 
@@ -801,6 +802,8 @@ export default function BodyScanScreen() {
               🔒 Tus fotos no fueron almacenadas en ningún servidor. Solo guardamos los datos numéricos del análisis.
             </Text>
           </View>
+
+          <ReportContentButton feature="body_scan" content={JSON.stringify(result)} />
 
           <TouchableOpacity style={s.primaryBtn}
             onPress={() => router.replace('/(tabs)' as any)} activeOpacity={0.85}>

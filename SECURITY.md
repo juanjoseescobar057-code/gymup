@@ -6,8 +6,11 @@ Auditoría honesta: ✅ implementado · 🟡 parcial/pendiente con plan · ⚪ n
 - ✅ La API key de OpenAI NO se embebe en producción: proxy `ai-proxy` (Edge Function) con
   JWT del usuario; la key vive en secrets del servidor.
 - ✅ `anon key` de Supabase en el cliente es pública **por diseño** (la seguridad real es RLS).
-- 🟡 Pendiente operativo (DEPLOY.md): rotar la key de OpenAI usada en desarrollo antes de
-  publicar, y compilar SIN `EXPO_PUBLIC_OPENAI_API_KEY`.
+- ✅ `EXPO_PUBLIC_OPENAI_API_KEY` retirada de `.env.local` (2026-07-15) — ya no hay riesgo de
+  que un build local (dev client, `eas build --local`) la vuelva a embeber.
+- 🟡 Pendiente operativo, sin confirmar (DEPLOY.md Paso 4): revocar la key comprometida en
+  platform.openai.com y confirmar que la NUEVA key esté puesta vía `supabase secrets set
+  OPENAI_API_KEY=...` (no se pudo verificar por CLI — sesión expirada, ver DEPLOY.md).
 
 ## M2 · Supply chain
 - ✅ Lockfile (`package-lock.json`) versionado; dependencias de fuentes oficiales.

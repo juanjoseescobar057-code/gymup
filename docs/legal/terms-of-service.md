@@ -1,14 +1,14 @@
 # Términos de Uso de GymUp
 
-**Última actualización:** [FECHA] · **Versión:** 1.0
+**Última actualización:** 15 de julio de 2026 · **Versión:** 1.0
 
 > ⚠️ **Antes de publicar:** base sólida redactada como punto de partida; no sustituye
-> asesoría legal profesional. Reemplaza los `[PLACEHOLDER]` y pide revisión de un abogado,
-> especialmente por las cláusulas de responsabilidad médica/deportiva y suscripciones.
+> asesoría legal profesional. Pide revisión de un abogado, especialmente por las cláusulas
+> de responsabilidad médica/deportiva y suscripciones.
 
 ## 1. Aceptación de los términos
 
-Al crear una cuenta o usar GymUp ("la App"), operada por **[NOMBRE DE LA EMPRESA/PERSONA]**
+Al crear una cuenta o usar GymUp ("la App"), operada por **Juan José Escobar**
 ("nosotros"), aceptas estos Términos de Uso y nuestra
 [Política de Privacidad](./privacy-policy.md). Si no estás de acuerdo, no uses la App.
 
@@ -81,7 +81,7 @@ Podemos suspender o eliminar cuentas que incumplan estas reglas.
 
 ## 8. Propiedad intelectual
 
-La App, su diseño, marca y tecnología son propiedad de **[NOMBRE DE LA EMPRESA/PERSONA]**
+La App, su diseño, marca y tecnología son propiedad de **Juan José Escobar**
 o de sus licenciantes. Te otorgamos una licencia personal, no exclusiva e intransferible
 para usar la App conforme a estos Términos. Los planes de entrenamiento y análisis
 generados para ti son para tu uso personal.
@@ -112,10 +112,10 @@ o terminar tu acceso si incumples estos Términos.
 
 ## 13. Ley aplicable
 
-Estos Términos se rigen por las leyes de **[PAÍS — ej. Colombia]**. Cualquier disputa se
-resolverá ante los jueces competentes de **[CIUDAD]**, salvo que la ley aplicable
+Estos Términos se rigen por las leyes de **Colombia**. Cualquier disputa se
+resolverá ante los jueces competentes de **Bogotá**, salvo que la ley aplicable
 disponga lo contrario.
 
 ## 14. Contacto
 
-Preguntas sobre estos Términos: **[EMAIL DE CONTACTO]**.
+Preguntas sobre estos Términos: **juanjoseescobar057@gmail.com**.

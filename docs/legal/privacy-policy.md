@@ -1,17 +1,16 @@
 # Política de Privacidad de GymUp
 
-**Última actualización:** [FECHA] · **Versión:** 1.0
+**Última actualización:** 15 de julio de 2026 · **Versión:** 1.0
 
 > ⚠️ **Antes de publicar:** este documento fue redactado como base sólida y específica para
 > GymUp, pero **no sustituye asesoría legal profesional**. Dado que la app trata **datos de
 > salud** (categoría sensible bajo la Ley 1581 de 2012 de Colombia), recomendamos que un
-> abogado lo revise antes de publicarlo. Reemplaza todos los `[PLACEHOLDER]` con tus datos
-> reales antes de usarlo.
+> abogado lo revise antes de publicarlo.
 
 ## 1. Quién es el responsable de tus datos
 
-**Responsable del tratamiento:** [NOMBRE DE LA PERSONA O EMPRESA]
-**Contacto:** [EMAIL DE CONTACTO] · **Domicilio:** [CIUDAD, PAÍS]
+**Responsable del tratamiento:** Juan José Escobar
+**Contacto:** juanjoseescobar057@gmail.com · **Domicilio:** Bogotá, Colombia
 
 GymUp ("la App", "nosotros") es una aplicación de acondicionamiento físico y nutrición
 asistida por inteligencia artificial. Esta política explica qué información recopilamos,
@@ -127,7 +126,7 @@ Como titular de tus datos personales, tienes derecho a:
 - **Presentar quejas** ante la Superintendencia de Industria y Comercio (SIC) si
   consideras que hemos vulnerado tus derechos.
 
-Para ejercer estos derechos, escríbenos a **[EMAIL DE CONTACTO]** o usa las opciones
+Para ejercer estos derechos, escríbenos a **juanjoseescobar057@gmail.com** o usa las opciones
 dentro de la app (Perfil → Eliminar cuenta para supresión total).
 
 ## 7. Seguridad
@@ -160,4 +159,4 @@ vigente.
 
 ## 11. Contacto
 
-¿Preguntas sobre tu privacidad? Escríbenos a **[EMAIL DE CONTACTO]**.
+¿Preguntas sobre tu privacidad? Escríbenos a **juanjoseescobar057@gmail.com**.

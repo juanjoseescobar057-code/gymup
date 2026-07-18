@@ -1,15 +1,27 @@
 // lib/monitoring.ts
 // ─────────────────────────────────────────────────────────
-// Capa de observabilidad. Hoy la app manda los errores a console.log
-// y se pierden en producción. Esto centraliza el reporte de errores y
-// deja todo listo para enchufar Sentry sin tocar el resto del código.
+// Capa de observabilidad. Reporta errores a Sentry (si hay DSN) y siempre
+// a console.log + analítica propia, para que un error nunca se pierda en
+// silencio — ver EXPO_PUBLIC_SENTRY_DSN en .env.local.
 //
-// Para activar Sentry:
-//   1. npx expo install @sentry/react-native
-//   2. Definir EXPO_PUBLIC_SENTRY_DSN
-//   3. Descomentar las líneas marcadas con // SENTRY abajo.
-// Mientras tanto, funciona como logger seguro (no rompe si no hay DSN).
+// ⚠️ @sentry/react-native resuelve su módulo nativo (RNSentry) con
+// TurboModuleRegistry.getEnforcing() en el import de nivel superior del
+// paquete — eso LANZA de inmediato si el nativo no está linkeado (dev
+// client sin rebuildear), igual que expo-secure-store en lib/supabase.ts.
+// Un `import * as Sentry from '@sentry/react-native'` estático arriba de
+// este archivo crashearía la app ENTERA al arrancar. Con require() dentro
+// de un try/catch, el fallo queda contenido y se degrada con gracia a
+// logger local hasta el próximo build nativo.
 // ─────────────────────────────────────────────────────────
+
+type SentryModule = typeof import('@sentry/react-native');
+let Sentry: SentryModule | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  Sentry = require('@sentry/react-native');
+} catch {
+  Sentry = null;
+}
 
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 
@@ -18,12 +30,23 @@ let initialized = false;
 export function initMonitoring(): void {
   if (initialized) return;
   initialized = true;
-  if (!DSN) {
-    if (__DEV__) console.log('[monitoring] Sin DSN — modo logger local.');
+  if (!DSN || !Sentry) {
+    if (__DEV__) {
+      console.log(
+        !DSN
+          ? '[monitoring] Sin DSN — modo logger local.'
+          : '[monitoring] Sentry no disponible en este build (falta rebuild nativo) — modo logger local.'
+      );
+    }
     return;
   }
-  // SENTRY: import * as Sentry from '@sentry/react-native';
-  // SENTRY: Sentry.init({ dsn: DSN, tracesSampleRate: 0.2, enableNativeCrashHandling: true });
+  Sentry.init({
+    dsn: DSN,
+    tracesSampleRate: 0.2,
+    enableNativeCrashHandling: true,
+    debug: __DEV__,
+  });
+  if (__DEV__) console.log('[monitoring] Sentry inicializado.');
 }
 
 /** Reporta un error con contexto. Úsalo en los catch importantes. */
@@ -38,13 +61,13 @@ export function captureError(error: unknown, context?: Record<string, unknown>):
     const { track } = require('./analytics');
     track('error_shown', { message: err.message.slice(0, 120), ...(context ?? {}) });
   } catch {}
-  if (!DSN) return;
-  // SENTRY: import * as Sentry from '@sentry/react-native';
-  // SENTRY: Sentry.captureException(err, { extra: context });
+  if (!DSN || !Sentry) return;
+  Sentry.captureException(err, { extra: context });
 }
 
 /** Rastro de navegación/acción para depurar errores posteriores. */
 export function breadcrumb(message: string, data?: Record<string, unknown>): void {
   if (__DEV__) console.log('[breadcrumb]', message, data ?? '');
-  // SENTRY: Sentry.addBreadcrumb({ message, data });
+  if (!DSN || !Sentry) return;
+  Sentry.addBreadcrumb({ message, data });
 }

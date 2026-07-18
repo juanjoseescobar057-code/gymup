@@ -122,6 +122,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     detectSessionInUrl: false,
   },
+  // Sin esto, supabase-js resuelve su propio fetch y en algunos builds de
+  // React Native termina usando el polyfill whatwg-fetch (pensado para
+  // navegador) en vez del fetch nativo del puente RN — provoca "Network
+  // request failed" genéricos e intermitentes que no son un problema real
+  // de red. Forzar el fetch global nativo lo evita.
+  global: {
+    fetch: (input, init) => fetch(input, init),
+  },
 });
 
 export type UserProfile = {

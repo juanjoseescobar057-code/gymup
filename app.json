@@ -60,7 +60,8 @@
         {
           "color": "#c8ff3e"
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true

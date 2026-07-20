@@ -203,7 +203,12 @@ group by 1 order by 1;
 
 --   7. Seguridad de pagos: is_premium solo lo escribe el webhook (service role).
 revoke update on public.user_profiles from anon, authenticated;
-grant update (name, nickname, age, weight_kg, height_cm, goal, activity_level,
+-- user_id incluida: el upsert de onboarding.tsx (onConflict: 'user_id') dispara la
+-- rama UPDATE con user_id en el SET aunque el valor no cambie — sin permiso sobre esa
+-- columna, Postgres devuelve 42501 "permission denied" en cualquier reintento de
+-- onboarding sobre un perfil ya existente. La política WITH CHECK (auth.uid() = user_id)
+-- ya impide reasignar el perfil a otro usuario, así que otorgar UPDATE aquí es seguro.
+grant update (user_id, name, nickname, age, weight_kg, height_cm, goal, activity_level,
   daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,
   current_plan_day, last_active_date, target_weight_kg, goal_why,
   goal_start_weight_kg, updated_at)

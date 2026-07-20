@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Política de Privacidad de GymUp</title>
+<meta name="description" content="Política de Privacidad de GymUp: qué información recopilamos, para qué la usamos y tus derechos como titular de datos.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --bg-alt: #f5f6f8;
+    --text: #1a1d21;
+    --text-muted: #52555a;
+    --heading: #101214;
+    --border: #e2e4e8;
+    --link: #2454b8;
+    --link-visited: #5b3fa8;
+    --notice-bg: #fff6e0;
+    --notice-border: #e8c766;
+    --notice-text: #5c4a06;
+    --table-head-bg: #eceef2;
+    --code-bg: #f0f1f3;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --bg-alt: #1c1f24;
+      --text: #e7e9ec;
+      --text-muted: #a9adb4;
+      --heading: #f5f6f8;
+      --border: #33373f;
+      --link: #7fb0ff;
+      --link-visited: #c6a6ff;
+      --notice-bg: #3a3115;
+      --notice-border: #7a611f;
+      --notice-text: #f0d896;
+      --table-head-bg: #23262c;
+      --code-bg: #20232a;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #14161a;
+    --bg-alt: #1c1f24;
+    --text: #e7e9ec;
+    --text-muted: #a9adb4;
+    --heading: #f5f6f8;
+    --border: #33373f;
+    --link: #7fb0ff;
+    --link-visited: #c6a6ff;
+    --notice-bg: #3a3115;
+    --notice-border: #7a611f;
+    --notice-text: #f0d896;
+    --table-head-bg: #23262c;
+    --code-bg: #20232a;
+  }
+
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --bg-alt: #f5f6f8;
+    --text: #1a1d21;
+    --text-muted: #52555a;
+    --heading: #101214;
+    --border: #e2e4e8;
+    --link: #2454b8;
+    --link-visited: #5b3fa8;
+    --notice-bg: #fff6e0;
+    --notice-border: #e8c766;
+    --notice-text: #5c4a06;
+    --table-head-bg: #eceef2;
+    --code-bg: #f0f1f3;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    line-height: 1.65;
+    font-size: 17px;
+  }
+
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+
+  .top-nav {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 0;
+    font-size: 0.95rem;
+  }
+
+  .top-nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+
+  .top-nav a:hover {
+    color: var(--link);
+    text-decoration: underline;
+  }
+
+  h1 {
+    color: var(--heading);
+    font-size: 1.9rem;
+    line-height: 1.25;
+    margin: 0 0 0.35rem;
+    letter-spacing: -0.01em;
+  }
+
+  h2 {
+    color: var(--heading);
+    font-size: 1.3rem;
+    margin: 2.4rem 0 0.9rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    color: var(--heading);
+    font-size: 1.05rem;
+    margin: 1.6rem 0 0.6rem;
+  }
+
+  p { margin: 0 0 1rem; }
+
+  .meta {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin: 0 0 1.75rem;
+  }
+
+  ul, ol {
+    margin: 0 0 1rem;
+    padding-left: 1.4rem;
+  }
+
+  li { margin-bottom: 0.45rem; }
+
+  li:last-child { margin-bottom: 0; }
+
+  strong { color: var(--heading); font-weight: 600; }
+
+  a { color: var(--link); }
+  a:visited { color: var(--link-visited); }
+
+  .notice {
+    background: var(--notice-bg);
+    border: 1px solid var(--notice-border);
+    color: var(--notice-text);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 0 0 2rem;
+    font-size: 0.96rem;
+  }
+
+  .notice p { margin: 0; }
+  .notice p + p { margin-top: 0.6rem; }
+  .notice strong { color: inherit; }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin: 0 0 1.2rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 520px;
+    font-size: 0.94rem;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  thead th {
+    background: var(--table-head-bg);
+    color: var(--heading);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 2.5rem 0;
+  }
+
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  footer a { color: var(--text-muted); }
+
+  @media (max-width: 480px) {
+    body { font-size: 16px; }
+    h1 { font-size: 1.55rem; }
+    h2 { font-size: 1.18rem; }
+    .page { padding: 1.75rem 1rem 3rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <a href="./index.html">&larr; Documentos legales de GymUp</a>
+</nav>
+
+<main class="page">
+  <article>
+    <h1>Política de Privacidad de GymUp</h1>
+    <p class="meta"><strong>Última actualización:</strong> 15 de julio de 2026 &middot; <strong>Versión:</strong> 1.0</p>
+
+    <div class="notice">
+      <p>⚠️ <strong>Antes de publicar:</strong> este documento fue redactado como base sólida y específica para GymUp, pero <strong>no sustituye asesoría legal profesional</strong>. Dado que la app trata <strong>datos de salud</strong> (categoría sensible bajo la Ley 1581 de 2012 de Colombia), recomendamos que un abogado lo revise antes de publicarlo.</p>
+    </div>
+
+    <h2 id="1-quien-es-el-responsable-de-tus-datos">1. Quién es el responsable de tus datos</h2>
+    <p><strong>Responsable del tratamiento:</strong> Juan José Escobar<br>
+    <strong>Contacto:</strong> juanjoseescobar057@gmail.com &middot; <strong>Domicilio:</strong> Bogotá, Colombia</p>
+
+    <p>GymUp ("la App", "nosotros") es una aplicación de acondicionamiento físico y nutrición asistida por inteligencia artificial. Esta política explica qué información recopilamos, para qué la usamos, con quién la compartimos y qué derechos tienes sobre ella.</p>
+
+    <p>Al crear una cuenta o usar GymUp, aceptas esta Política de Privacidad y confirmas que <strong>eres mayor de 18 años</strong> (la App no está dirigida a menores de edad y no recopilamos intencionalmente datos de menores).</p>
+
+    <h2 id="2-que-informacion-recopilamos">2. Qué información recopilamos</h2>
+
+    <h3>2.1 Información de perfil</h3>
+    <p>Nombre, apodo (cómo quieres que te llame tu coach), edad, peso, altura, objetivo de entrenamiento (ganar músculo, perder grasa, rendimiento, resistencia), nivel de actividad y meta de peso (opcional).</p>
+
+    <h3>2.2 Información de salud (categoría sensible)</h3>
+    <p>Antes de generar tu plan, te hacemos un <strong>tamizaje de salud</strong> (preguntas de estilo PAR-Q+, el estándar usado por entrenadores certificados): si tienes dolor de pecho, mareos, restricciones médicas, condiciones (hipertensión, diabetes, asma, artritis, hernia discal, embarazo, cirugía reciente, etc.) o lesiones activas por zona del cuerpo.</p>
+    <p><strong>Usamos esta información EXCLUSIVAMENTE para que la IA adapte tus rutinas y consejos de forma segura</strong> (por ejemplo, evitando ejercicios que carguen una zona lesionada, o limitando la intensidad si declaraste una condición cardiaca). <strong>Nunca la usamos con fines publicitarios, no la vendemos, y no la compartimos con aseguradoras, empleadores ni terceros no autorizados.</strong></p>
+
+    <h3>2.3 Fotos que analizas con la cámara</h3>
+    <ul>
+      <li><strong>Comida y nevera:</strong> la foto se envía a nuestro proveedor de IA para el análisis nutricional y <strong>no se almacena</strong> después de generar el resultado.</li>
+      <li><strong>Análisis corporal:</strong> las fotos se procesan para generar un resultado (score, % de grasa estimado, zonas de enfoque) y <strong>no se guardan</strong> — solo se conservan los números del resultado.</li>
+      <li><strong>Fotos de transformación:</strong> estas SÍ se guardan (con tu acción explícita de tomarlas) en almacenamiento privado en la nube, para que puedas ver tu progreso. Puedes borrarlas cuando quieras.</li>
+      <li><strong>Coach de postura:</strong> la foto se envía a la IA para el análisis y no se almacena permanentemente.</li>
+    </ul>
+
+    <h3>2.4 Datos de entrenamiento y nutrición</h3>
+    <p>Series, repeticiones y pesos que registras; entrenamientos completados o abandonados; comidas registradas (nombre, macronutrientes); registros de peso corporal a lo largo del tiempo; racha, nivel, insignias y misiones.</p>
+
+    <h3>2.5 Conversaciones con el coach de IA</h3>
+    <p>Cuando chateas con tu coach, procesamos el contenido para generar la respuesta, pero <strong>no almacenamos el texto de tus mensajes a largo plazo</strong>. En su lugar, extraemos <strong>hechos duraderos y útiles</strong> (por ejemplo, "le molesta la rodilla derecha", "entrena a las 5am") en una memoria que <strong>puedes ver y borrar en cualquier momento</strong> desde el chat (ícono 🧠). Los hechos de salud tienen prioridad y se conservan hasta que indiques que ya sanaste.</p>
+
+    <h3>2.6 Datos de uso y técnicos</h3>
+    <p>Eventos de uso de la app (pantallas visitadas, funciones usadas, duración de sesión), identificador anónimo de dispositivo, información técnica (modelo, sistema operativo, versión de la app, idioma, zona horaria), y — si nos das permiso — token de notificaciones push.</p>
+
+    <h3>2.7 Información de pago</h3>
+    <p>Si te suscribes a GymUp Premium, el pago lo procesa <strong>Apple App Store o Google Play</strong> directamente: <strong>no vemos ni almacenamos tu información de tarjeta</strong>. Recibimos, a través de RevenueCat, únicamente el estado de tu suscripción (activa/vencida) para activar los beneficios Premium.</p>
+
+    <h2 id="3-para-que-usamos-tu-informacion">3. Para qué usamos tu información</h2>
+    <ul>
+      <li>Generar y adaptar tu plan de entrenamiento y nutrición de forma <strong>segura</strong>, teniendo en cuenta tu salud, edad y progreso real.</li>
+      <li>Ofrecerte un coach de IA personalizado que recuerda tu contexto.</li>
+      <li>Analizar tus fotos de comida, nevera, cuerpo y postura para darte retroalimentación.</li>
+      <li>Gamificación: rachas, niveles, insignias, misiones.</li>
+      <li>Gestionar tu suscripción Premium.</li>
+      <li>Enviarte notificaciones (si las activas) sobre tu progreso y recordatorios.</li>
+      <li>Prevenir abuso y fraude (límites de uso diario, protección de cuentas).</li>
+      <li>Mejorar la app mediante analítica de producto propia (nunca vendida ni compartida con redes publicitarias de terceros).</li>
+      <li>Cumplir obligaciones legales.</li>
+    </ul>
+
+    <h2 id="4-con-quien-compartimos-tu-informacion">4. Con quién compartimos tu información</h2>
+    <p>No vendemos tus datos. Los compartimos únicamente con proveedores que nos ayudan a operar la app (encargados del tratamiento), bajo contrato de confidencialidad:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Proveedor</th>
+            <th>Para qué</th>
+            <th>Datos que recibe</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Supabase</strong> (base de datos, autenticación, almacenamiento)</td>
+            <td>Alojar toda tu información</td>
+            <td>Todo lo descrito arriba</td>
+          </tr>
+          <tr>
+            <td><strong>OpenAI</strong> (a través de nuestro servidor, nunca directo desde tu dispositivo)</td>
+            <td>Analizar tus fotos y responder en el chat</td>
+            <td>Fotos de comida/nevera/cuerpo/postura, mensajes del chat, tu ficha de contexto (sin identificarte por nombre real ante ellos más allá de lo necesario)</td>
+          </tr>
+          <tr>
+            <td><strong>RevenueCat</strong></td>
+            <td>Gestionar tu suscripción</td>
+            <td>Estado de la suscripción, identificador de usuario</td>
+          </tr>
+          <tr>
+            <td><strong>Expo (EAS)</strong></td>
+            <td>Enviar notificaciones push</td>
+            <td>Token de notificaciones</td>
+          </tr>
+          <tr>
+            <td><strong>Apple / Google</strong></td>
+            <td>Distribución de la app y cobro de suscripciones</td>
+            <td>Lo que ya compartes con ellos al usar sus tiendas</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Algunos de estos proveedores operan servidores fuera de Colombia (por ejemplo, en Estados Unidos). Al aceptar esta política, autorizas esta <strong>transferencia internacional de datos</strong>, necesaria para el funcionamiento del servicio.</p>
+
+    <h2 id="5-cuanto-tiempo-conservamos-tu-informacion">5. Cuánto tiempo conservamos tu información</h2>
+    <p>Mientras tu cuenta esté activa. Si eliminas tu cuenta desde Perfil → Eliminar cuenta, <strong>borramos permanentemente</strong> tu perfil, historial de entrenamiento, comidas, pesos, fotos, memoria del coach, perfil de salud y tu identidad de autenticación — de forma irreversible y en un plazo razonable.</p>
+
+    <h2 id="6-tus-derechos">6. Tus derechos (Ley 1581 de 2012 — Habeas Data)</h2>
+    <p>Como titular de tus datos personales, tienes derecho a:</p>
+    <ul>
+      <li><strong>Conocer, actualizar y rectificar</strong> tu información (Perfil → Editar).</li>
+      <li><strong>Solicitar prueba de la autorización</strong> otorgada.</li>
+      <li><strong>Ser informado</strong> sobre el uso de tus datos.</li>
+      <li><strong>Revocar la autorización y/o solicitar la supresión</strong> de tus datos, salvo que exista un deber legal de conservarlos.</li>
+      <li><strong>Acceder gratuitamente</strong> a tus datos.</li>
+      <li><strong>Presentar quejas</strong> ante la Superintendencia de Industria y Comercio (SIC) si consideras que hemos vulnerado tus derechos.</li>
+    </ul>
+    <p>Para ejercer estos derechos, escríbenos a <strong>juanjoseescobar057@gmail.com</strong> o usa las opciones dentro de la app (Perfil → Eliminar cuenta para supresión total).</p>
+
+    <h2 id="7-seguridad">7. Seguridad</h2>
+    <p>Tu información viaja cifrada (HTTPS) y se almacena con controles de acceso a nivel de fila (cada usuario solo puede ver y modificar sus propios datos). El token de tu sesión se guarda cifrado en el almacenamiento seguro del sistema operativo (Keychain/Keystore), no en texto plano. Ningún sistema es 100% invulnerable, pero trabajamos con estándares de la industria para proteger tu información.</p>
+
+    <h2 id="8-menores-de-edad">8. Menores de edad</h2>
+    <p>GymUp es exclusivamente para personas <strong>mayores de 18 años</strong>. No recopilamos intencionalmente información de menores. Si detectamos una cuenta de un menor, la eliminaremos.</p>
+
+    <h2 id="9-aviso-medico">9. Aviso médico</h2>
+    <p>GymUp ofrece orientación generada por inteligencia artificial con fines informativos y de motivación. <strong>No es consejo médico, nutricional ni psicológico profesional, y no reemplaza la evaluación de un profesional de la salud.</strong> Consulta a tu médico antes de empezar cualquier plan de ejercicio o dieta, especialmente si declaraste alguna condición de salud.</p>
+
+    <h2 id="10-cambios-a-esta-politica">10. Cambios a esta política</h2>
+    <p>Podemos actualizar esta política. Si los cambios son importantes, te avisaremos dentro de la app o por correo. La fecha de "Última actualización" arriba refleja la versión vigente.</p>
+
+    <h2 id="11-contacto">11. Contacto</h2>
+    <p>¿Preguntas sobre tu privacidad? Escríbenos a <strong>juanjoseescobar057@gmail.com</strong>.</p>
+  </article>
+
+  <footer>
+    <p>GymUp &middot; <a href="./terms-of-service.html">Términos de Uso</a> &middot; <a href="./index.html">Documentos legales</a></p>
+  </footer>
+</main>
+
+</body>
+</html>

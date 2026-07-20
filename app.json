@@ -10,7 +10,7 @@
     "backgroundColor": "#0e0e10",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.gymup.app",
+      "bundleIdentifier": "com.juanescobar.gymup",
       "infoPlist": {
         "NSCameraUsageDescription": "GymUp necesita la cámara para analizar tus comidas y corregir tu postura.",
         "NSPhotoLibraryUsageDescription": "GymUp necesita acceso a tus fotos."
@@ -21,7 +21,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0e0e10"
       },
-      "package": "com.gymup.app",
+      "package": "com.juanescobar.gymup",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE"

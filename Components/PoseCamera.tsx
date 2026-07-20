@@ -9,7 +9,7 @@
 // ⚠️ Requiere el modelo en assets/models/movenet.tflite.
 // ─────────────────────────────────────────────────────────
 
-import { useEffect, useMemo, useRef } from 'react';
+import { Component, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import {
   Camera, useCameraDevice, useCameraPermission, useFrameProcessor,
@@ -19,6 +19,8 @@ import { useResizePlugin } from 'vision-camera-resize-plugin';
 import { Worklets } from 'react-native-worklets-core';
 import { movenetToPose } from '../lib/pose/detector';
 import type { Pose } from '../lib/pose/types';
+import { markPoseCameraUnsupported } from '../lib/pose/cameraSupport';
+import { captureError } from '../lib/monitoring';
 import { Colors, Fonts, Radii } from '../constants/theme';
 
 type Props = {
@@ -30,7 +32,44 @@ type Props = {
 // MoveNet SinglePose Lightning: entrada 192×192×3 uint8, salida 17×[y,x,score].
 const INPUT = 192;
 
-export default function PoseCamera({ active, onPose, onUnavailable }: Props) {
+// Los fallos NATIVOS de vision-camera (ej. "Cannot get hybrid property", que
+// varía por dispositivo/fabricante) explotan DURANTE el render — un try/catch
+// o el useEffect de abajo no los alcanza; solo un Error Boundary los atrapa.
+// Al atraparlo: se reporta y se dispara onUnavailable para que live-coach
+// caiga al modo simulado en vez de tumbar la pantalla completa.
+class CameraErrorBoundary extends Component<
+  { onCrash: (reason: string) => void; children: ReactNode },
+  { crashed: boolean }
+> {
+  state = { crashed: false };
+
+  static getDerivedStateFromError() {
+    return { crashed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    captureError(error, { component: 'PoseCamera', kind: 'camera_render_crash' });
+    // Este dispositivo ya demostró que su cámara truena: no reintentar en
+    // próximas sesiones (hasta la siguiente versión de la app).
+    markPoseCameraUnsupported();
+    this.props.onCrash('La cámara falló en este dispositivo.');
+  }
+
+  render() {
+    if (this.state.crashed) return null; // live-coach ya cambió a modo simulado
+    return this.props.children;
+  }
+}
+
+export default function PoseCamera(props: Props) {
+  return (
+    <CameraErrorBoundary onCrash={props.onUnavailable}>
+      <PoseCameraInner {...props} />
+    </CameraErrorBoundary>
+  );
+}
+
+function PoseCameraInner({ active, onPose, onUnavailable }: Props) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const model = useTensorflowModel(require('../assets/models/movenet.tflite'), []);

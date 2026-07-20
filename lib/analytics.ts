@@ -22,6 +22,7 @@
 import { AppState, Dimensions, Platform, Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import * as Linking from 'expo-linking';
 import { supabase } from './supabase';
 import { shouldRotateSession, makeId, pickAcquisitionParams } from './analyticsMath';
@@ -71,10 +72,28 @@ function deviceContext(): Record<string, unknown> {
     locale = ro.locale ?? 'unknown';
     timezone = ro.timeZone ?? 'unknown';
   } catch {}
+  // Identidad del hardware: responde "¿desde qué celulares entra la gente?"
+  // (segmentar crashes de cámara, rendimiento del modelo de pose, gama del
+  // parque instalado). expo-device expone constantes síncronas; try/catch por
+  // si el módulo nativo no está en un build viejo.
+  let brand: string | null = null, model: string | null = null;
+  let device_year: number | null = null, total_memory_gb: number | null = null;
+  try {
+    brand = Device.brand;                 // ej. "samsung"
+    model = Device.modelName;             // ej. "SM-A515F" / "Galaxy A51"
+    device_year = Device.deviceYearClass; // gama aproximada del equipo
+    total_memory_gb = Device.totalMemory != null
+      ? Math.round(Device.totalMemory / (1024 ** 3))
+      : null;
+  } catch {}
   return {
     platform: Platform.OS,
     os_version: String(Platform.Version),
     app_version: Constants.expoConfig?.version ?? 'dev',
+    brand,
+    model,
+    device_year,
+    total_memory_gb,
     screen_w: Math.round(width),
     screen_h: Math.round(height),
     dark_mode: Appearance.getColorScheme() === 'dark',

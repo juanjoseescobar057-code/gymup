@@ -4,116 +4,152 @@ Orden real, paso a paso. Cada paso dice **quién lo hace**: 🤖 (yo, ya en este
 👤 (tú, porque requiere una cuenta/credencial externa a la que no tengo acceso).
 🔴 = bloqueante para publicar. 🟡 = recomendado pero no bloqueante.
 
-## Paso 0 · 🔴 Respaldo del código (👤 confirmar, 🤖 ejecutar)
-Este repo tiene **un solo commit** ("Initial commit", el scaffold de Expo) — las últimas
-~38 funcionalidades construidas en esta conversación **nunca se han guardado en git**.
-Todo vive solo en este disco. Antes de tocar nada más:
-1. Confirmarme que puedo hacer el commit (pregunto en el chat, no lo hago sin tu ok).
-2. Recomendado: crear un repositorio en GitHub (privado) y subirlo — si el disco falla,
-   pierdes meses de trabajo sin un remoto.
+## Paso 0 · ✅ Respaldo del código — HECHO
+Repo en GitHub (`juanjoseescobar057-code/gymup`), historial real con commits por
+feature/fix. Pendiente de tu lado: confirmar que el último `git push` llegó — mi
+entorno no logra sincronizar con GitHub (ni `fetch` me funciona), así que no puedo
+verificarlo por mi cuenta. Corre `git log origin/master -1` o revisa en github.com.
 
-## Paso 1 · 🔴 Cuenta de Supabase correcta (👤 bloqueante)
-Tu `.env.local` apunta al proyecto `rpoqsanpyciecybpaget`, pero la sesión de la CLI de
-Supabase en esta máquina solo ve otros dos proyectos tuyos (`styleai`, `letraviva`) — no
-GymUp. Necesito que confirmes: ¿con qué cuenta/correo de Supabase se creó el proyecto de
-GymUp? Puede ser una cuenta distinta, o el proyecto pudo eliminarse por inactividad
-(Supabase borra proyectos free-tier tras mucho tiempo pausados). Una vez lo confirmes:
-```bash
-supabase login              # con la cuenta correcta (abre el navegador)
-supabase link --project-ref rpoqsanpyciecybpaget
-```
-Si el proyecto ya no existe, hay que crear uno nuevo y actualizar `EXPO_PUBLIC_SUPABASE_URL`
-y `EXPO_PUBLIC_SUPABASE_ANON_KEY` en `.env.local`.
+## Paso 1 · ✅ Cuenta de Supabase correcta — HECHO
+Proyecto `rpoqsanpyciecybpaget` confirmado y enlazado.
 
-## Paso 2 · 🔴 Base de datos (👤 en el dashboard, o 🤖 por CLI una vez enlazado)
-1. Si el proyecto está **Paused**, dale **Restore** en supabase.com.
-2. SQL Editor → pega y ejecuta **todo** `supabase/setup.sql` (idempotente, fuente única
-   de verdad — incluye todas las tablas: perfil, planes, comidas, series, salud,
-   memoria del coach, telemetría de IA, analítica conductual, vistas de operador).
-3. Authentication → Providers → activa **Anonymous sign-ins**.
+## Paso 2 · ✅ Base de datos — HECHO
+`setup.sql` corrido y verificado (incluye `rc_webhook_events` y `ai_content_reports`,
+agregadas en el hardening de esta sesión). Anonymous sign-ins activo.
 
-## Paso 3 · 🔴 Proxy de IA + Edge Functions (🤖 una vez enlazado el proyecto)
-```bash
-supabase secrets set OPENAI_API_KEY=sk-...NUEVA...      # ver Paso 4
-supabase functions deploy ai-proxy
-supabase functions deploy delete-account
-supabase functions deploy send-reactivation
-supabase secrets set RC_WEBHOOK_SECRET=<aleatorio-largo>
-supabase functions deploy rc-webhook --no-verify-jwt
-```
-Luego en `.env.local` (y en las variables de entorno del build de EAS):
-```
-EXPO_PUBLIC_AI_PROXY_URL=https://<REF>.functions.supabase.co/ai-proxy
-```
-Y **elimina** `EXPO_PUBLIC_OPENAI_API_KEY` del entorno de producción.
+## Paso 3 · ✅ Proxy de IA + Edge Functions — HECHO
+Las 4 funciones desplegadas (`ai-proxy`, `delete-account`, `send-reactivation`,
+`rc-webhook`). 🟡 **Sin confirmar todavía:** que `OPENAI_API_KEY` esté puesto en
+`supabase secrets` — la app devolvió 500 "IA no configurada en el servidor" en la
+última prueba. Verifica con `supabase secrets list` (o el Dashboard → Edge Functions →
+Secrets) y confírmame.
 
-## Paso 4 · 🔴 Rotar la key de OpenAI (👤 obligatorio)
-La key en `.env.local` viajó en builds de desarrollo. En platform.openai.com:
-**revócala y crea una nueva**. Úsala SOLO en `supabase secrets` (Paso 3), nunca en el
-cliente.
+## Paso 4 · ✅ Rotar la key de OpenAI — HECHO
+Key vieja revocada. La variable `EXPO_PUBLIC_OPENAI_API_KEY` (cliente) fue **retirada**
+de `.env.local` — el proxy cubre toda la funcionalidad, no hace falta ese fallback.
 
-## Paso 5 · 🔴 Identidad visual: ícono y splash (👤 bloqueante de diseño)
-**Descubrimiento importante:** `assets/icon.png`, `adaptive-icon.png` y
-`splash-icon.png` son los **placeholders genéricos de Expo** (el círculo gris de
-ejemplo) — nunca se reemplazaron con una marca real de GymUp. Ya conecté estos archivos
-en `app.json` (ícono, ícono adaptativo de Android, splash screen), así que en cuanto
-reemplaces esos 3 archivos por tu diseño real (mismos nombres, 1024×1024 px sin
-transparencia para `icon.png`, con zona segura para `adaptive-icon.png`), todo
-funciona sin tocar código. Esto lo necesitas antes de someter a las tiendas — un ícono
-genérico es motivo de fricción en revisión y de mala primera impresión.
+## Paso 5 · ✅ Identidad visual: ícono y splash — HECHO
+Logo real de GymUp (mancuerna + flecha + pulso, monograma G+U, verde eléctrico
+`#c8ff3e` sobre negro `#0e0e10`) en `assets/icon.png`, `adaptive-icon.png` y
+`splash-icon.png`. Necesita un **build nuevo** (no alcanza con recargar Metro — el
+ícono/splash se hornean en el binario nativo) para verse puesto en el dispositivo.
 
 ## Paso 6 · 🟡 Notificaciones push reales (👤 requiere cuenta de Firebase)
-Google descontinuó la API legacy de FCM: Android necesita credenciales **FCM v1**
-(cuenta de servicio de Firebase) subidas a EAS para que el push funcione en
-producción:
-1. Crea un proyecto en Firebase Console (gratis) con el mismo `package`
-   (`com.gymup.app`).
-2. Genera una cuenta de servicio (Configuración del proyecto → Cuentas de servicio →
-   Generar clave privada).
-3. `eas credentials` → Android → Push Notifications: FCM V1 service account → sube el
-   JSON.
-Sin esto, `registerForPushNotifications` seguirá funcionando en desarrollo pero el push
-remoto fallará en producción — no bloquea publicar, sí bloquea que la reactivación
-funcione.
+`lib/push.ts` usa `Notifications.getExpoPushTokenAsync({ projectId })` (servicio Expo
+Push, no FCM directo). Aún así, EAS necesita las credenciales **FCM v1** para entregar
+a dispositivos Android — Google eliminó las server keys legacy en junio 2024.
 
-## Paso 7 · 🔴 Legal — Privacidad y Términos (🤖 redactados, 👤 revisar y hospedar)
-Ya escribí ambos documentos, específicos a lo que GymUp hace (incluye tratamiento de
-**datos de salud**, procesamiento por OpenAI, pagos por RevenueCat/tiendas, derecho de
-supresión):
-- [`docs/legal/privacy-policy.md`](docs/legal/privacy-policy.md)
-- [`docs/legal/terms-of-service.md`](docs/legal/terms-of-service.md)
+1. **Crear/vincular el proyecto Firebase**: [console.firebase.google.com](https://console.firebase.google.com)
+   → Agregar proyecto → Agregar app → Android. Package name **`com.gymup.app`** (debe
+   coincidir exacto con `app.json → expo.android.package`).
+2. **Habilitar Cloud Messaging API (V1)**: Configuración del proyecto → Cloud
+   Messaging. Si aparece deshabilitada, actívala en Google Cloud Console (puede tardar
+   unos minutos en propagar).
+3. **Descargar `google-services.json`**: Configuración del proyecto → General → Tus
+   apps → Descargar. Colócalo en `C:\GymUp\google-services.json` (seguro de commitear,
+   solo IDs públicos). Falta agregar en `app.json`:
+   ```json
+   "android": { "package": "com.gymup.app", "googleServicesFile": "./google-services.json" }
+   ```
+   (hoy `app.json` **no tiene** este campo — agrégalo cuando tengas el archivo).
+4. **Generar la service account key**: Configuración del proyecto → Cuentas de
+   servicio → Generar nueva clave privada. Guarda el JSON fuera del repo (privado).
+5. **Subir a EAS**: `eas credentials` → Android → production → Google Service Account
+   → "Set up a Google Service Account Key for Push Notifications (FCM V1)" → Upload a
+   new service account key → ruta al JSON del paso 4.
+6. **Verificar**: repetir `eas credentials` y confirmar que aparece configurada.
+   Rebuild (`eas build --platform android --profile production`) — el
+   `google-services.json` nuevo solo se aplica en un build nuevo, no en OTA update.
+   Prueba con el [Push Notification Tool de Expo](https://expo.dev/notifications)
+   usando un token real de la tabla `push_tokens`.
 
-**Antes de usarlos:** reemplaza los `[PLACEHOLDER]` (tu nombre/empresa, email de
-contacto, ciudad) y — dado que tratas datos de salud (categoría sensible bajo la Ley
-1581 de 2012) — pide que un abogado los revise. Luego necesitas una **URL pública**
-para poner en las tiendas: opciones simples y gratis:
-- GitHub Pages (si haces público el repo o una carpeta `docs/`, lo activo por ti).
-- Notion público / una página simple en tu dominio si tienes uno.
+Sin esto, el push sigue funcionando en desarrollo pero fallará en producción — no
+bloquea publicar, sí bloquea que la reactivación funcione.
 
-## Paso 8 · 🟡 Monitoreo de errores (👤 crear cuenta, 🤖 conectar)
-```bash
-npx expo install @sentry/react-native
-```
-Define `EXPO_PUBLIC_SENTRY_DSN` y descomenta las líneas `// SENTRY` en
-`lib/monitoring.ts` (ya preparado para esto).
+## Paso 7 · 🟡 Legal — Privacidad y Términos (✅ redactados y hosteables, 👤 publicar)
+Documentos completos, sin placeholders (responsable: Juan José Escobar,
+juanjoseescobar057@gmail.com, Bogotá, Colombia), y ya convertidos a HTML autocontenido
+listo para publicar:
+- [`docs/legal/privacy-policy.html`](docs/legal/privacy-policy.html)
+- [`docs/legal/terms-of-service.html`](docs/legal/terms-of-service.html)
+- [`docs/legal/index.html`](docs/legal/index.html) (landing que enlaza ambos)
 
-## Paso 9 · Monetización — RevenueCat (👤 cuentas externas, código ya listo)
-El código (`lib/purchases.ts` + `supabase/functions/rc-webhook`) ya está implementado.
-Ver [`PRICING.md`](PRICING.md) para el paso a paso completo: cuentas de desarrollador
-(Play Console $25 único pago / App Store $99 al año, inscribirse al **Small Business
-Program** por 15% de comisión en vez de 30%), crear los productos
-`gymup_premium_monthly`/`yearly`, cuenta RevenueCat con el entitlement `premium`, y las
-keys `EXPO_PUBLIC_RC_API_KEY_ANDROID`/`IOS` en `.env`. **Requiere el mismo rebuild
-nativo** de este paquete — agrúpalo con el Paso 10.
+**Para publicarlos (GitHub Pages):**
+1. `git push` estos 3 archivos a `main`.
+2. GitHub → repo `gymup` → **Settings → Pages** → Source: **Deploy from a branch** →
+   rama `main`, carpeta **/docs** → **Save**.
+3. URLs públicas quedarían en:
+   - `https://juanjoseescobar057-code.github.io/gymup/legal/privacy-policy.html`
+   - `https://juanjoseescobar057-code.github.io/gymup/legal/terms-of-service.html`
+
+**Importante:** GitHub Pages gratis solo funciona con el repo **público**. Si `gymup`
+es privado, necesitas un plan de pago de GitHub para Pages, o hacer público el repo (o
+al menos esta carpeta) antes de someter a Play Store. Verifica la visibilidad actual.
+
+Recomendado (no bloqueante): que un abogado revise ambos documentos — tratan datos de
+salud, categoría sensible bajo la Ley 1581 de 2012.
+
+## Paso 8 · ✅ Monitoreo de errores (Sentry) — HECHO
+`@sentry/react-native` instalado, DSN configurado, `lib/monitoring.ts` conectado de
+verdad (con carga perezosa segura — el módulo nativo de Sentry se resuelve en el
+import de nivel superior del paquete y necesita el build nativo para funcionar del
+todo; hasta el próximo build queda en modo logger local sin romper nada).
+
+## Paso 9 · 🔴 Monetización — RevenueCat (👤 cuentas externas, código ya listo)
+El código (`lib/purchases.ts` + `supabase/functions/rc-webhook`) ya está implementado
+y endurecido (idempotencia, orden de eventos, TRANSFER). Sigue el orden exacto — la app
+y el webhook ya están escritos para estos nombres literales, no los cambies:
+
+1. **Cuenta y proyecto**: [revenuecat.com](https://www.revenuecat.com) → crear cuenta
+   → **+ Create new project** → `GymUp`. RevenueCat usa el modelo de **Projects**
+   (reemplazó el viejo dropdown de "Apps").
+2. **Agregar la app Android**: dentro del proyecto → Apps → + New → Android.
+3. **Credenciales de Google Play**: en Google Cloud Console habilitar *Google Play
+   Developer API*, *Google Play Android Developer Reporting API* y *Cloud Pub/Sub
+   API*; crear un service account, darle acceso en Play Console (Users and
+   permissions), y subir su JSON en RevenueCat → Project Settings → [app Android] →
+   Google Play App Settings → Service account credentials. Puede tardar hasta 36h en
+   activarse ("Invalid Play Store credentials" mientras tanto es normal.)
+4. **Entitlement**: Product catalog → Entitlements → + New → identificador exacto
+   `premium` (coincide con `PREMIUM_ENTITLEMENT` en `lib/purchases.ts`).
+5. **Productos**: primero créalos como suscripciones en Play Console con estos IDs
+   exactos (el código matchea con `id === planId || id.startsWith(planId + ':')`, así
+   que base plans con sufijo `:tipo` también funcionan):
+   ```
+   gymup_premium_monthly
+   gymup_premium_yearly
+   ```
+   Luego en RevenueCat: Product catalog → Products → + New → vincula ambos con esos
+   mismos IDs, adjunta cada uno al entitlement `premium`.
+6. **Offering**: Offerings → + New → identificador `default` → agrega los dos paquetes
+   (monthly/annual) → márcalo **Current**.
+7. **Webhook**: Project → Integrations → Webhooks → + New:
+   - URL: `https://<tu-proyecto>.supabase.co/functions/v1/rc-webhook`
+   - Header Authorization: `Bearer <RC_WEBHOOK_SECRET>` (mismo valor que pusiste con
+     `supabase secrets set RC_WEBHOOK_SECRET=...`)
+   - Eventos: deja todos habilitados, `rc-webhook/index.ts` ya filtra los que no maneja.
+8. **Env vars**: Project → [app Android] → API Keys → copia la "Public app-specific
+   API key" (empieza con `goog_`):
+   ```
+   EXPO_PUBLIC_RC_API_KEY_ANDROID=goog_xxxxx
+   ```
+
+*Nota de UI:* RevenueCat rediseñó la navegación en 2025 — las API keys ya no están en
+un panel global, viven dentro de Project → Platforms/Apps.
+
+Ver también [`PRICING.md`](PRICING.md) para cuentas de desarrollador (Play Console $25
+único pago, inscribirse al Small Business Program por 15% de comisión en vez de 30%).
+**Requiere el mismo rebuild nativo** de este paquete — agrúpalo con el Paso 10.
 
 ## Paso 10 · 🔴 Build de producción (🤖 puedo ejecutarlo, ya autenticado como `juanesco22`)
-Este build incluye TODOS los módulos nativos nuevos (SecureStore, RevenueCat, el modelo
-de pose): es un **rebuild real**, no solo recargar Metro.
+Este build incluye TODOS los módulos nativos (SecureStore, RevenueCat, Sentry, el
+modelo de pose, `react-native-get-random-values`): es un **rebuild real**, no solo
+recargar Metro.
 ```bash
 eas build --profile production --platform android    # AAB
 ```
 La primera vez EAS puede preguntar por un keystore de Android — puede generarlo
-automáticamente. Cuando confirmes los pasos anteriores (sobre todo 1-4), lo lanzo.
+automáticamente. Cuando confirmes los pasos anteriores (sobre todo 6 y 9), lo lanzo.
 
 ## Paso 11 · 🔴 Ficha en las tiendas (👤 obligatorio)
 - **Google Play → Data Safety (Seguridad de los datos):** declara explícitamente que
@@ -142,9 +178,13 @@ de tipos, bundle exporta limpio con 1684 módulos.)
 ## Estado real ahora mismo
 - ✅ Código: proxy con entitlement por feature + topes premium, borrado completo,
   RLS con `WITH CHECK`, `is_premium` blindada por columna, pagos (`purchases.ts` +
-  `rc-webhook`) listos, sesión ahora cifrada en Keychain/Keystore (`LargeSecureStore`),
-  ícono/splash conectados en `app.json`, legales redactados.
-- 🔴 Bloqueantes que solo tú puedes resolver: cuenta de Supabase correcta (Paso 1),
-  rotar la key de OpenAI (Paso 4), diseño real de ícono/splash (Paso 5), completar y
-  hospedar los legales (Paso 7), cuentas de tienda + RevenueCat (Paso 9).
-- 🟡 Recomendado no bloqueante: push FCM v1 (Paso 6), Sentry (Paso 8).
+  `rc-webhook` endurecido con idempotencia/orden/TRANSFER) listos, sesión cifrada en
+  Keychain/Keystore, fetch nativo (no `whatwg-fetch`), manejo de error de red robusto,
+  reporte de contenido de IA + disclosure de cámara (compliance Google Play), copy de
+  postura sin lenguaje médico, Sentry conectado, ícono/splash reales conectados en
+  `app.json`, legales redactados y ya en HTML listo para publicar.
+- 🔴 Bloqueantes que solo tú puedes resolver: confirmar `OPENAI_API_KEY` en el servidor
+  (Paso 3), confirmar `git push` (Paso 0), cuentas de tienda + RevenueCat (Paso 9),
+  build de producción una vez lo anterior esté listo (Paso 10).
+- 🟡 Recomendado no bloqueante: push FCM v1 (Paso 6), publicar los legales en GitHub
+  Pages y confirmar visibilidad del repo (Paso 7), revisión de abogado.

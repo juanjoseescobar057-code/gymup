@@ -15,6 +15,7 @@ import PoseCamera from '../Components/PoseCamera';
 import { usePoseStream } from '../lib/pose/usePoseStream';
 import { getPoseExercise } from '../lib/pose/exercises';
 import { initRepState, updateReps, type RepState, type RepPhase } from '../lib/pose/repCounter';
+import { isPoseCameraMarkedUnsupported } from '../lib/pose/cameraSupport';
 import type { FormCue, Pose } from '../lib/pose/types';
 import { speak, setVoiceEnabled } from '../lib/voice';
 import { saveSetLogs } from '../lib/setLogs';
@@ -91,13 +92,16 @@ export default function LiveCoachScreen() {
     }
   }, [pose, active, exId]);
 
-  function start() {
+  async function start() {
     repRef.current = initRepState();
     lastCueRef.current = '';
     minAngleRef.current = 999;
     setReps(0);
     setCues([]);
-    setCamUnavailable(false); // reintentar la cámara real en cada sesión
+    // Si este dispositivo ya demostró que su cámara truena (crash nativo en
+    // una sesión anterior), ir DIRECTO al modo simulado — sin reintento, sin
+    // error. Tras actualizar la app se reintenta una vez (ver cameraSupport).
+    setCamUnavailable(await isPoseCameraMarkedUnsupported());
     setActive(true);
     setVoiceEnabled(voiceOn);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -176,7 +180,9 @@ export default function LiveCoachScreen() {
         {active && camUnavailable && (
           <View style={s.previewBanner}>
             <Text style={s.previewTxt}>
-              👀 Modo simulado (cámara o modelo no disponibles). Coloca el modelo real en assets/models/ y reconstruye para usar la cámara.
+              {__DEV__
+                ? '👀 Modo simulado (cámara o modelo no disponibles). Coloca el modelo real en assets/models/ y reconstruye para usar la cámara.'
+                : '👀 Modo demostración — la cámara no está disponible en este dispositivo, las reps mostradas son de ejemplo.'}
             </Text>
           </View>
         )}

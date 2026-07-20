@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documentos legales de GymUp</title>
+<meta name="description" content="Enlaces a la Política de Privacidad y los Términos de Uso de GymUp.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --text: #1a1d21;
+    --text-muted: #52555a;
+    --heading: #101214;
+    --border: #e2e4e8;
+    --card-bg: #f5f6f8;
+    --link: #2454b8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --text: #e7e9ec;
+      --text-muted: #a9adb4;
+      --heading: #f5f6f8;
+      --border: #33373f;
+      --card-bg: #1c1f24;
+      --link: #7fb0ff;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #14161a;
+    --text: #e7e9ec;
+    --text-muted: #a9adb4;
+    --heading: #f5f6f8;
+    --border: #33373f;
+    --card-bg: #1c1f24;
+    --link: #7fb0ff;
+  }
+
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --text: #1a1d21;
+    --text-muted: #52555a;
+    --heading: #101214;
+    --border: #e2e4e8;
+    --card-bg: #f5f6f8;
+    --link: #2454b8;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    line-height: 1.6;
+    font-size: 17px;
+  }
+
+  .page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 3.5rem 1.25rem 4rem;
+  }
+
+  h1 {
+    color: var(--heading);
+    font-size: 1.75rem;
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.01em;
+  }
+
+  p.lead {
+    color: var(--text-muted);
+    margin: 0 0 2.2rem;
+  }
+
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .card {
+    display: block;
+    padding: 1.1rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card-bg);
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .card:hover {
+    border-color: var(--link);
+  }
+
+  .card-title {
+    color: var(--heading);
+    font-weight: 600;
+    font-size: 1.05rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .card-desc {
+    color: var(--text-muted);
+    font-size: 0.94rem;
+  }
+
+  .arrow {
+    color: var(--link);
+  }
+
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+
+  footer a { color: var(--link); }
+
+  @media (max-width: 480px) {
+    .page { padding: 2.25rem 1rem 3rem; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>Documentos legales de GymUp</h1>
+  <p class="lead">Política de Privacidad y Términos de Uso de la aplicación GymUp.</p>
+
+  <div class="card-list">
+    <a class="card" href="./privacy-policy.html">
+      <div class="card-title">Política de Privacidad <span class="arrow">&rarr;</span></div>
+      <div class="card-desc">Qué información recopilamos, para qué la usamos y tus derechos como titular de datos.</div>
+    </a>
+    <a class="card" href="./terms-of-service.html">
+      <div class="card-title">Términos de Uso <span class="arrow">&rarr;</span></div>
+      <div class="card-desc">Condiciones de uso de la app, suscripción Premium, asunción de riesgo y ley aplicable.</div>
+    </a>
+  </div>
+
+  <footer>
+    <p>GymUp &middot; Contacto: <a href="mailto:juanjoseescobar057@gmail.com">juanjoseescobar057@gmail.com</a> &middot; Bogotá, Colombia</p>
+  </footer>
+</main>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, Alert, Image,
@@ -15,8 +15,9 @@ import { canUseFeature } from '../../lib/subscription';
 import { track } from '../../lib/analytics';
 import { loadHealthSafe } from '../../lib/health';
 import { healthToPrompt, HEALTH_UNKNOWN_DIRECTIVE } from '../../lib/healthMath';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import ReportContentButton from '../../Components/ReportContentButton';
+import { isPoseCameraMarkedUnsupported } from '../../lib/pose/cameraSupport';
 import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
 
 const EXERCISES = [
@@ -165,6 +166,15 @@ export default function CoachScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [result, setResult] = useState<PostureResult | null>(null);
   const [history, setHistory] = useState<{ score: number; exercise: string; time: string }[]>([]);
+  // Coach en vivo: oculto en dispositivos donde la cámara de pose ya demostró
+  // fallar (crash nativo en sesión anterior) — mostrar un modo demo ahí solo
+  // hace ruido. Se re-chequea al enfocar el tab (la marca ocurre en otra ruta).
+  const [liveCoachAvailable, setLiveCoachAvailable] = useState(true);
+  useFocusEffect(useCallback(() => {
+    isPoseCameraMarkedUnsupported()
+      .then((unsupported) => setLiveCoachAvailable(!unsupported))
+      .catch(() => {});
+  }, []));
 
   const todayIndex = Math.min(profile?.current_plan_day ?? 0, 6);
   const todayPlan = trainingPlan?.plan_data?.days?.[todayIndex];
@@ -266,15 +276,17 @@ export default function CoachScreen() {
 
         <ScrollView showsVerticalScrollIndicator={false}>
 
-          {/* Coach en vivo (tiempo real) */}
-          <TouchableOpacity style={s.liveCard} onPress={() => router.push('/live-coach' as any)} activeOpacity={0.85}>
-            <Text style={{ fontSize: 26 }}>🎥</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={s.liveTitle}>Coach en vivo</Text>
-              <Text style={s.liveSub}>Cuenta reps y corrige tu técnica en tiempo real</Text>
-            </View>
-            <Text style={s.liveArrow}>›</Text>
-          </TouchableOpacity>
+          {/* Coach en vivo (tiempo real) — oculto si la cámara no funciona aquí */}
+          {liveCoachAvailable && (
+            <TouchableOpacity style={s.liveCard} onPress={() => router.push('/live-coach' as any)} activeOpacity={0.85}>
+              <Text style={{ fontSize: 26 }}>🎥</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.liveTitle}>Coach en vivo</Text>
+                <Text style={s.liveSub}>Cuenta reps y corrige tu técnica en tiempo real</Text>
+              </View>
+              <Text style={s.liveArrow}>›</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Chat con el coach que te conoce */}
           <TouchableOpacity style={[s.liveCard, { marginTop: 8 }]} onPress={() => router.push('/coach-chat' as any)} activeOpacity={0.85}>

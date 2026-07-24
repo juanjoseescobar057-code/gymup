@@ -141,6 +141,29 @@ Ver también [`PRICING.md`](PRICING.md) para cuentas de desarrollador (Play Cons
 único pago, inscribirse al Small Business Program por 15% de comisión en vez de 30%).
 **Requiere el mismo rebuild nativo** de este paquete — agrúpalo con el Paso 10.
 
+## Paso 9.5 · 🔴 Variables de entorno EXPO_PUBLIC_* en EAS (👤/🤖 ya corregido)
+**Causa raíz de un crash real en producción:** `.env.local` está en `.gitignore` y no
+existe `.easignore` que lo anule, así que **ningún build en la nube de EAS tuvo nunca
+acceso a `.env.local`** — solo funcionaba corriendo con Metro local. El primer AAB de
+`production` (versionCode 3) se compiló sin `EXPO_PUBLIC_SUPABASE_URL` ni
+`EXPO_PUBLIC_SUPABASE_ANON_KEY`. Como `lib/supabase.ts` crea el cliente de Supabase de
+forma **inmediata en el import de nivel superior** (`createClient(url!, key!)`, sin
+try/catch), la app crasheaba al abrir, antes de que React montara nada y antes de que
+Sentry se inicializara — por eso el crash no aparecía ni en Sentry ni en ningún log de
+JS, solo como "se cierra inmediatamente" en el teléfono.
+
+**Fix aplicado:** subidas a EAS → ambiente `production` (`eas env:create --name X
+--value Y --environment production --visibility plaintext`):
+`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_AI_PROXY_URL`,
+`EXPO_PUBLIC_SENTRY_DSN`. Falta `EXPO_PUBLIC_RC_API_KEY_ANDROID` (RevenueCat, Paso 9) —
+ese sí tiene fallback seguro a `''` en `lib/purchases.ts`, no crashea, solo deja Premium
+sin funcionar hasta que se complete el Paso 9.
+
+**Verifica siempre así antes de un build de producción**: `eas env:list --environment
+production` — deben aparecer las 4 variables `EXPO_PUBLIC_*` de arriba (más
+`SENTRY_DISABLE_AUTO_UPLOAD`). Si agregas una variable `EXPO_PUBLIC_*` nueva al código,
+recuerda subirla también a EAS o el build de producción la va a compilar como `undefined`.
+
 ## Paso 10 · 🔴 Build de producción (🤖 puedo ejecutarlo, ya autenticado como `juanesco22`)
 Este build incluye TODOS los módulos nativos (SecureStore, RevenueCat, Sentry, el
 modelo de pose, `react-native-get-random-values`): es un **rebuild real**, no solo

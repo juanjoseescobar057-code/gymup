@@ -164,7 +164,24 @@ production` — deben aparecer las 4 variables `EXPO_PUBLIC_*` de arriba (más
 `SENTRY_DISABLE_AUTO_UPLOAD`). Si agregas una variable `EXPO_PUBLIC_*` nueva al código,
 recuerda subirla también a EAS o el build de producción la va a compilar como `undefined`.
 
-## Paso 9.7 · 🔴 ORDEN DE DESPLIEGUE DEL HARDENING (auditoría 2026-08)
+## Paso 9.7 · ✅ ORDEN DE DESPLIEGUE DEL HARDENING (auditoría 2026-08) — EJECUTADO 2026-08-01
+
+**Ejecutado en este orden y verificado:**
+1. ✅ `supabase/setup.sql` corrido en el SQL Editor. Verificado contra la base con sondas
+   de solo lectura: existe `user_profiles.sex`; la firma vieja
+   `increment_ai_usage(uuid,text,integer)` devuelve 404 (dropeada); la nueva
+   `increment_ai_usage(p_feature,p_limit)` responde con su propio error de "requiere
+   usuario autenticado"; las cuatro RPC de stats (`apply_workout_stats`,
+   `apply_activity_stats`, `claim_mission`, `buy_streak_freeze`) existen y fallan
+   cerradas sin `auth.uid()`.
+2. ✅ `ai-proxy`, `delete-account` y `send-reactivation` desplegadas. Ambas verificadas
+   vivas: responden 401 con su propio mensaje ante una petición sin sesión (no un error
+   de plataforma), lo que confirma que el código nuevo está corriendo.
+3. 🔄 Build de producción `versionCode 6` (commit `99d085a`) lanzado.
+
+**Ventana de caída observada:** entre el paso 1 y el 2 la IA devolvió 503 para todos los
+usuarios, exactamente como predice el acople descrito abajo. Si repites esta secuencia en
+el futuro, hazlo en una sola ventana y fuera de hora pico.
 
 ⚠️ **Hay acople real entre la base y las Edge Functions.** Desplegar en otro orden deja
 la app rota para todos los usuarios. Secuencia obligatoria, en una sola ventana:
@@ -244,8 +261,17 @@ de tipos, bundle exporta limpio con 1684 módulos.)
   reporte de contenido de IA + disclosure de cámara (compliance Google Play), copy de
   postura sin lenguaje médico, Sentry conectado, ícono/splash reales conectados en
   `app.json`, legales redactados y ya en HTML listo para publicar.
+- ✅ Accesibilidad (auditoría 2026-08, commit `99d085a`): 178/178 elementos interactivos
+  con nombre accesible, roles y estados; piso de texto de 11px vía `Type.micro`; SVG
+  (gráfica de peso, anillo de calorías) resumidos en texto; contador de reps y fin de
+  descanso anunciados; sin contenedores agrupados que escondan botones.
+- ✅ Despliegue del hardening completo (Paso 9.7): SQL + las tres Edge Functions.
 - 🔴 Bloqueantes que solo tú puedes resolver: confirmar `OPENAI_API_KEY` en el servidor
-  (Paso 3), confirmar `git push` (Paso 0), cuentas de tienda + RevenueCat (Paso 9),
-  build de producción una vez lo anterior esté listo (Paso 10).
+  (Paso 3), cuentas de tienda + RevenueCat (Paso 9).
+- 🟠 Huecos de servidor conocidos y ACEPTADOS por ahora (requieren SQL nuevo + build
+  nuevo, ver más abajo): los badges los sigue otorgando el cliente (`checkAndAwardBadges`)
+  y las RPC hacen unión de `p_badges` sin comprobar la condición; `claim_mission` es
+  idempotente (no se puede farmear repitiendo) pero no verifica que la meta esté cumplida.
+  El XP sí está acotado en servidor, así que el daño máximo es cosmético.
 - 🟡 Recomendado no bloqueante: push FCM v1 (Paso 6), publicar los legales en GitHub
   Pages y confirmar visibilidad del repo (Paso 7), revisión de abogado.

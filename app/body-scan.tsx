@@ -24,7 +24,7 @@ import { aiChat } from '../lib/aiClient';
 import { canUseFeature } from '../lib/subscription';
 import { track } from '../lib/analytics';
 import ReportContentButton from '../Components/ReportContentButton';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 import { AI_SAFETY_RULES, clampFatPct, MEDICAL_DISCLAIMER, BODY_SCAN_CONSENT, MIN_AGE, MIN_FAT_PCT, MAX_FAT_PCT } from '../lib/safety';
 
 const POSES = [
@@ -751,7 +751,7 @@ export default function BodyScanScreen() {
               </Text>
               {previousScan && (
                 <View style={{ marginTop: 6, gap: 2 }}>
-                  <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted }}>
+                  <Text style={{ fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted }}>
                     Anterior: {previousScan.overall_score}/100 · {fatPctRange(previousScan.estimated_fat_pct)} grasa
                   </Text>
                   {/* Diferencia descriptiva. Antes decía "↑ Progresando" / "↓ A trabajar
@@ -931,7 +931,7 @@ const s = StyleSheet.create({
   poseTabActive: { borderColor: Colors.accent, backgroundColor: Colors.bgSelected },
   poseTabDone: { borderColor: Colors.accentDark },
   poseTabEmoji: { fontSize: 20, marginBottom: 4 },
-  poseTabLabel: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted },
+  poseTabLabel: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   photoPreviewWrap: { alignItems: 'center', marginBottom: 12 },
   previewImg: { width: '100%', height: 320, borderRadius: Radii.xl },
   checkBadge: { position: 'absolute', top: 12, right: 12, backgroundColor: Colors.bg, borderRadius: 20, padding: 4 },
@@ -955,13 +955,13 @@ const s = StyleSheet.create({
   scoreDen: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted },
   scoreLevel: { fontFamily: Fonts.headingBold, fontSize: 20, color: Colors.textPrimary, marginBottom: 4 },
   scoreFat: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted },
-  scoreFatNote: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, lineHeight: 15, marginTop: 2 },
+  scoreFatNote: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, lineHeight: 15, marginTop: 2 },
   motivationCard: { backgroundColor: Colors.bgSelected, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md, marginBottom: 12 },
   aiDotRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },
-  aiDotLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent, letterSpacing: 0.8 },
+  aiDotLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, letterSpacing: 0.8 },
   motivationTxt: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textPrimary, lineHeight: 22, fontStyle: 'italic' },
-  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 8 },
+  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 8 },
   card: { backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 12 },
   listRow: { flexDirection: 'row', gap: 10, padding: Spacing.md, alignItems: 'flex-start' },
   rowBorder: { borderTopWidth: 1, borderTopColor: Colors.border },
@@ -972,14 +972,14 @@ const s = StyleSheet.create({
   zoneIcon: { fontSize: 18, marginTop: 2 },
   zoneLabel: { fontFamily: Fonts.headingSemi, fontSize: 16 },
   zoneBadge: { borderRadius: Radii.full, paddingHorizontal: 8, paddingVertical: 2 },
-  zoneBadgeTxt: { fontFamily: Fonts.bodySemi, fontSize: 9, letterSpacing: 0.4 },
+  zoneBadgeTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, letterSpacing: 0.4 },
   zoneMessage: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
   zoneFix: { marginTop: 10, borderLeftWidth: 2, paddingLeft: 10 },
-  zoneFixLabel: { fontFamily: Fonts.bodySemi, fontSize: 9, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3 },
+  zoneFixLabel: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3 },
   zoneFixTxt: { fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
   predictionCard: { backgroundColor: Colors.accentMuted, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md, marginBottom: 12 },
   predictionTxt: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textPrimary, lineHeight: 22, marginBottom: 8 },
-  predictionDisclaimer: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, lineHeight: 17 },
+  predictionDisclaimer: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, lineHeight: 17 },
   privacyNote: { backgroundColor: Colors.bgCard, borderRadius: Radii.md, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: Colors.border },
   privacyNoteTxt: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
@@ -991,5 +991,5 @@ const s = StyleSheet.create({
   checkboxOn: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   checkboxMark: { fontFamily: Fonts.headingBold, fontSize: 14, color: '#0a0a0b' },
   consentRowTxt: { flex: 1, fontFamily: Fonts.body, fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
-  disclaimerTxt: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: Spacing.md, marginBottom: 20 },
+  disclaimerTxt: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: Spacing.md, marginBottom: 20 },
 });

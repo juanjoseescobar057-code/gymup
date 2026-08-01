@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUserStore } from '../../store/userStore';
 import { FREE_LIMITS } from '../../lib/subscription';
 import { localDateKey } from '../../lib/foodLogs';
-import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
 
 const SCAN_OPTIONS = [
   {
@@ -75,7 +75,7 @@ export default function CameraScreen() {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
-        <Text style={s.headerTitle}>ESCANEAR</Text>
+        <Text style={s.headerTitle} accessibilityRole="header">ESCANEAR</Text>
         <Text style={s.headerSub}>Elige qué quieres analizar hoy</Text>
       </View>
 
@@ -86,7 +86,8 @@ export default function CameraScreen() {
           <View style={s.summaryCard}>
             <Text style={s.summaryTitle}>PROGRESO DE HOY</Text>
             <View style={s.summaryRow}>
-              <View style={s.summaryItem}>
+              <View style={s.summaryItem} accessible
+                accessibilityLabel={`Llevas ${Math.round(totals.calories)} de ${profile.daily_calories} kilocalorías hoy, ${calPct} por ciento`}>
                 <Text style={[s.summaryVal, { color: Colors.accent }]}>{Math.round(totals.calories)}</Text>
                 <Text style={s.summaryLbl}>/ {profile.daily_calories} kcal</Text>
                 <View style={s.summaryBar}>
@@ -94,7 +95,8 @@ export default function CameraScreen() {
                 </View>
               </View>
               <View style={s.summaryDivider} />
-              <View style={s.summaryItem}>
+              <View style={s.summaryItem} accessible
+                accessibilityLabel={`Llevas ${Math.round(totals.protein_g)} de ${profile.daily_protein_g} gramos de proteína hoy, ${protPct} por ciento`}>
                 <Text style={[s.summaryVal, { color: Colors.macroProtein }]}>{Math.round(totals.protein_g)}g</Text>
                 <Text style={s.summaryLbl}>/ {profile.daily_protein_g}g proteína</Text>
                 <View style={s.summaryBar}>
@@ -125,6 +127,9 @@ export default function CameraScreen() {
               style={s.optionCard}
               onPress={() => router.push(opt.route as any)}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`${opt.title}${chip ? `. ${chip.txt}` : ''}`}
+              accessibilityHint={opt.desc}
             >
               <View style={[s.optionIconWrap, { backgroundColor: opt.accent + '18' }]}>
                 <Text style={{ fontSize: 36 }}>{opt.emoji}</Text>
@@ -176,11 +181,11 @@ const s = StyleSheet.create({
   headerTitle: { fontFamily: Fonts.heading, fontSize: 36, color: Colors.textPrimary },
   headerSub: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted, marginTop: 2 },
   summaryCard: { backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 20 },
-  summaryTitle: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, letterSpacing: 0.8, marginBottom: 12 },
+  summaryTitle: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 0.8, marginBottom: 12 },
   summaryRow: { flexDirection: 'row', alignItems: 'center' },
   summaryItem: { flex: 1 },
   summaryVal: { fontFamily: Fonts.heading, fontSize: 28 },
-  summaryLbl: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, marginBottom: 6 },
+  summaryLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginBottom: 6 },
   summaryBar: { height: 4, backgroundColor: Colors.border, borderRadius: 2, overflow: 'hidden' },
   summaryBarFill: { height: '100%', borderRadius: 2 },
   summaryDivider: { width: 1, height: 48, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
@@ -189,13 +194,13 @@ const s = StyleSheet.create({
   optionTitle: { fontFamily: Fonts.headingSemi, fontSize: 18, color: Colors.textPrimary, marginBottom: 4 },
   chip: { backgroundColor: Colors.accentMuted, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.full, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 4 },
   chipWarn: { backgroundColor: 'rgba(255,157,58,0.1)', borderColor: 'rgba(255,157,58,0.3)' },
-  chipTxt: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent },
+  chipTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent },
   optionDesc: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
   optionArrow: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   optionArrowTxt: { fontFamily: Fonts.heading, fontSize: 22 },
   tipCard: { backgroundColor: Colors.bgSelected, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md },
   aiDotRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },
-  aiDotLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent, letterSpacing: 0.8 },
+  aiDotLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, letterSpacing: 0.8 },
   tipTxt: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
 });

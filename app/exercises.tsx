@@ -7,7 +7,7 @@ import {
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EXERCISE_LIBRARY, MUSCLE_GROUPS, type LibraryExercise } from '../constants/exercises';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 export default function ExercisesScreen() {
   const [filter, setFilter] = useState<string | null>(null);
@@ -18,10 +18,11 @@ export default function ExercisesScreen() {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.nav}>
-        <TouchableOpacity style={s.back} onPress={() => router.back()} accessibilityLabel="Volver">
+        <TouchableOpacity style={s.back} onPress={() => router.back()}
+          accessibilityRole="button" accessibilityLabel="Volver">
           <Text style={s.backTxt}>‹</Text>
         </TouchableOpacity>
-        <Text style={s.navTitle}>EJERCICIOS</Text>
+        <Text style={s.navTitle} accessibilityRole="header">EJERCICIOS</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -36,7 +37,10 @@ export default function ExercisesScreen() {
 
       <ScrollView contentContainerStyle={{ padding: Spacing.lg, gap: 8 }}>
         {list.map((e) => (
-          <TouchableOpacity key={e.id} style={s.row} onPress={() => setSelected(e)} activeOpacity={0.8}>
+          <TouchableOpacity key={e.id} style={s.row} onPress={() => setSelected(e)} activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`${e.name}. ${e.muscle_group}, ${e.equipment}`}
+            accessibilityHint="Abre las instrucciones del ejercicio">
             <Text style={{ fontSize: 26 }}>{e.emoji}</Text>
             <View style={{ flex: 1 }}>
               <Text style={s.rowName}>{e.name}</Text>
@@ -49,19 +53,22 @@ export default function ExercisesScreen() {
 
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
         <View style={s.overlay}>
-          <View style={s.sheet}>
+          <View style={s.sheet} accessibilityViewIsModal>
             {selected && (
               <>
-                <Text style={{ fontSize: 40, textAlign: 'center', marginBottom: 8 }}>{selected.emoji}</Text>
-                <Text style={s.sheetTitle}>{selected.name}</Text>
+                <Text style={{ fontSize: 40, textAlign: 'center', marginBottom: 8 }}
+                  importantForAccessibility="no" accessibilityElementsHidden>{selected.emoji}</Text>
+                <Text style={s.sheetTitle} accessibilityRole="header">{selected.name}</Text>
                 <Text style={s.sheetMeta}>{selected.muscle_group} · {selected.equipment}</Text>
                 {selected.instructions.map((step, i) => (
-                  <View key={i} style={s.stepRow}>
+                  <View key={i} style={s.stepRow} accessible
+                    accessibilityLabel={`Paso ${i + 1}: ${step}`}>
                     <Text style={s.stepNum}>{i + 1}</Text>
                     <Text style={s.stepTxt}>{step}</Text>
                   </View>
                 ))}
-                <TouchableOpacity style={s.closeBtn} onPress={() => setSelected(null)}>
+                <TouchableOpacity style={s.closeBtn} onPress={() => setSelected(null)}
+                  accessibilityRole="button" accessibilityLabel="Cerrar las instrucciones">
                   <Text style={s.closeTxt}>Cerrar</Text>
                 </TouchableOpacity>
               </>
@@ -75,7 +82,10 @@ export default function ExercisesScreen() {
 
 function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={onPress} style={[s.chip, active && s.chipActive]} activeOpacity={0.8}>
+    <TouchableOpacity onPress={onPress} style={[s.chip, active && s.chipActive]} activeOpacity={0.8}
+      accessibilityRole="radio"
+      accessibilityLabel={`Filtrar por ${label}`}
+      accessibilityState={{ selected: active }}>
       <Text style={[s.chipTxt, active && { color: '#0a0a0b' }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -92,7 +102,7 @@ const s = StyleSheet.create({
   chipTxt: { fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.textSecondary },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md },
   rowName: { fontFamily: Fonts.bodySemi, fontSize: 14, color: Colors.textPrimary },
-  rowMeta: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  rowMeta: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   chevron: { fontFamily: Fonts.heading, fontSize: 20, color: Colors.textMuted },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: Colors.bgCard, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: Spacing.xl, borderTopWidth: 1, borderTopColor: Colors.border },

@@ -13,7 +13,8 @@ export function KeyboardToolbar({ onDone, label = 'Listo ✓' }: Props) {
   return (
     <View style={s.bar}>
       <Text style={s.hint}>Ingresa el valor</Text>
-      <TouchableOpacity onPress={onDone} style={s.btn} activeOpacity={0.7}>
+      <TouchableOpacity onPress={onDone} style={s.btn} activeOpacity={0.7}
+        accessibilityRole="button" accessibilityLabel="Listo, cerrar el teclado">
         <Text style={s.btnTxt}>{label}</Text>
       </TouchableOpacity>
     </View>

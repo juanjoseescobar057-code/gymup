@@ -19,7 +19,7 @@ import { track } from '../lib/analytics';
 import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../lib/cameraConsent';
 import CameraDisclosureModal from '../Components/CameraDisclosureModal';
 import ReportContentButton from '../Components/ReportContentButton';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 type FoodResult = {
   meal_name: string;
@@ -436,7 +436,7 @@ export default function FoodScanScreen() {
             ].map((m) => (
               <View key={m.label} style={s.pill}>
                 <Text style={[s.pillVal, { color: m.color }]}>
-                  {m.val}<Text style={{ fontSize: 11 }}>{m.unit}</Text>
+                  {m.val}<Text style={{ fontSize: Type.micro }}>{m.unit}</Text>
                 </Text>
                 <Text style={s.pillLbl}>{m.label}</Text>
               </View>
@@ -542,7 +542,7 @@ const s = StyleSheet.create({
   backTxt: { fontFamily: Fonts.heading, fontSize: 22, color: Colors.textPrimary },
   navTitle: { fontFamily: Fonts.heading, fontSize: 18, color: Colors.textPrimary, letterSpacing: 0.8 },
   daySummary: { backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 20 },
-  daySummaryTitle: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 12 },
+  daySummaryTitle: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 12 },
   macroRow: { flexDirection: 'row', gap: 8 },
   portionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   portionLbl: { fontFamily: Fonts.bodySemi, fontSize: 13, color: Colors.textSecondary },
@@ -552,7 +552,7 @@ const s = StyleSheet.create({
   portionChipTxt: { fontFamily: Fonts.bodySemi, fontSize: 13, color: Colors.textSecondary },
   macroCell: { flex: 1, alignItems: 'center' },
   macroCellVal: { fontFamily: Fonts.headingBold, fontSize: 18 },
-  macroCellLbl: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginBottom: 4 },
+  macroCellLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginBottom: 4 },
   macroCellBar: { width: '100%', height: 3, backgroundColor: Colors.border, borderRadius: 2, overflow: 'hidden' },
   macroCellFill: { height: '100%', borderRadius: 2 },
   illustration: { height: 130, backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.lg },
@@ -572,7 +572,7 @@ const s = StyleSheet.create({
   pillsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   pill: { flex: 1, minWidth: '28%', backgroundColor: Colors.bgCard, borderRadius: Radii.md, padding: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
   pillVal: { fontFamily: Fonts.heading, fontSize: 26, lineHeight: 28 },
-  pillLbl: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  pillLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   impactCard: { backgroundColor: Colors.accentMuted, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md, marginBottom: Spacing.lg },
   impactTitle: { fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.accent, marginBottom: 10 },
   impactRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },

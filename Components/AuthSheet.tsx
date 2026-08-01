@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { linkEmailPassword, signInExisting } from '../lib/account';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 type Props = {
   visible: boolean;
@@ -62,8 +62,8 @@ export default function AuthSheet({ visible, mode, onClose, onSuccess }: Props) 
         <View style={s.overlay}>
           <TouchableWithoutFeedback onPress={() => {}}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : 'height'}>
-              <View style={s.box}>
-                <Text style={s.title}>{title}</Text>
+              <View style={s.box} accessibilityViewIsModal>
+                <Text style={s.title} accessibilityRole="header">{title}</Text>
                 <Text style={s.sub}>{subtitle}</Text>
 
                 <Text style={s.lbl}>Email</Text>
@@ -97,12 +97,14 @@ export default function AuthSheet({ visible, mode, onClose, onSuccess }: Props) 
                   disabled={busy}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel={cta}
+                  accessibilityLabel={busy ? 'Un momento, procesando' : cta}
+                  accessibilityState={{ disabled: busy, busy }}
                 >
                   <Text style={s.btnTxt}>{busy ? 'Un momento…' : cta}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => { Keyboard.dismiss(); onClose(); }} style={{ paddingVertical: 12, alignItems: 'center' }}>
+                <TouchableOpacity onPress={() => { Keyboard.dismiss(); onClose(); }} style={{ paddingVertical: 12, alignItems: 'center' }}
+                  accessibilityRole="button" accessibilityLabel="Cancelar y cerrar">
                   <Text style={s.cancel}>Cancelar</Text>
                 </TouchableOpacity>
               </View>
@@ -119,7 +121,7 @@ const s = StyleSheet.create({
   box: { backgroundColor: Colors.bgCard, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: Spacing.xl, borderTopWidth: 1, borderTopColor: Colors.border },
   title: { fontFamily: Fonts.heading, fontSize: 28, color: Colors.textPrimary, marginBottom: 6 },
   sub: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginBottom: Spacing.lg },
-  lbl: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, marginTop: Spacing.md },
+  lbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, marginTop: Spacing.md },
   input: { backgroundColor: Colors.bgInput, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.md, paddingHorizontal: Spacing.md, paddingVertical: 14, fontFamily: Fonts.bodyMedium, fontSize: 16, color: Colors.textPrimary },
   btn: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 16, alignItems: 'center', marginTop: Spacing.lg },
   btnTxt: { fontFamily: Fonts.heading, fontSize: 18, color: '#0a0a0b', letterSpacing: 0.8 },

@@ -19,7 +19,7 @@ import type { BiologicalSex } from '../../lib/supabase';
 import { router, useFocusEffect } from 'expo-router';
 import ReportContentButton from '../../Components/ReportContentButton';
 import { isPoseCameraMarkedUnsupported } from '../../lib/pose/cameraSupport';
-import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
+import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
 
 const EXERCISES = [
   { id: 'squat',    name: 'Sentadilla',      emoji: '🦵', muscles: 'Cuádriceps, Glúteos' },
@@ -276,7 +276,7 @@ export default function CoachScreen() {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.header}>
-          <Text style={s.headerTitle}>COACH DE POSTURA</Text>
+          <Text style={s.headerTitle} accessibilityRole="header">COACH DE POSTURA</Text>
           <Text style={s.headerSub}>IA analiza tu técnica y te da correcciones específicas</Text>
         </View>
 
@@ -284,7 +284,9 @@ export default function CoachScreen() {
 
           {/* Coach en vivo (tiempo real) — oculto si la cámara no funciona aquí */}
           {liveCoachAvailable && (
-            <TouchableOpacity style={s.liveCard} onPress={() => router.push('/live-coach' as any)} activeOpacity={0.85}>
+            <TouchableOpacity style={s.liveCard} onPress={() => router.push('/live-coach' as any)} activeOpacity={0.85}
+              accessibilityRole="button" accessibilityLabel="Coach en vivo"
+              accessibilityHint="Cuenta reps y corrige tu técnica en tiempo real">
               <Text style={{ fontSize: 26 }}>🎥</Text>
               <View style={{ flex: 1 }}>
                 <Text style={s.liveTitle}>Coach en vivo</Text>
@@ -295,7 +297,9 @@ export default function CoachScreen() {
           )}
 
           {/* Chat con el coach que te conoce */}
-          <TouchableOpacity style={[s.liveCard, { marginTop: 8 }]} onPress={() => router.push('/coach-chat' as any)} activeOpacity={0.85}>
+          <TouchableOpacity style={[s.liveCard, { marginTop: 8 }]} onPress={() => router.push('/coach-chat' as any)} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Habla con tu coach"
+            accessibilityHint="Conoce tu plan, tus macros y tu progreso. Pregúntale lo que sea">
             <Text style={{ fontSize: 26 }}>💬</Text>
             <View style={{ flex: 1 }}>
               <Text style={s.liveTitle}>Habla con tu coach</Text>
@@ -314,6 +318,8 @@ export default function CoachScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
                 {todayExercises.slice(0, 6).map((name: string, i: number) => (
                   <TouchableOpacity key={i} style={s.todayExBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Analizar ${name}, de tus ejercicios de hoy`}
                     onPress={() => {
                       const found = EXERCISES.find((e) =>
                         name.toLowerCase().includes(e.id) ||
@@ -336,7 +342,10 @@ export default function CoachScreen() {
               <TouchableOpacity key={ex.id}
                 style={[s.exCard, selectedEx.id === ex.id && s.exCardSel]}
                 onPress={() => { setSelectedEx(ex); Haptics.selectionAsync(); }}
-                activeOpacity={0.8}>
+                activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityLabel={`${ex.name}. Trabaja ${ex.muscles}`}
+                accessibilityState={{ selected: selectedEx.id === ex.id }}>
                 <Text style={s.exEmoji}>{ex.emoji}</Text>
                 <Text style={[s.exName, selectedEx.id === ex.id && { color: Colors.accent }]}>
                   {ex.name}
@@ -347,7 +356,8 @@ export default function CoachScreen() {
           </View>
 
           {/* Ejercicio seleccionado */}
-          <View style={s.selectedCard}>
+          <View style={s.selectedCard} accessible
+            accessibilityLabel={`Vas a analizar la postura de: ${selectedEx.name}. Trabaja ${selectedEx.muscles}`}>
             <Text style={s.selectedLabel}>ANALIZANDO POSTURA DE</Text>
             <Text style={s.selectedName}>{selectedEx.emoji} {selectedEx.name}</Text>
             <Text style={s.selectedMuscles}>{selectedEx.muscles}</Text>
@@ -369,10 +379,13 @@ export default function CoachScreen() {
 
           {/* Botones */}
           <View style={{ paddingHorizontal: Spacing.lg, marginBottom: 8 }}>
-            <TouchableOpacity style={s.primaryBtn} onPress={takePhoto} activeOpacity={0.85}>
+            <TouchableOpacity style={s.primaryBtn} onPress={takePhoto} activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Tomar foto ahora para analizar tu ${selectedEx.name}`}>
               <Text style={s.primaryBtnTxt}>📷  TOMAR FOTO AHORA</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.secondaryBtn} onPress={pickFromGallery} activeOpacity={0.85}>
+            <TouchableOpacity style={s.secondaryBtn} onPress={pickFromGallery} activeOpacity={0.85}
+              accessibilityRole="button" accessibilityLabel="Elegir una foto de mi galería">
               <Text style={s.secondaryBtnTxt}>Elegir foto de galería</Text>
             </TouchableOpacity>
           </View>
@@ -383,7 +396,8 @@ export default function CoachScreen() {
               <Text style={[s.sectionLbl, { marginTop: 8 }]}>ÚLTIMOS ANÁLISIS</Text>
               <View style={{ paddingHorizontal: Spacing.lg, marginBottom: 24 }}>
                 {history.map((h, i) => (
-                  <View key={i} style={s.historyRow}>
+                  <View key={i} style={s.historyRow} accessible
+                    accessibilityLabel={`${h.exercise}, ${h.time}. Puntaje de técnica: ${h.score} de 100`}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.historyEx}>{h.exercise}</Text>
                       <Text style={s.historyTime}>{h.time}</Text>
@@ -412,7 +426,12 @@ export default function CoachScreen() {
         {photoUri && (
           <Image source={{ uri: photoUri }} style={s.analyzingBg} blurRadius={10} />
         )}
-        <View style={s.analyzingBox}>
+        {/* Pantalla de espera: se anuncia como una sola región "ocupada" para
+            que el lector no lea los 4 pasos como si fueran acciones. */}
+        <View style={s.analyzingBox} accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={`Analizando la postura de tu ${selectedEx.name}. Esto toma unos segundos`}
+          accessibilityState={{ busy: true }}>
           <ActivityIndicator color={Colors.accent} size="large" />
           <Text style={s.analyzingTitle}>Analizando postura</Text>
           <Text style={s.analyzingEx}>{selectedEx.emoji} {selectedEx.name}</Text>
@@ -450,11 +469,13 @@ export default function CoachScreen() {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
-          <TouchableOpacity style={s.backBtn} onPress={reset}>
+          <TouchableOpacity style={s.backBtn} onPress={reset} hitSlop={A11y.hitSlopLg}
+            accessibilityRole="button" accessibilityLabel="Volver a elegir ejercicio">
             <Text style={s.backBtnTxt}>‹</Text>
           </TouchableOpacity>
-          <Text style={s.navTitle}>TU ANÁLISIS</Text>
-          <TouchableOpacity onPress={takePhoto}>
+          <Text style={s.navTitle} accessibilityRole="header">TU ANÁLISIS</Text>
+          <TouchableOpacity onPress={takePhoto} hitSlop={A11y.hitSlop}
+            accessibilityRole="button" accessibilityLabel="Tomar una foto nueva">
             <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.accent }}>
               Nueva foto
             </Text>
@@ -467,7 +488,11 @@ export default function CoachScreen() {
           {photoUri && (
             <View style={s.heroWrap}>
               <Image source={{ uri: photoUri }} style={s.heroPhoto} />
-              <View style={s.heroOverlay}>
+              <View style={s.heroOverlay} accessible
+                accessibilityLabel={
+                  `Puntaje de técnica: ${result.score} de 100 en ${selectedEx.name}. ` +
+                  `${result.overall}. ${goodCount} puntos correctos, ${issueCount} a corregir.`
+                }>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
                   <View style={s.scoreCircle}>
                     <Text style={[s.scoreNum, { color: scoreColor }]}>{result.score}</Text>
@@ -477,10 +502,10 @@ export default function CoachScreen() {
                     <Text style={s.heroExName}>{selectedEx.emoji} {selectedEx.name}</Text>
                     <Text style={s.heroOverall}>{result.overall}</Text>
                     <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
-                      <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.accent }}>
+                      <Text style={{ fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent }}>
                         ✅ {goodCount} correctos
                       </Text>
-                      <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 11, color: '#ff9d3a' }}>
+                      <Text style={{ fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: '#ff9d3a' }}>
                         ⚠️ {issueCount} a corregir
                       </Text>
                     </View>
@@ -526,7 +551,12 @@ export default function CoachScreen() {
             {result.corrections.map((c, i) => {
               const cfg = SEVERITY_CONFIG[c.severity];
               return (
-                <View key={i} style={[s.correctionCard, { backgroundColor: cfg.bg, borderColor: cfg.color + '44' }]}>
+                <View key={i} style={[s.correctionCard, { backgroundColor: cfg.bg, borderColor: cfg.color + '44' }]}
+                  accessible
+                  accessibilityLabel={
+                    `${c.zone}, ${cfg.label}: ${c.issue}` +
+                    (c.severity !== 'good' ? `. Cómo arreglarlo: ${c.fix}. Recuérdalo así: ${c.cue}` : '')
+                  }>
                   <View style={s.correctionTop}>
                     <Text style={s.correctionIcon}>{cfg.icon}</Text>
                     <View style={{ flex: 1 }}>
@@ -558,7 +588,8 @@ export default function CoachScreen() {
             <Text style={s.sectionLbl}>🧘 ESTIRAMIENTOS RECOMENDADOS</Text>
             <View style={s.stretchesCard}>
               {result.stretches.map((stretch, i) => (
-                <View key={i} style={[s.stretchRow, i > 0 && s.stretchBorder]}>
+                <View key={i} style={[s.stretchRow, i > 0 && s.stretchBorder]} accessible
+                  accessibilityLabel={`Estiramiento ${i + 1}: ${stretch.name}, ${stretch.duration}. ${stretch.how}`}>
                   <View style={s.stretchNum}>
                     <Text style={s.stretchNumTxt}>{i + 1}</Text>
                   </View>
@@ -579,10 +610,12 @@ export default function CoachScreen() {
             </View>
 
             {/* Botones */}
-            <TouchableOpacity style={s.primaryBtn} onPress={takePhoto} activeOpacity={0.85}>
+            <TouchableOpacity style={s.primaryBtn} onPress={takePhoto} activeOpacity={0.85}
+              accessibilityRole="button" accessibilityLabel="Analizar otra repetición con una foto nueva">
               <Text style={s.primaryBtnTxt}>📷  ANALIZAR OTRA REP</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.secondaryBtn} onPress={reset} activeOpacity={0.85}>
+            <TouchableOpacity style={s.secondaryBtn} onPress={reset} activeOpacity={0.85}
+              accessibilityRole="button" accessibilityLabel="Cambiar de ejercicio">
               <Text style={s.secondaryBtnTxt}>Cambiar ejercicio</Text>
             </TouchableOpacity>
 
@@ -611,18 +644,18 @@ const s = StyleSheet.create({
   liveArrow: { fontFamily: Fonts.heading, fontSize: 22, color: Colors.accent },
   aiDotRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },
-  aiDotLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent, letterSpacing: 0.8 },
+  aiDotLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, letterSpacing: 0.8 },
   todayExBtn: { backgroundColor: Colors.accentMuted, borderRadius: Radii.full, borderWidth: 1, borderColor: Colors.accentBorder, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   todayExTxt: { fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.accent },
-  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12, paddingHorizontal: Spacing.lg, marginTop: 4 },
+  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12, paddingHorizontal: Spacing.lg, marginTop: 4 },
   exGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: Spacing.lg, marginBottom: 16 },
   exCard: { width: '47%', backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: 14, alignItems: 'center' },
   exCardSel: { backgroundColor: Colors.bgSelected, borderColor: Colors.accent },
   exEmoji: { fontSize: 28, marginBottom: 6 },
   exName: { fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.textPrimary, textAlign: 'center', marginBottom: 3 },
-  exMuscles: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
+  exMuscles: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center' },
   selectedCard: { marginHorizontal: Spacing.lg, backgroundColor: Colors.bgSelected, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md, marginBottom: 12 },
-  selectedLabel: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent, letterSpacing: 0.8, marginBottom: 4 },
+  selectedLabel: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, letterSpacing: 0.8, marginBottom: 4 },
   selectedName: { fontFamily: Fonts.heading, fontSize: 28, color: Colors.textPrimary },
   selectedMuscles: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, marginTop: 2 },
   instructCard: { marginHorizontal: Spacing.lg, backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 16 },
@@ -634,7 +667,7 @@ const s = StyleSheet.create({
   secondaryBtnTxt: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textSecondary },
   historyRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bgCard, borderRadius: Radii.md, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.border },
   historyEx: { fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.textPrimary },
-  historyTime: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  historyTime: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   historyScore: { borderRadius: Radii.full, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   historyScoreTxt: { fontFamily: Fonts.headingBold, fontSize: 16 },
   analyzingBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.12 },
@@ -650,13 +683,13 @@ const s = StyleSheet.create({
   heroOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(14,14,16,0.88)', padding: Spacing.md },
   scoreCircle: { alignItems: 'center' },
   scoreNum: { fontFamily: Fonts.heading, fontSize: 52, lineHeight: 52 },
-  scoreDen: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted },
+  scoreDen: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   heroExName: { fontFamily: Fonts.headingSemi, fontSize: 18, color: Colors.textPrimary, marginBottom: 3 },
   heroOverall: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
   injuryCard: { borderRadius: Radii.lg, borderWidth: 1, padding: Spacing.md, marginBottom: 12 },
-  injuryLabel: { fontFamily: Fonts.bodySemi, fontSize: 11, letterSpacing: 0.6 },
+  injuryLabel: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, letterSpacing: 0.6 },
   injuryTxt: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
-  injuryDisclaimer: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, lineHeight: 15, marginTop: 8 },
+  injuryDisclaimer: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, lineHeight: 15, marginTop: 8 },
   cueCard: { backgroundColor: Colors.bgSelected, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md, marginBottom: 12 },
   cueTxt: { fontFamily: Fonts.bodyMedium, fontSize: 16, color: Colors.textPrimary, lineHeight: 24, marginTop: 8, fontStyle: 'italic' },
   correctionCard: { borderRadius: Radii.lg, borderWidth: 1, padding: Spacing.md, marginBottom: 8 },
@@ -664,10 +697,10 @@ const s = StyleSheet.create({
   correctionIcon: { fontSize: 18, marginTop: 2 },
   correctionZone: { fontFamily: Fonts.headingSemi, fontSize: 16 },
   correctionBadge: { borderRadius: Radii.full, paddingHorizontal: 8, paddingVertical: 2 },
-  correctionBadgeTxt: { fontFamily: Fonts.bodySemi, fontSize: 9, letterSpacing: 0.4 },
+  correctionBadgeTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, letterSpacing: 0.4 },
   correctionIssue: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
   correctionFix: { marginTop: 10, borderLeftWidth: 2, paddingLeft: 10, marginBottom: 8 },
-  correctionFixLabel: { fontFamily: Fonts.bodySemi, fontSize: 9, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3 },
+  correctionFixLabel: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3 },
   correctionFixTxt: { fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
   cuePill: { borderRadius: Radii.full, paddingHorizontal: 12, paddingVertical: 5, alignSelf: 'flex-start' },
   cuePillTxt: { fontFamily: Fonts.bodySemi, fontSize: 12 },
@@ -677,7 +710,7 @@ const s = StyleSheet.create({
   stretchNum: { width: 28, height: 28, borderRadius: 8, backgroundColor: Colors.accentMuted, alignItems: 'center', justifyContent: 'center' },
   stretchNumTxt: { fontFamily: Fonts.headingSemi, fontSize: 13, color: Colors.accent },
   stretchName: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textPrimary },
-  stretchDuration: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.accent },
+  stretchDuration: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent },
   stretchHow: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginTop: 2 },
   motivationCard: { backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 12 },
   motivationTxt: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textSecondary, lineHeight: 22, fontStyle: 'italic' },

@@ -17,7 +17,7 @@ import { uploadTransformPhoto, signPhotoUrls } from '../../lib/transformPhotos';
 import { projectGoal } from '../../lib/goalMath';
 import { track } from '../../lib/analytics';
 import { captureError } from '../../lib/monitoring';
-import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
 const CHART_W = width - 48;
@@ -48,17 +48,28 @@ function WeightChart({ entries, gainIsGood }: { entries: WeightEntry[]; gainIsGo
   const pts = entries.map((e, i) => `${tx(i)},${ty(e.weight)}`).join(' ');
   const trend = weights[weights.length - 1] - weights[0];
 
+  const first = entries[0];
+  const last = entries[entries.length - 1];
+
   return (
     <View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase' }}>
+        <Text style={{ fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase' }}>
           {entries.length} registros
         </Text>
         <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 12, color: (gainIsGood ? trend >= 0 : trend <= 0) ? Colors.accent : '#ff7c3a' }}>
           {trend >= 0 ? '+' : ''}{trend.toFixed(1)} kg total
         </Text>
       </View>
-      <Svg width={CHART_W} height={CHART_H}>
+      {/* El SVG es opaco para un lector de pantalla: se resume en una frase
+          y se ocultan los nodos internos para que no lea coordenadas sueltas. */}
+      <Svg width={CHART_W} height={CHART_H} accessible
+        accessibilityRole="image"
+        accessibilityLabel={
+          `Gráfica de peso: ${entries.length} registros desde ${first.date} hasta ${last.date}. ` +
+          `Empezaste en ${first.weight.toFixed(1)} kilos y hoy estás en ${last.weight.toFixed(1)}. ` +
+          `Cambio total: ${trend >= 0 ? 'subiste' : 'bajaste'} ${Math.abs(trend).toFixed(1)} kilos.`
+        }>
         {[0, 0.5, 1].map((t) => (
           <Line key={t} x1={pl} y1={pt + t * iH} x2={CHART_W - pr} y2={pt + t * iH}
             stroke={Colors.border} strokeWidth={0.5} />
@@ -88,7 +99,11 @@ function WeightChart({ entries, gainIsGood }: { entries: WeightEntry[]; gainIsGo
 
 function BadgeCard({ badge, earned }: { badge: typeof BADGES[number]; earned: boolean }) {
   return (
-    <View style={[s.badgeCard, !earned && s.badgeLocked]}>
+    <View style={[s.badgeCard, !earned && s.badgeLocked]} accessible
+      accessibilityLabel={
+        `${earned ? 'Logro conseguido' : 'Logro bloqueado'}: ${badge.title}. ` +
+        `${badge.desc}. Vale ${badge.xp} puntos.`
+      }>
       <Text style={[s.badgeEmoji, !earned && { opacity: 0.3 }]}>{badge.emoji}</Text>
       <Text style={[s.badgeTitle, !earned && { color: Colors.textMuted }]}>{badge.title}</Text>
       <Text style={[s.badgeDesc, !earned && { opacity: 0.5 }]}>{badge.desc}</Text>
@@ -374,22 +389,32 @@ export default function ProgressScreen() {
 
         {/* Header */}
         <View style={s.header}>
-          <Text style={s.headerTitle}>PROGRESO</Text>
+          <Text style={s.headerTitle} accessibilityRole="header">PROGRESO</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity style={s.ghostBtn} onPress={() => router.push('/history' as any)}>
+            <TouchableOpacity style={s.ghostBtn} onPress={() => router.push('/history' as any)}
+              accessibilityRole="button" accessibilityLabel="Ver historial de entrenamientos">
               <Text style={s.ghostBtnTxt}>🏆 Historial</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.accentBtn} onPress={() => {
               setNewWeight('');
               setWeightModal(true);
-            }}>
+            }}
+              accessibilityRole="button" accessibilityLabel="Registrar mi peso de hoy">
               <Text style={s.accentBtnTxt}>+ Peso</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Racha + XP */}
-        <View style={s.streakCard}>
+        {/* Se agrupa con `accessible` para que el lector lea una frase completa
+            en vez de escupir "fuego, 5, días en racha, Mejor, 12 días, Nivel..." */}
+        <View style={s.streakCard} accessible
+          accessibilityLabel={
+            `Racha de ${stats?.current_streak ?? 0} días` +
+            ((stats?.longest_streak ?? 0) > 0 ? `. Tu mejor racha: ${stats!.longest_streak} días` : '') +
+            `. Nivel ${xpInfo.level} con ${stats?.total_xp ?? 0} puntos de experiencia` +
+            `. Te faltan ${xpInfo.xpNeeded} para el nivel ${xpInfo.level + 1}`
+          }>
           <View style={s.streakLeft}>
             <Text style={{ fontSize: 40 }}>🔥</Text>
             <View>
@@ -421,7 +446,8 @@ export default function ProgressScreen() {
             { icon: '🎯', val: stats?.total_macro_perfect_days ?? 0, lbl: 'Días macro ✓' },
             { icon: '🏆', val: earnedIds.length, lbl: 'Logros' },
           ].map((st) => (
-            <View key={st.lbl} style={s.statCell}>
+            <View key={st.lbl} style={s.statCell} accessible
+              accessibilityLabel={`${st.val} ${st.lbl.replace(' ✓', ' perfectos')}`}>
               <Text style={s.statIcon}>{st.icon}</Text>
               <Text style={s.statVal}>{st.val}</Text>
               <Text style={s.statLbl}>{st.lbl}</Text>
@@ -438,7 +464,10 @@ export default function ProgressScreen() {
               : 'Sin comodines de racha. Consigue uno para proteger tu racha.'}
           </Text>
           {(stats?.streak_freezes ?? 0) < 2 && (
-            <TouchableOpacity style={s.freezeBuyBtn} onPress={buyFreeze} accessibilityLabel="Conseguir comodín de racha">
+            <TouchableOpacity style={s.freezeBuyBtn} onPress={buyFreeze}
+              accessibilityRole="button"
+              accessibilityLabel={`Comprar un comodín de racha por ${FREEZE_COST} puntos de experiencia`}
+              accessibilityHint="Un comodín salva tu racha si fallas un día">
               <Text style={s.freezeBuyTxt}>+1 por {FREEZE_COST} XP</Text>
             </TouchableOpacity>
           )}
@@ -446,14 +475,22 @@ export default function ProgressScreen() {
 
         {/* Misiones semanales */}
         <View style={s.section}>
-          <Text style={s.sectionLbl}>MISIONES DE LA SEMANA</Text>
+          <Text style={s.sectionLbl} accessibilityRole="header">MISIONES DE LA SEMANA</Text>
         </View>
         {missions.map((m) => {
           const pct = Math.min((m.current / m.target) * 100, 100);
           return (
+            // OJO: el `accessible` va en el bloque de TEXTO, no en la tarjeta.
+            // Si se agrupa la tarjeta entera, el botón "Reclamar" deja de ser
+            // enfocable por el lector de pantalla.
             <View key={m.id} style={s.missionCard}>
-              <Text style={{ fontSize: 22 }}>{m.emoji}</Text>
-              <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 22 }} importantForAccessibility="no"
+                accessibilityElementsHidden>{m.emoji}</Text>
+              <View style={{ flex: 1 }} accessible
+                accessibilityLabel={
+                  `Misión: ${m.label}. ${Math.min(m.current, m.target)} de ${m.target}, ${Math.round(pct)} por ciento. Recompensa: ${m.xp} puntos` +
+                  (m.claimed ? '. Ya reclamada' : m.done ? '. Lista para reclamar' : '')
+                }>
                 <Text style={s.missionLbl}>{m.label}</Text>
                 <View style={s.missionBarBg}>
                   <View style={[s.missionBarFill, { width: `${pct}%` }]} />
@@ -463,7 +500,9 @@ export default function ProgressScreen() {
               {m.claimed ? (
                 <Text style={s.missionClaimed}>✓</Text>
               ) : m.done ? (
-                <TouchableOpacity style={s.missionClaimBtn} onPress={() => onClaimMission(m)}>
+                <TouchableOpacity style={s.missionClaimBtn} onPress={() => onClaimMission(m)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Reclamar ${m.xp} puntos de la misión ${m.label}`}>
                   <Text style={s.missionClaimTxt}>Reclamar</Text>
                 </TouchableOpacity>
               ) : (
@@ -475,9 +514,10 @@ export default function ProgressScreen() {
 
         {/* Meta concreta + proyección */}
         <View style={[s.section, { justifyContent: 'space-between' }]}>
-          <Text style={s.sectionLbl}>MI META</Text>
+          <Text style={s.sectionLbl} accessibilityRole="header">MI META</Text>
           {projection && (
-            <TouchableOpacity onPress={openGoalModal}>
+            <TouchableOpacity onPress={openGoalModal} hitSlop={A11y.hitSlop}
+              accessibilityRole="button" accessibilityLabel="Editar mi meta de peso">
               <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.accent }}>Editar</Text>
             </TouchableOpacity>
           )}
@@ -506,7 +546,9 @@ export default function ProgressScreen() {
             </View>
           </View>
         ) : (
-          <TouchableOpacity style={s.goalEmptyCard} onPress={openGoalModal} activeOpacity={0.85}>
+          <TouchableOpacity style={s.goalEmptyCard} onPress={openGoalModal} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Ponle un número a tu meta"
+            accessibilityHint="Define tu peso objetivo y te proyectamos cuándo llegas al ritmo actual">
             <Text style={{ fontSize: 26 }}>🎯</Text>
             <View style={{ flex: 1 }}>
               <Text style={s.goalEmptyTitle}>Ponle un número a tu meta</Text>
@@ -520,7 +562,7 @@ export default function ProgressScreen() {
 
         {/* Peso */}
         <View style={s.section}>
-          <Text style={s.sectionLbl}>EVOLUCIÓN DE PESO</Text>
+          <Text style={s.sectionLbl} accessibilityRole="header">EVOLUCIÓN DE PESO</Text>
         </View>
         <View style={s.card}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -542,14 +584,17 @@ export default function ProgressScreen() {
 
         {/* Fotos transformación */}
         <View style={[s.section, { justifyContent: 'space-between' }]}>
-          <Text style={s.sectionLbl}>TRANSFORMACIÓN</Text>
-          <TouchableOpacity onPress={takeTransformPhoto}>
+          <Text style={s.sectionLbl} accessibilityRole="header">TRANSFORMACIÓN</Text>
+          <TouchableOpacity onPress={takeTransformPhoto} hitSlop={A11y.hitSlop}
+            accessibilityRole="button" accessibilityLabel="Tomar foto de transformación">
             <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.accent }}>+ Foto</Text>
           </TouchableOpacity>
         </View>
 
         {photos.length === 0 ? (
-          <TouchableOpacity style={s.emptyPhotos} onPress={takeTransformPhoto} activeOpacity={0.85}>
+          <TouchableOpacity style={s.emptyPhotos} onPress={takeTransformPhoto} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Toma tu foto de hoy"
+            accessibilityHint="En 30 días verás la diferencia">
             <Text style={{ fontSize: 32, marginBottom: 8 }}>📷</Text>
             <Text style={s.emptyTitle}>Toma tu foto de hoy</Text>
             <Text style={s.emptySub}>En 30 días verás la diferencia. Empieza ahora.</Text>
@@ -557,12 +602,14 @@ export default function ProgressScreen() {
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 10 }}>
-            <TouchableOpacity style={s.addPhotoCell} onPress={takeTransformPhoto} activeOpacity={0.85}>
+            <TouchableOpacity style={s.addPhotoCell} onPress={takeTransformPhoto} activeOpacity={0.85}
+              accessibilityRole="button" accessibilityLabel="Agregar nueva foto de transformación">
               <Text style={{ fontSize: 24, color: Colors.accent }}>+</Text>
               <Text style={s.addPhotoLbl}>Nueva{'\n'}foto</Text>
             </TouchableOpacity>
             {photos.map((p: TransformPhoto) => (
-              <View key={p.id}>
+              <View key={p.id} accessible accessibilityRole="image"
+                accessibilityLabel={`Foto de transformación del ${p.date}`}>
                 <Image source={{ uri: p.displayUri }} style={s.photoImg} />
                 <Text style={s.photoDate}>{p.date.slice(5)}</Text>
               </View>
@@ -574,7 +621,7 @@ export default function ProgressScreen() {
         {earnedBadges.length > 0 && (
           <>
             <View style={s.section}>
-              <Text style={s.sectionLbl}>LOGROS · {earnedBadges.length}</Text>
+              <Text style={s.sectionLbl} accessibilityRole="header">LOGROS · {earnedBadges.length}</Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 10 }}>
@@ -585,7 +632,7 @@ export default function ProgressScreen() {
 
         {/* Próximos badges */}
         <View style={s.section}>
-          <Text style={s.sectionLbl}>PRÓXIMOS LOGROS</Text>
+          <Text style={s.sectionLbl} accessibilityRole="header">PRÓXIMOS LOGROS</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 10, paddingBottom: 8 }}>
@@ -612,8 +659,9 @@ export default function ProgressScreen() {
           <View style={s.overlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
               <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : 'height'}>
-                <View style={s.modalBox}>
-                  <Text style={s.modalTitle}>REGISTRAR PESO</Text>
+                <View style={s.modalBox} accessibilityViewIsModal
+                  accessibilityLabel="Registrar peso">
+                  <Text style={s.modalTitle} accessibilityRole="header">REGISTRAR PESO</Text>
                   <Text style={s.modalSub}>¿Cuánto pesaste hoy en ayunas?</Text>
 
                   <View style={s.inputRow}>
@@ -627,17 +675,20 @@ export default function ProgressScreen() {
                       autoFocus
                       returnKeyType="done"
                       onSubmitEditing={saveWeight}
+                      accessibilityLabel="Tu peso de hoy en kilogramos"
                     />
                     <Text style={s.inputUnit}>kg</Text>
                   </View>
 
-                  <TouchableOpacity style={s.saveBtn} onPress={saveWeight} activeOpacity={0.85}>
+                  <TouchableOpacity style={s.saveBtn} onPress={saveWeight} activeOpacity={0.85}
+                    accessibilityRole="button" accessibilityLabel="Guardar mi peso">
                     <Text style={s.saveBtnTxt}>GUARDAR ✓</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     onPress={() => { Keyboard.dismiss(); setWeightModal(false); }}
                     style={{ paddingVertical: 14, alignItems: 'center' }}
+                    accessibilityRole="button" accessibilityLabel="Cancelar y cerrar"
                   >
                     <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textMuted }}>
                       Cancelar
@@ -661,8 +712,9 @@ export default function ProgressScreen() {
           <View style={s.overlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
               <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : 'height'}>
-                <View style={s.modalBox}>
-                  <Text style={s.modalTitle}>🎯 MI META</Text>
+                <View style={s.modalBox} accessibilityViewIsModal
+                  accessibilityLabel="Mi meta de peso">
+                  <Text style={s.modalTitle} accessibilityRole="header">🎯 MI META</Text>
                   <Text style={s.modalSub}>¿A qué peso quieres llegar?</Text>
 
                   <View style={s.inputRow}>
@@ -675,6 +727,7 @@ export default function ProgressScreen() {
                       placeholderTextColor={Colors.textMuted}
                       autoFocus
                       returnKeyType="done"
+                      accessibilityLabel="Peso objetivo en kilogramos"
                     />
                     <Text style={s.inputUnit}>kg</Text>
                   </View>
@@ -686,9 +739,11 @@ export default function ProgressScreen() {
                     placeholder="¿Por qué lo quieres lograr? (opcional)"
                     placeholderTextColor={Colors.textMuted}
                     maxLength={120}
+                    accessibilityLabel="Por qué quieres lograr esta meta. Opcional"
                   />
 
-                  <TouchableOpacity style={s.saveBtn} onPress={() => saveGoal()} activeOpacity={0.85}>
+                  <TouchableOpacity style={s.saveBtn} onPress={() => saveGoal()} activeOpacity={0.85}
+                    accessibilityRole="button" accessibilityLabel="Guardar mi meta de peso">
                     <Text style={s.saveBtnTxt}>GUARDAR META ✓</Text>
                   </TouchableOpacity>
 
@@ -696,6 +751,7 @@ export default function ProgressScreen() {
                     <TouchableOpacity
                       onPress={() => saveGoal(true)}
                       style={{ paddingTop: 12, alignItems: 'center' }}
+                      accessibilityRole="button" accessibilityLabel="Quitar mi meta de peso"
                     >
                       <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.warning }}>
                         Quitar meta
@@ -706,6 +762,7 @@ export default function ProgressScreen() {
                   <TouchableOpacity
                     onPress={() => { Keyboard.dismiss(); setGoalModal(false); }}
                     style={{ paddingVertical: 14, alignItems: 'center' }}
+                    accessibilityRole="button" accessibilityLabel="Cancelar y cerrar"
                   >
                     <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textMuted }}>
                       Cancelar
@@ -738,23 +795,23 @@ const s = StyleSheet.create({
   },
   streakLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   streakNum: { fontFamily: Fonts.heading, fontSize: 52, color: Colors.accent, lineHeight: 52 },
-  streakLabel: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted },
-  streakMax: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  streakLabel: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
+  streakMax: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   streakDivider: { width: 1, height: 56, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
   levelTxt: { fontFamily: Fonts.heading, fontSize: 26, color: Colors.textPrimary },
   xpTxt: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted },
   xpBg: { height: 5, backgroundColor: Colors.border, borderRadius: 10, overflow: 'hidden', marginBottom: 4 },
   xpFill: { height: '100%', backgroundColor: Colors.accent, borderRadius: 10 },
-  xpNext: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted },
+  xpNext: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   freezeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: Spacing.lg, marginBottom: 16, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.md, padding: 12 },
   freezeTxt: { flex: 1, fontFamily: Fonts.body, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
   freezeBuyBtn: { backgroundColor: Colors.bgSelected, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.full, paddingHorizontal: 10, paddingVertical: 6 },
-  freezeBuyTxt: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent },
+  freezeBuyTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent },
   missionCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: Spacing.lg, marginBottom: 8, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.lg, padding: Spacing.md },
   missionLbl: { fontFamily: Fonts.bodySemi, fontSize: 13, color: Colors.textPrimary, marginBottom: 6 },
   missionBarBg: { height: 5, backgroundColor: Colors.border, borderRadius: 10, overflow: 'hidden' },
   missionBarFill: { height: '100%', backgroundColor: Colors.accent, borderRadius: 10 },
-  missionMeta: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 4 },
+  missionMeta: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 4 },
   missionClaimBtn: { backgroundColor: Colors.accent, borderRadius: Radii.full, paddingHorizontal: 12, paddingVertical: 7 },
   goalCard: { marginHorizontal: Spacing.lg, marginBottom: 16, backgroundColor: Colors.bgSelected, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md },
   goalHeadline: { flex: 1, fontFamily: Fonts.headingSemi, fontSize: 18, color: Colors.textPrimary },
@@ -762,7 +819,7 @@ const s = StyleSheet.create({
   goalWhy: { fontFamily: Fonts.body, fontSize: 12, color: Colors.accent, fontStyle: 'italic', marginTop: 8 },
   goalBarBg: { height: 6, backgroundColor: Colors.border, borderRadius: 10, overflow: 'hidden', marginTop: 12 },
   goalBarFill: { height: '100%', backgroundColor: Colors.accent, borderRadius: 10 },
-  goalMark: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted },
+  goalMark: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   goalEmptyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: Spacing.lg, marginBottom: 16, backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md },
   goalEmptyTitle: { fontFamily: Fonts.headingSemi, fontSize: 16, color: Colors.textPrimary },
   goalEmptySub: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginTop: 2 },
@@ -777,17 +834,17 @@ const s = StyleSheet.create({
   },
   statIcon: { fontSize: 18, marginBottom: 4 },
   statVal: { fontFamily: Fonts.headingBold, fontSize: 22, color: Colors.textPrimary },
-  statLbl: { fontFamily: Fonts.body, fontSize: 9, color: Colors.textMuted, textAlign: 'center', marginTop: 2 },
+  statLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center', marginTop: 2 },
   section: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, marginBottom: 10 },
   sectionLbl: {
-    fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted,
+    fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.8, flex: 1,
   },
   card: {
     marginHorizontal: Spacing.lg, marginBottom: 20, backgroundColor: Colors.bgCard,
     borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md,
   },
-  miniLbl: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, marginBottom: 2 },
+  miniLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginBottom: 2 },
   bigNum: { fontFamily: Fonts.heading, fontSize: 40, color: Colors.textPrimary },
   miniUnit: { fontFamily: Fonts.body, fontSize: 16, color: Colors.textMuted },
   wChange: { fontFamily: Fonts.headingBold, fontSize: 24 },
@@ -803,19 +860,19 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.accentBorder, borderStyle: 'dashed',
     alignItems: 'center', justifyContent: 'center', gap: 6,
   },
-  addPhotoLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent, textAlign: 'center' },
+  addPhotoLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, textAlign: 'center' },
   photoImg: { width: 88, height: 118, borderRadius: Radii.lg, backgroundColor: Colors.bgCard },
-  photoDate: { fontFamily: Fonts.body, fontSize: 9, color: Colors.textMuted, textAlign: 'center', marginTop: 4 },
+  photoDate: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center', marginTop: 4 },
   badgeCard: {
     width: 115, backgroundColor: Colors.bgCard, borderRadius: Radii.lg,
     borderWidth: 1, borderColor: Colors.border, padding: 12, alignItems: 'center', gap: 4,
   },
   badgeLocked: { opacity: 0.65 },
   badgeEmoji: { fontSize: 32, marginBottom: 4 },
-  badgeTitle: { fontFamily: Fonts.bodyMedium, fontSize: 11, color: Colors.textPrimary, textAlign: 'center' },
-  badgeDesc: { fontFamily: Fonts.body, fontSize: 9, color: Colors.textMuted, textAlign: 'center' },
+  badgeTitle: { fontFamily: Fonts.bodyMedium, fontSize: Type.micro, color: Colors.textPrimary, textAlign: 'center' },
+  badgeDesc: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center' },
   xpPill: { backgroundColor: Colors.accentMuted, borderRadius: Radii.full, paddingHorizontal: 8, paddingVertical: 3, marginTop: 2 },
-  xpPillTxt: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent },
+  xpPillTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   modalBox: {
     backgroundColor: Colors.bgCard, borderTopLeftRadius: 28, borderTopRightRadius: 28,

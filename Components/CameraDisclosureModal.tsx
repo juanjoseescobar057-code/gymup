@@ -36,7 +36,7 @@ export default function CameraDisclosureModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <View style={s.overlay}>
-        <View style={s.sheet}>
+        <View style={s.sheet} accessibilityViewIsModal>
           <Text style={{ fontSize: 40, marginBottom: 10 }} accessibilityElementsHidden importantForAccessibility="no">📸</Text>
           <Text style={s.title} accessibilityRole="header">{title}</Text>
           <Text style={s.body}>

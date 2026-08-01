@@ -26,7 +26,7 @@ import { track } from '../lib/analytics';
 import { canUseFeature, FREE_LIMITS } from '../lib/subscription';
 import { localDateKey } from '../lib/foodLogs';
 import ReportContentButton from '../Components/ReportContentButton';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../constants/theme';
 
 // Historial POR USUARIO: una clave global filtraba la conversación (y peor,
 // la memoria destilada) de una cuenta a otra en el mismo dispositivo.
@@ -365,16 +365,21 @@ export default function CoachChatScreen() {
     <SafeAreaView style={s.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={s.nav}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} hitSlop={A11y.hitSlop}
+          accessibilityRole="button" accessibilityLabel="Volver">
           <Text style={s.backBtnTxt}>‹</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={s.navTitle}>TU COACH IA</Text>
+          <Text style={s.navTitle} accessibilityRole="header">TU COACH IA</Text>
           <Text style={s.navSub} numberOfLines={1}>
             {snapshot ? snapshotHeadline(snapshot) : 'Cargando tu ficha...'}
           </Text>
         </View>
-        <TouchableOpacity style={s.clearBtn} onPress={() => setMemoryModal(true)}>
+        <TouchableOpacity style={s.clearBtn} onPress={() => setMemoryModal(true)} hitSlop={A11y.hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel={memory.length > 0
+            ? `Lo que tu coach recuerda de ti: ${memory.length} dato${memory.length === 1 ? '' : 's'}`
+            : 'Lo que tu coach recuerda de ti'}>
           <Text style={s.clearBtnTxt}>🧠</Text>
           {memory.length > 0 && (
             <View style={s.memBadge}>
@@ -382,14 +387,20 @@ export default function CoachChatScreen() {
             </View>
           )}
         </TouchableOpacity>
-        <TouchableOpacity style={s.clearBtn} onPress={clearChat} disabled={messages.length === 0}>
+        <TouchableOpacity style={s.clearBtn} onPress={clearChat} disabled={messages.length === 0}
+          hitSlop={A11y.hitSlop}
+          accessibilityRole="button" accessibilityLabel="Borrar esta conversación"
+          accessibilityState={{ disabled: messages.length === 0 }}>
           <Text style={[s.clearBtnTxt, messages.length === 0 && { opacity: 0.3 }]}>↺</Text>
         </TouchableOpacity>
       </View>
 
       {/* Integridad de contexto: si falta la salud, el usuario DEBE saberlo */}
       {snapshot && snapshot.contextGaps.includes('salud') && (
-        <TouchableOpacity style={s.gapBanner} onPress={refreshContext} activeOpacity={0.8}>
+        <TouchableOpacity style={s.gapBanner} onPress={refreshContext} activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="No pudimos cargar tu perfil de salud. Tu coach responderá en modo conservador"
+          accessibilityHint="Toca para reintentar">
           <Text style={s.gapBannerTxt}>
             ⚠️ No pudimos cargar tu perfil de salud — tu coach responderá en modo conservador.
             Toca aquí para reintentar.
@@ -398,7 +409,10 @@ export default function CoachChatScreen() {
       )}
       {/* Ficha rota: fail-closed VISIBLE y recuperable, nunca un spinner mudo */}
       {snapshotError && !snapshot && (
-        <TouchableOpacity style={s.gapBanner} onPress={refreshContext} activeOpacity={0.8}>
+        <TouchableOpacity style={s.gapBanner} onPress={refreshContext} activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="No pudimos cargar tu ficha"
+          accessibilityHint="Toca para reintentar">
           <Text style={s.gapBannerTxt}>
             ⚠️ No pudimos cargar tu ficha. Toca aquí para reintentar.
           </Text>
@@ -432,7 +446,10 @@ export default function CoachChatScreen() {
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           renderItem={({ item }) => (
             <View>
-              <View style={[s.bubble, item.role === 'user' ? s.bubbleUser : s.bubbleCoach]}>
+              {/* Quién habla no se deduce del color si no ves la pantalla. */}
+              <View style={[s.bubble, item.role === 'user' ? s.bubbleUser : s.bubbleCoach]}
+                accessible
+                accessibilityLabel={`${item.role === 'user' ? 'Tú' : 'Tu coach'}: ${item.content}`}>
                 <Text style={item.role === 'user' ? s.bubbleUserTxt : s.bubbleCoachTxt}>
                   {item.content}
                 </Text>
@@ -461,13 +478,19 @@ export default function CoachChatScreen() {
           ListFooterComponent={
             <>
               {sending && (
-                <View style={[s.bubble, s.bubbleCoach, s.typingRow]}>
+                <View style={[s.bubble, s.bubbleCoach, s.typingRow]} accessible
+                  accessibilityLiveRegion="polite"
+                  accessibilityLabel="Tu coach está escribiendo"
+                  accessibilityState={{ busy: true }}>
                   <ActivityIndicator size="small" color={Colors.accent} />
                   <Text style={s.typingTxt}>Coach está escribiendo…</Text>
                 </View>
               )}
               {failed && !sending && (
-                <TouchableOpacity style={s.errorRow} onPress={retry} activeOpacity={0.8}>
+                <TouchableOpacity style={s.errorRow} onPress={retry} activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="No pude responder"
+                  accessibilityHint="Toca para reintentar">
                   <Text style={s.errorTxt}>⚠️ No pude responder. Toca para reintentar</Text>
                 </TouchableOpacity>
               )}
@@ -479,7 +502,8 @@ export default function CoachChatScreen() {
         {messages.length === 0 && !sending && (
           <View style={s.chipsWrap}>
             {chips.map((c) => (
-              <TouchableOpacity key={c} style={s.chip} onPress={() => send(c)} activeOpacity={0.8}>
+              <TouchableOpacity key={c} style={s.chip} onPress={() => send(c)} activeOpacity={0.8}
+                accessibilityRole="button" accessibilityLabel={`Preguntar: ${c}`}>
                 <Text style={s.chipTxt}>{c}</Text>
               </TouchableOpacity>
             ))}
@@ -497,12 +521,16 @@ export default function CoachChatScreen() {
             multiline
             maxLength={500}
             editable={!!snapshot}
+            accessibilityLabel="Mensaje para tu coach"
           />
           <TouchableOpacity
             style={[s.sendBtn, (!input.trim() || sending || !snapshot) && s.sendBtnOff]}
             onPress={() => send()}
             disabled={!input.trim() || sending || !snapshot}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Enviar mensaje"
+            accessibilityState={{ disabled: !input.trim() || sending || !snapshot, busy: sending }}
           >
             <Text style={s.sendBtnTxt}>↑</Text>
           </TouchableOpacity>
@@ -517,10 +545,11 @@ export default function CoachChatScreen() {
         onRequestClose={() => setMemoryModal(false)}
       >
         <View style={s.memOverlay}>
-          <View style={s.memBox}>
+          <View style={s.memBox} accessibilityViewIsModal>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={s.memTitle}>🧠 LO QUE TU COACH SABE DE TI</Text>
-              <TouchableOpacity onPress={() => setMemoryModal(false)}>
+              <Text style={s.memTitle} accessibilityRole="header">🧠 LO QUE TU COACH SABE DE TI</Text>
+              <TouchableOpacity onPress={() => setMemoryModal(false)} hitSlop={A11y.hitSlop}
+                accessibilityRole="button" accessibilityLabel="Cerrar">
                 <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textMuted }}>Cerrar</Text>
               </TouchableOpacity>
             </View>
@@ -544,8 +573,9 @@ export default function CoachChatScreen() {
                     <Text style={s.memFact}>{fact}</Text>
                     <TouchableOpacity
                       onPress={() => removeFact(i)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      accessibilityLabel="Olvidar este dato"
+                      hitSlop={A11y.hitSlop}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Olvidar este dato: ${fact}`}
                     >
                       <Text style={s.memDelete}>✕</Text>
                     </TouchableOpacity>
@@ -555,7 +585,8 @@ export default function CoachChatScreen() {
             )}
 
             {memory.length > 0 && (
-              <TouchableOpacity onPress={clearMemory} style={{ paddingVertical: 14, alignItems: 'center' }}>
+              <TouchableOpacity onPress={clearMemory} style={{ paddingVertical: 14, alignItems: 'center' }}
+                accessibilityRole="button" accessibilityLabel="Borrar toda la memoria de tu coach">
                 <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.warning }}>
                   Borrar toda la memoria
                 </Text>
@@ -574,11 +605,11 @@ const s = StyleSheet.create({
   backBtn: { width: 40, height: 40, backgroundColor: Colors.bgCard, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   backBtnTxt: { fontFamily: Fonts.heading, fontSize: 22, color: Colors.textPrimary },
   navTitle: { fontFamily: Fonts.heading, fontSize: 20, color: Colors.textPrimary },
-  navSub: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 1 },
+  navSub: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 1 },
   clearBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   clearBtnTxt: { fontSize: 18, color: Colors.textMuted },
   memBadge: { position: 'absolute', top: 2, right: 0, backgroundColor: Colors.accent, borderRadius: Radii.full, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
-  memBadgeTxt: { fontFamily: Fonts.bodySemi, fontSize: 9, color: '#0a0a0b' },
+  memBadgeTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: '#0a0a0b' },
   memOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
   memBox: { backgroundColor: Colors.bgCard, borderTopLeftRadius: Radii.xl, borderTopRightRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, paddingBottom: Spacing.xl },
   memTitle: { fontFamily: Fonts.heading, fontSize: 20, color: Colors.textPrimary },
@@ -589,11 +620,11 @@ const s = StyleSheet.create({
   memFact: { flex: 1, fontFamily: Fonts.body, fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
   memDelete: { fontFamily: Fonts.bodySemi, fontSize: 14, color: Colors.textMuted },
   gapBanner: { marginHorizontal: Spacing.lg, marginBottom: 6, backgroundColor: 'rgba(255,157,58,0.1)', borderWidth: 1, borderColor: 'rgba(255,157,58,0.35)', borderRadius: Radii.md, paddingHorizontal: 12, paddingVertical: 8 },
-  gapBannerTxt: { fontFamily: Fonts.body, fontSize: 11, color: Colors.warning, lineHeight: 16 },
+  gapBannerTxt: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.warning, lineHeight: 16 },
   quotaRow: { alignItems: 'center', marginBottom: 2 },
   quotaChip: { backgroundColor: Colors.accentMuted, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.full, paddingHorizontal: 10, paddingVertical: 3 },
   quotaChipWarn: { backgroundColor: 'rgba(255,157,58,0.1)', borderColor: 'rgba(255,157,58,0.3)' },
-  quotaTxt: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent },
+  quotaTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent },
   bubble: { maxWidth: '84%', borderRadius: Radii.lg, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8 },
   bubbleUser: { alignSelf: 'flex-end', backgroundColor: Colors.accent, borderBottomRightRadius: 6 },
   bubbleCoach: { alignSelf: 'flex-start', backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 6 },
@@ -607,7 +638,7 @@ const s = StyleSheet.create({
   welcomeEmoji: { fontSize: 34, marginBottom: 8 },
   welcomeTitle: { fontFamily: Fonts.heading, fontSize: 26, color: Colors.textPrimary, marginBottom: 6 },
   welcomeTxt: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
-  welcomeDisclaimer: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 10 },
+  welcomeDisclaimer: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 10 },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: Spacing.lg, paddingBottom: 8 },
   chip: { backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.full, paddingHorizontal: 14, paddingVertical: 9 },
   chipTxt: { fontFamily: Fonts.bodyMedium, fontSize: 12, color: Colors.accent },

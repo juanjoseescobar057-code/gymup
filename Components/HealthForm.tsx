@@ -11,7 +11,7 @@ import {
   INJURY_ZONES, CONDITIONS, computeRisk,
   type HealthProfile, type Condition, type InjuryZone,
 } from '../lib/healthMath';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 const PARQ_QUESTIONS: { key: 'parq_chest_pain' | 'parq_dizziness' | 'parq_doctor_restricted'; label: string }[] = [
   { key: 'parq_chest_pain', label: '¿Sientes dolor u opresión en el pecho al hacer ejercicio (o en reposo)?' },
@@ -51,21 +51,26 @@ export default function HealthForm({
   return (
     <View>
       {/* Banderas rojas (PAR-Q) */}
-      <Text style={s.secLbl}>ANTES DE ENTRENAR, CUÉNTANOS</Text>
+      <Text style={s.secLbl} accessibilityRole="header">ANTES DE ENTRENAR, CUÉNTANOS</Text>
       {PARQ_QUESTIONS.map((q) => (
         <View key={q.key} style={s.parqRow}>
           <Text style={s.parqTxt}>{q.label}</Text>
+          {/* Sin etiqueta propia, el lector anunciaba solo "activado/desactivado"
+              — la pregunta se lee como texto suelto y no se asocia al control. */}
           <Switch
             value={value[q.key]}
             onValueChange={(v) => onChange({ ...value, [q.key]: v })}
             trackColor={{ false: Colors.border, true: Colors.warning }}
             thumbColor={Colors.textPrimary}
+            accessibilityLabel={q.label}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: value[q.key] }}
           />
         </View>
       ))}
 
       {/* Condiciones */}
-      <Text style={[s.secLbl, { marginTop: Spacing.md }]}>¿TIENES ALGUNA DE ESTAS CONDICIONES?</Text>
+      <Text style={[s.secLbl, { marginTop: Spacing.md }]} accessibilityRole="header">¿TIENES ALGUNA DE ESTAS CONDICIONES?</Text>
       <View style={s.chipWrap}>
         {CONDITIONS.map((c) => {
           const sel = value.conditions.includes(c.id);
@@ -75,6 +80,9 @@ export default function HealthForm({
               style={[s.chip, sel && s.chipSel]}
               onPress={() => toggleCondition(c.id)}
               activeOpacity={0.8}
+              accessibilityRole="checkbox"
+              accessibilityLabel={c.label}
+              accessibilityState={{ checked: sel }}
             >
               <Text style={[s.chipTxt, sel && s.chipTxtSel]}>{c.label}</Text>
             </TouchableOpacity>
@@ -83,7 +91,7 @@ export default function HealthForm({
       </View>
 
       {/* Lesiones activas */}
-      <Text style={[s.secLbl, { marginTop: Spacing.md }]}>¿ALGUNA ZONA TE DUELE O ESTÁ LESIONADA HOY?</Text>
+      <Text style={[s.secLbl, { marginTop: Spacing.md }]} accessibilityRole="header">¿ALGUNA ZONA TE DUELE O ESTÁ LESIONADA HOY?</Text>
       <View style={s.chipWrap}>
         {INJURY_ZONES.map((z) => {
           const sel = value.injuries.includes(z.id);
@@ -93,6 +101,9 @@ export default function HealthForm({
               style={[s.chip, sel && s.chipSelWarn]}
               onPress={() => toggleInjury(z.id)}
               activeOpacity={0.8}
+              accessibilityRole="checkbox"
+              accessibilityLabel={`Zona lesionada: ${z.label}`}
+              accessibilityState={{ checked: sel }}
             >
               <Text style={[s.chipTxt, sel && { color: Colors.warning }]}>{z.label}</Text>
             </TouchableOpacity>
@@ -108,12 +119,13 @@ export default function HealthForm({
         placeholder="¿Algo más que tu coach deba saber? (opcional)"
         placeholderTextColor={Colors.textMuted}
         maxLength={200}
+        accessibilityLabel="Algo más que tu coach deba saber. Opcional"
       />
 
       {/* Aviso según riesgo + autorización médica */}
       {risk.level === 'alto' && (
         <View style={s.riskCard}>
-          <Text style={s.riskTitle}>🩺 Tu seguridad primero</Text>
+          <Text style={s.riskTitle} accessibilityRole="header">🩺 Tu seguridad primero</Text>
           <Text style={s.riskTxt}>
             Por lo que marcaste ({risk.reasons.join(', ')}), necesitas el visto bueno de un
             médico antes de entrenar en serio. Mientras tanto tu plan será suave (caminatas y
@@ -142,6 +154,10 @@ export default function HealthForm({
               );
             }}
             activeOpacity={0.8}
+            accessibilityRole="checkbox"
+            accessibilityLabel="Mi médico ya me evaluó y me autorizó a hacer ejercicio"
+            accessibilityHint="Te pediremos confirmar. Marcarlo sin ser cierto pone en riesgo tu salud"
+            accessibilityState={{ checked: value.doctor_cleared }}
           >
             <View style={[s.checkbox, value.doctor_cleared && s.checkboxOn]}>
               {value.doctor_cleared && <Text style={s.checkboxTick}>✓</Text>}
@@ -166,7 +182,7 @@ export default function HealthForm({
 }
 
 const s = StyleSheet.create({
-  secLbl: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
+  secLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
   parqRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.md, padding: Spacing.md, marginBottom: 8 },
   parqTxt: { flex: 1, fontFamily: Fonts.body, fontSize: 13, color: Colors.textPrimary, lineHeight: 19 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

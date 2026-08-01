@@ -93,12 +93,13 @@ export default function Index() {
   if (connectionError) {
     return (
       <View style={s.container}>
-        <Text style={s.errorTitle}>No pudimos conectar</Text>
+        <Text style={s.errorTitle} accessibilityRole="header">No pudimos conectar</Text>
         <Text style={s.errorSub}>
           Revisa tu conexión a internet e intenta de nuevo. Si el problema sigue, es probable
           que el servidor esté temporalmente fuera de servicio.
         </Text>
-        <TouchableOpacity style={s.retryBtn} onPress={checkProfile} activeOpacity={0.85}>
+        <TouchableOpacity style={s.retryBtn} onPress={checkProfile} activeOpacity={0.85}
+          accessibilityRole="button" accessibilityLabel="Reintentar la conexión">
           <Text style={s.retryBtnTxt}>Reintentar</Text>
         </TouchableOpacity>
       </View>
@@ -106,7 +107,8 @@ export default function Index() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' }}
+      accessible accessibilityLabel="Abriendo GymUp" accessibilityState={{ busy: true }}>
       <ActivityIndicator color={Colors.accent} size="large" />
     </View>
   );

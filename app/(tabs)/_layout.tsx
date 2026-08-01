@@ -6,16 +6,22 @@
 
 import { Tabs } from 'expo-router';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
-import { Colors, Fonts } from '../../constants/theme';
+import { Colors, Fonts, Type } from '../../constants/theme';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 
 // Botón especial para la cámara (elevado, verde)
-function CameraTabButton({ onPress, children }: BottomTabBarButtonProps) {
+// Su pestaña tiene `title: ''` para no dibujar texto, así que sin
+// accessibilityLabel el lector de pantalla solo anunciaría el emoji.
+function CameraTabButton({ onPress, children, accessibilityState }: BottomTabBarButtonProps) {
   return (
     <TouchableOpacity
       style={styles.camBtn}
       onPress={onPress}
       activeOpacity={0.85}
+      accessibilityRole="tab"
+      accessibilityLabel="Cámara"
+      accessibilityHint="Escanea comida, tu nevera o tu cuerpo"
+      accessibilityState={accessibilityState}
     >
       <View style={styles.camBtnInner}>{children}</View>
     </TouchableOpacity>
@@ -85,7 +91,7 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontFamily: Fonts.bodySemi,
-    fontSize: 9,
+    fontSize: Type.micro,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: 2,

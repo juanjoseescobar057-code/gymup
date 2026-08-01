@@ -21,7 +21,7 @@ import { speak, setVoiceEnabled } from '../lib/voice';
 import { saveSetLogs } from '../lib/setLogs';
 import { useSafeKeepAwake } from '../lib/useSafeKeepAwake';
 import { useUserStore } from '../store/userStore';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 const OPTIONS = [
   { id: 'squat', emoji: '🦵', label: 'Sentadilla' },
@@ -141,21 +141,30 @@ export default function LiveCoachScreen() {
         {/* Overlay */}
         <SafeAreaView style={StyleSheet.absoluteFill} pointerEvents="box-none">
           <View style={s.overlayHeader}>
-            <TouchableOpacity style={s.overlayIconBtn} onPress={toggleVoice} accessibilityLabel="Activar o silenciar voz">
+            <TouchableOpacity style={s.overlayIconBtn} onPress={toggleVoice}
+              accessibilityRole="switch"
+              accessibilityLabel="Voz del coach"
+              accessibilityState={{ checked: voiceOn }}>
               <Text style={{ fontSize: 20 }}>{voiceOn ? '🔊' : '🔇'}</Text>
             </TouchableOpacity>
           </View>
-          <View style={s.overlayTop}>
+          {/* Live region: el contador solo cambia al completar una rep, así que
+              anunciarlo no satura — es la única forma de seguir la cuenta sin ver. */}
+          <View style={s.overlayTop} accessible accessibilityLiveRegion="polite"
+            accessibilityLabel={`${reps} repeticiones. ${phase === 'down' ? 'Bajando' : 'Arriba'}`}>
             <Text style={s.overlayReps}>{reps}</Text>
             <Text style={s.overlayRepsLbl}>REPS · {phase === 'down' ? 'BAJANDO' : 'ARRIBA'}</Text>
           </View>
           {topCue && (
-            <View style={[s.overlayCue, { borderColor: SEV_COLOR[topCue.severity] }]}>
+            <View style={[s.overlayCue, { borderColor: SEV_COLOR[topCue.severity] }]}
+              accessible accessibilityLiveRegion="assertive"
+              accessibilityLabel={`Corrección: ${topCue.cue}. ${topCue.message}`}>
               <Text style={[s.overlayCueBig, { color: SEV_COLOR[topCue.severity] }]}>{topCue.cue}</Text>
               <Text style={s.overlayCueMsg}>{topCue.message}</Text>
             </View>
           )}
-          <TouchableOpacity style={s.overlayStop} onPress={stopSession}>
+          <TouchableOpacity style={s.overlayStop} onPress={stopSession}
+            accessibilityRole="button" accessibilityLabel="Terminar la sesión en vivo">
             <Text style={s.overlayStopTxt}>Terminar</Text>
           </TouchableOpacity>
         </SafeAreaView>
@@ -167,11 +176,15 @@ export default function LiveCoachScreen() {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.nav}>
-        <TouchableOpacity style={s.back} onPress={() => router.back()} accessibilityLabel="Volver">
+        <TouchableOpacity style={s.back} onPress={() => router.back()}
+          accessibilityRole="button" accessibilityLabel="Volver">
           <Text style={s.backTxt}>‹</Text>
         </TouchableOpacity>
-        <Text style={s.navTitle}>COACH EN VIVO</Text>
-        <TouchableOpacity style={s.back} onPress={toggleVoice} accessibilityLabel="Activar o silenciar voz">
+        <Text style={s.navTitle} accessibilityRole="header">COACH EN VIVO</Text>
+        <TouchableOpacity style={s.back} onPress={toggleVoice}
+          accessibilityRole="switch"
+          accessibilityLabel="Voz del coach"
+          accessibilityState={{ checked: voiceOn }}>
           <Text style={{ fontSize: 18 }}>{voiceOn ? '🔊' : '🔇'}</Text>
         </TouchableOpacity>
       </View>
@@ -192,14 +205,18 @@ export default function LiveCoachScreen() {
             <TouchableOpacity key={o.id}
               style={[s.exChip, exId === o.id && s.exChipSel]}
               onPress={() => { setExId(o.id); repRef.current = initRepState(); setReps(0); }}
-              activeOpacity={0.85}>
+              activeOpacity={0.85}
+              accessibilityRole="radio"
+              accessibilityLabel={o.label}
+              accessibilityState={{ selected: exId === o.id }}>
               <Text style={{ fontSize: 22 }}>{o.emoji}</Text>
               <Text style={[s.exChipTxt, exId === o.id && { color: Colors.accent }]}>{o.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <View style={s.repCard}>
+        <View style={s.repCard} accessible accessibilityLiveRegion="polite"
+          accessibilityLabel={`${reps} repeticiones. ${phase === 'down' ? 'Bajando' : 'Arriba'}`}>
           <Text style={s.repNum}>{reps}</Text>
           <Text style={s.repLbl}>REPETICIONES</Text>
           <View style={[s.phasePill, { borderColor: phase === 'down' ? '#ff9d3a' : Colors.accent }]}>
@@ -210,18 +227,23 @@ export default function LiveCoachScreen() {
         </View>
 
         {active && topCue && (
-          <View style={[s.cueCard, { borderColor: SEV_COLOR[topCue.severity] + '55' }]}>
+          <View style={[s.cueCard, { borderColor: SEV_COLOR[topCue.severity] + '55' }]}
+            accessible accessibilityLiveRegion="assertive"
+            accessibilityLabel={`Corrección: ${topCue.cue}. ${topCue.message}`}>
             <Text style={[s.cueBig, { color: SEV_COLOR[topCue.severity] }]}>{topCue.cue}</Text>
             <Text style={s.cueMsg}>{topCue.message}</Text>
           </View>
         )}
 
         {!active ? (
-          <TouchableOpacity style={s.startBtn} onPress={start} activeOpacity={0.85}>
+          <TouchableOpacity style={s.startBtn} onPress={start} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Empezar a contar repeticiones"
+            accessibilityHint="Apoya el teléfono a 2 o 3 metros con tu cuerpo completo en cuadro">
             <Text style={s.startTxt}>▶  EMPEZAR</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={s.stopBtn} onPress={stopSession} activeOpacity={0.85}>
+          <TouchableOpacity style={s.stopBtn} onPress={stopSession} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Terminar la sesión en vivo">
             <Text style={s.stopTxt}>Terminar</Text>
           </TouchableOpacity>
         )}
@@ -245,10 +267,10 @@ const s = StyleSheet.create({
   exRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   exChip: { flexBasis: '30%', flexGrow: 1, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.md, padding: 10, alignItems: 'center', gap: 4 },
   exChipSel: { borderColor: Colors.accent, backgroundColor: Colors.bgSelected },
-  exChipTxt: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted },
+  exChipTxt: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   repCard: { backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.xl, padding: Spacing.xl, alignItems: 'center', marginBottom: 16 },
   repNum: { fontFamily: Fonts.heading, fontSize: 96, color: Colors.accent, lineHeight: 100 },
-  repLbl: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.textMuted, letterSpacing: 1 },
+  repLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 1 },
   phasePill: { borderWidth: 1, borderRadius: Radii.full, paddingHorizontal: 14, paddingVertical: 6, marginTop: 12 },
   phaseTxt: { fontFamily: Fonts.bodySemi, fontSize: 12, letterSpacing: 0.6 },
   cueCard: { backgroundColor: Colors.bgCard, borderWidth: 1, borderRadius: Radii.xl, padding: Spacing.lg, alignItems: 'center', marginBottom: 16 },

@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { PLANS, PREMIUM_BENEFITS } from '../lib/subscription';
 import { purchasePlan, restorePurchases, checkPremium } from '../lib/purchases';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../constants/theme';
 
 type PlanKey = 'monthly' | 'yearly';
 // Precio tal como lo devuelve la tienda: `texto` ya viene formateado en la
@@ -114,13 +114,14 @@ export default function PaywallScreen() {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.nav}>
-        <TouchableOpacity style={s.close} onPress={() => router.back()} accessibilityLabel="Cerrar">
+        <TouchableOpacity style={s.close} onPress={() => router.back()} hitSlop={A11y.hitSlopLg}
+          accessibilityRole="button" accessibilityLabel="Cerrar y volver">
           <Text style={s.closeTxt}>✕</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
-        <Text style={s.title}>GymUp <Text style={{ color: Colors.accent }}>Premium</Text></Text>
+        <Text style={s.title} accessibilityRole="header">GymUp <Text style={{ color: Colors.accent }}>Premium</Text></Text>
         <Text style={s.sub}>Desbloquea todo GymUp. Estos son los cupos diarios reales de cada función.</Text>
 
         <View style={s.benefits}>
@@ -133,6 +134,12 @@ export default function PaywallScreen() {
           style={[s.planCard, plan === 'yearly' && s.planSel]}
           onPress={() => setPlan('yearly')}
           activeOpacity={0.85}
+          accessibilityRole="radio"
+          accessibilityLabel={
+            `Plan anual: ${etiquetaPrecio('yearly')} por ${PLANS.yearly.period}` +
+            (ahorroAnual ? `, ahorras ${ahorroAnual}` : '')
+          }
+          accessibilityState={{ selected: plan === 'yearly' }}
         >
           <View style={{ flex: 1 }}>
             <Text style={s.planName}>Anual</Text>
@@ -147,6 +154,9 @@ export default function PaywallScreen() {
           style={[s.planCard, plan === 'monthly' && s.planSel]}
           onPress={() => setPlan('monthly')}
           activeOpacity={0.85}
+          accessibilityRole="radio"
+          accessibilityLabel={`Plan mensual: ${etiquetaPrecio('monthly')} por ${PLANS.monthly.period}`}
+          accessibilityState={{ selected: plan === 'monthly' }}
         >
           <View style={{ flex: 1 }}>
             <Text style={s.planName}>Mensual</Text>
@@ -155,11 +165,18 @@ export default function PaywallScreen() {
           <View style={[s.radio, plan === 'monthly' && s.radioOn]} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[s.cta, busy && { opacity: 0.6 }]} onPress={subscribe} disabled={busy} activeOpacity={0.85}>
+        <TouchableOpacity style={[s.cta, busy && { opacity: 0.6 }]} onPress={subscribe} disabled={busy} activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={busy
+            ? 'Procesando tu suscripción, espera'
+            : `Empezar Premium con el plan ${plan === 'yearly' ? 'anual' : 'mensual'}`}
+          accessibilityState={{ disabled: busy, busy }}>
           <Text style={s.ctaTxt}>{busy ? 'Procesando…' : 'EMPEZAR PREMIUM'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={async () => { const r = await restorePurchases(); Alert.alert('Restaurar', r.ok ? 'Listo' : (r.error ?? '')); }}>
+        <TouchableOpacity
+          accessibilityRole="button" accessibilityLabel="Restaurar compras anteriores"
+          onPress={async () => { const r = await restorePurchases(); Alert.alert('Restaurar', r.ok ? 'Listo' : (r.error ?? '')); }}>
           <Text style={s.restore}>Restaurar compras</Text>
         </TouchableOpacity>
 
@@ -189,5 +206,5 @@ const s = StyleSheet.create({
   cta: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 18, alignItems: 'center', marginTop: Spacing.lg },
   ctaTxt: { fontFamily: Fonts.heading, fontSize: 20, color: '#0a0a0b', letterSpacing: 1 },
   restore: { fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.lg, textDecorationLine: 'underline' },
-  legal: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.lg, lineHeight: 15 },
+  legal: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.lg, lineHeight: 15 },
 });

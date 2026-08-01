@@ -114,10 +114,11 @@ export default function HealthScreen() {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.nav}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}
+          accessibilityRole="button" accessibilityLabel="Volver">
           <Text style={s.backBtnTxt}>‹</Text>
         </TouchableOpacity>
-        <Text style={s.navTitle}>🩺 MI SALUD</Text>
+        <Text style={s.navTitle} accessibilityRole="header">🩺 MI SALUD</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -131,7 +132,8 @@ export default function HealthScreen() {
             Por tu seguridad no editamos a ciegas: guardar un formulario vacío borraría tus
             condiciones reales. Revisa tu conexión e intenta de nuevo.
           </Text>
-          <TouchableOpacity style={s.saveBtn} onPress={load} activeOpacity={0.85}>
+          <TouchableOpacity style={s.saveBtn} onPress={load} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Reintentar cargar mi perfil de salud">
             <Text style={s.saveBtnTxt}>REINTENTAR</Text>
           </TouchableOpacity>
         </View>
@@ -153,6 +155,9 @@ export default function HealthScreen() {
             onPress={save}
             disabled={saving}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={saving ? 'Guardando tu perfil de salud' : 'Guardar mi perfil de salud'}
+            accessibilityState={{ disabled: saving, busy: saving }}
           >
             <Text style={s.saveBtnTxt}>{saving ? 'GUARDANDO…' : 'GUARDAR ✓'}</Text>
           </TouchableOpacity>

@@ -18,7 +18,7 @@ import { fetchTelemetry, fetchUserTraits, type UserTraits } from '../lib/aiTelem
 import {
   summarize, rowsWithinHours, turnBuckets, groupConversations, type TelemetryRow,
 } from '../lib/aiMetrics';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 const SENTIMENT_EMOJI: Record<string, string> = {
   positivo: '😊', neutral: '😐', frustrado: '😤',
@@ -103,10 +103,11 @@ export default function TelemetryScreen() {
   return (
     <SafeAreaView style={st.container}>
       <View style={st.nav}>
-        <TouchableOpacity style={st.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={st.backBtn} onPress={() => router.back()}
+          accessibilityRole="button" accessibilityLabel="Volver">
           <Text style={st.backBtnTxt}>‹</Text>
         </TouchableOpacity>
-        <Text style={st.navTitle}>🔬 TELEMETRÍA IA</Text>
+        <Text style={st.navTitle} accessibilityRole="header">🔬 TELEMETRÍA IA</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -117,6 +118,9 @@ export default function TelemetryScreen() {
             key={p}
             style={[st.periodBtn, period === p && st.periodBtnSel]}
             onPress={() => setPeriod(p)}
+            accessibilityRole="radio"
+            accessibilityLabel={p === '24h' ? 'Ver las últimas 24 horas' : 'Ver los últimos 7 días'}
+            accessibilityState={{ selected: period === p }}
           >
             <Text style={[st.periodTxt, period === p && { color: '#0a0a0b' }]}>
               {p === '24h' ? 'Últimas 24 h' : 'Últimos 7 días'}
@@ -354,29 +358,29 @@ const st = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   cell: { width: '48.5%', backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, alignItems: 'center' },
   cellVal: { fontFamily: Fonts.heading, fontSize: 24, color: Colors.textPrimary },
-  cellLbl: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 2 },
-  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
+  cellLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
+  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
   card: { backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 16 },
   featName: { fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.textPrimary },
-  featMeta: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted },
+  featMeta: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   barBg: { height: 5, backgroundColor: Colors.border, borderRadius: 10, overflow: 'hidden' },
   barFill: { height: '100%', backgroundColor: Colors.accent, borderRadius: 10 },
   msgRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: 12, marginBottom: 8 },
   scorePill: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   scorePillTxt: { fontFamily: Fonts.headingBold, fontSize: 18 },
   msgReason: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textPrimary, lineHeight: 18 },
-  msgMeta: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 4 },
+  msgMeta: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 4 },
   tableHead: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: 6, marginBottom: 4 },
-  tableHeadTxt: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase' },
+  tableHeadTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase' },
   tableRow: { flexDirection: 'row', paddingVertical: 5 },
   tableCell: { flex: 1, fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.textSecondary },
-  tableNote: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 8, lineHeight: 15 },
+  tableNote: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 8, lineHeight: 15 },
   convTitle: { fontFamily: Fonts.headingSemi, fontSize: 15, color: Colors.textPrimary },
-  convMeta: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, marginTop: 3, lineHeight: 16 },
+  convMeta: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 3, lineHeight: 16 },
   intentChip: { backgroundColor: Colors.accentMuted, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.full, paddingHorizontal: 8, paddingVertical: 3 },
-  intentChipTxt: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent },
+  intentChipTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent },
   empty: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: Spacing.lg },
   emptyTitle: { fontFamily: Fonts.headingSemi, fontSize: 18, color: Colors.textPrimary, marginBottom: 6 },
   emptySub: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
-  privacyNote: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 8, lineHeight: 15 },
+  privacyNote: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center', marginTop: 8, lineHeight: 15 },
 });

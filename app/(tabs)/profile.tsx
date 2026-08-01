@@ -16,7 +16,7 @@ import { regenerateAdaptivePlan, saveAdaptedPlan } from '../../lib/adaptivePlan'
 import { canUseFeature } from '../../lib/subscription';
 import { resetPurchasesIdentity } from '../../lib/purchases';
 import AuthSheet from '../../Components/AuthSheet';
-import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
+import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
 import { MIN_AGE, MAX_AGE } from '../../lib/safety';
 
 const GOAL_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -265,8 +265,10 @@ export default function ProfileScreen() {
 
         {/* Header */}
         <View style={s.header}>
-          <Text style={s.headerTitle}>PERFIL</Text>
-          <TouchableOpacity style={s.editBtn} onPress={() => {
+          <Text style={s.headerTitle} accessibilityRole="header">PERFIL</Text>
+          <TouchableOpacity style={s.editBtn}
+            accessibilityRole="button" accessibilityLabel="Editar mi perfil"
+            onPress={() => {
             setName(profile.name);
             setNickname(profile.nickname ?? '');
             setAge(String(profile.age));
@@ -283,7 +285,9 @@ export default function ProfileScreen() {
 
         {/* Avatar */}
         <View style={s.avatarSection}>
-          <View style={s.avatar}>
+          {/* La inicial del avatar es decorativa: el nombre ya se lee debajo. */}
+          <View style={s.avatar} importantForAccessibility="no-hide-descendants"
+            accessibilityElementsHidden>
             <Text style={s.avatarTxt}>{profile.name?.[0]?.toUpperCase() ?? '?'}</Text>
           </View>
           <Text style={s.profileName}>{profile.nickname || profile.name}</Text>
@@ -298,7 +302,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Stats físicos */}
-        <Text style={s.sectionLbl}>TUS DATOS</Text>
+        <Text style={s.sectionLbl} accessibilityRole="header">TUS DATOS</Text>
         <View style={s.card}>
           {[
             { label: 'Edad', value: `${profile.age} años` },
@@ -309,7 +313,8 @@ export default function ProfileScreen() {
             { label: 'Objetivo', value: `${goalInfo.emoji} ${goalInfo.label}` },
             { label: 'Día del plan', value: `Día ${(profile.current_plan_day ?? 0) + 1} de 7` },
           ].map((row, i, arr) => (
-            <View key={row.label} style={[s.row, i < arr.length - 1 && s.rowBorder]}>
+            <View key={row.label} style={[s.row, i < arr.length - 1 && s.rowBorder]}
+              accessible accessibilityLabel={`${row.label}: ${row.value}`}>
               <Text style={s.rowLabel}>{row.label}</Text>
               <Text style={s.rowValue}>{row.value}</Text>
             </View>
@@ -317,7 +322,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Macros diarios */}
-        <Text style={s.sectionLbl}>TUS MACROS DIARIOS</Text>
+        <Text style={s.sectionLbl} accessibilityRole="header">TUS MACROS DIARIOS</Text>
         <View style={s.macroGrid}>
           {[
             { label: 'Calorías', value: `${profile.daily_calories}`, unit: 'kcal', color: Colors.accent },
@@ -325,7 +330,8 @@ export default function ProfileScreen() {
             { label: 'Carbos',   value: `${profile.daily_carbs_g}`,   unit: 'g', color: Colors.macroCarbs },
             { label: 'Grasa',    value: `${profile.daily_fat_g}`,     unit: 'g', color: Colors.macroFat },
           ].map((m) => (
-            <View key={m.label} style={s.macroTile}>
+            <View key={m.label} style={s.macroTile} accessible
+              accessibilityLabel={`${m.label}: ${m.value} ${m.unit === 'g' ? 'gramos' : 'kilocalorías'} al día`}>
               <Text style={[s.macroVal, { color: m.color }]}>
                 {m.value}<Text style={s.macroUnit}>{m.unit}</Text>
               </Text>
@@ -339,16 +345,24 @@ export default function ProfileScreen() {
         </Text>
 
         {/* Plan */}
-        <Text style={s.sectionLbl}>PLAN</Text>
+        <Text style={s.sectionLbl} accessibilityRole="header">PLAN</Text>
         <View style={s.card}>
-          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={handleAdaptPlan} disabled={replanning}>
+          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={handleAdaptPlan} disabled={replanning}
+            accessibilityRole="button"
+            accessibilityLabel={replanning
+              ? 'Ajustando tu plan con inteligencia artificial, espera'
+              : `Ajustar mi plan con inteligencia artificial${profile.is_premium ? '' : '. Función premium'}`}
+            accessibilityHint="Adapta las cargas según tu desempeño real"
+            accessibilityState={{ disabled: replanning, busy: replanning }}>
             <View style={{ flex: 1 }}>
               <Text style={s.rowLabel}>🤖 Ajustar mi plan con IA {profile.is_premium ? '' : '✦'}</Text>
               <Text style={[s.actDesc, { marginTop: 2 }]}>Adapta cargas según tu desempeño real</Text>
             </View>
             <Text style={[s.rowValue, { color: Colors.accent }]}>{replanning ? '…' : '›'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.row} onPress={async () => {
+          <TouchableOpacity style={s.row}
+            accessibilityRole="button" accessibilityLabel="Reiniciar mi plan al día 1"
+            onPress={async () => {
             Alert.alert(
               'Reiniciar plan',
               '¿Quieres volver al día 1 del plan?',
@@ -373,14 +387,18 @@ export default function ProfileScreen() {
             <Text style={s.rowLabel}>🔄 Reiniciar al día 1</Text>
             <Text style={s.rowValue}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.row} onPress={() => router.push('/health' as any)}>
+          <TouchableOpacity style={s.row} onPress={() => router.push('/health' as any)}
+            accessibilityRole="button" accessibilityLabel="Mi salud"
+            accessibilityHint="Lesiones y condiciones. Tu plan se adapta a esto">
             <View style={{ flex: 1 }}>
               <Text style={s.rowLabel}>🩺 Mi salud</Text>
               <Text style={[s.actDesc, { marginTop: 2 }]}>Lesiones y condiciones — tu plan se adapta a esto</Text>
             </View>
             <Text style={[s.rowValue, { color: Colors.accent }]}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.row} onPress={() => router.push('/telemetry' as any)}>
+          <TouchableOpacity style={s.row} onPress={() => router.push('/telemetry' as any)}
+            accessibilityRole="button" accessibilityLabel="Telemetría de la inteligencia artificial"
+            accessibilityHint="Costo, latencia, score y decisiones del coach">
             <View style={{ flex: 1 }}>
               <Text style={s.rowLabel}>🔬 Telemetría IA</Text>
               <Text style={[s.actDesc, { marginTop: 2 }]}>Costo, latencia, score y decisiones del coach</Text>
@@ -390,10 +408,12 @@ export default function ProfileScreen() {
         </View>
 
         {/* Cuenta */}
-        <Text style={s.sectionLbl}>CUENTA</Text>
+        <Text style={s.sectionLbl} accessibilityRole="header">CUENTA</Text>
         <View style={s.card}>
           {isAnon ? (
-            <TouchableOpacity style={s.row} onPress={() => setAuthSheet(true)}>
+            <TouchableOpacity style={s.row} onPress={() => setAuthSheet(true)}
+              accessibilityRole="button" accessibilityLabel="Guardar mi progreso creando una cuenta"
+              accessibilityHint="Tu cuenta es anónima. Crea una cuenta para no perder tus datos">
               <View style={{ flex: 1 }}>
                 <Text style={s.rowLabel}>💾 Guardar mi progreso</Text>
                 <Text style={[s.actDesc, { marginTop: 2 }]}>Cuenta anónima — crea una cuenta para no perder tus datos</Text>
@@ -401,7 +421,7 @@ export default function ProfileScreen() {
               <Text style={[s.rowValue, { color: Colors.accent }]}>›</Text>
             </TouchableOpacity>
           ) : (
-            <View style={s.row}>
+            <View style={s.row} accessible accessibilityLabel={`Cuenta: ${accountEmail}`}>
               <Text style={s.rowLabel}>✅ Cuenta</Text>
               <Text style={s.rowValue}>{accountEmail}</Text>
             </View>
@@ -409,13 +429,17 @@ export default function ProfileScreen() {
         </View>
 
         {/* Privacidad y datos */}
-        <Text style={s.sectionLbl}>PRIVACIDAD Y DATOS</Text>
+        <Text style={s.sectionLbl} accessibilityRole="header">PRIVACIDAD Y DATOS</Text>
         <View style={s.card}>
-          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={handleDeleteBodyScans}>
+          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={handleDeleteBodyScans}
+            accessibilityRole="button" accessibilityLabel="Eliminar mi historial de análisis corporal">
             <Text style={s.rowLabel}>🗑️ Eliminar historial de análisis corporal</Text>
             <Text style={s.rowValue}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.row} onPress={handleDeleteAccount}>
+          <TouchableOpacity style={s.row} onPress={handleDeleteAccount}
+            accessibilityRole="button"
+            accessibilityLabel="Eliminar mi cuenta y todos mis datos"
+            accessibilityHint="Esta acción es irreversible. Te pediremos confirmación">
             <Text style={[s.rowLabel, { color: Colors.error }]}>⚠️ Eliminar mi cuenta y todos mis datos</Text>
             <Text style={s.rowValue}>›</Text>
           </TouchableOpacity>
@@ -423,7 +447,8 @@ export default function ProfileScreen() {
 
         {/* Cerrar sesión */}
         <View style={{ paddingHorizontal: Spacing.lg, marginTop: Spacing.md }}>
-          <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+          <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.8}
+            accessibilityRole="button" accessibilityLabel="Cerrar sesión">
             <Text style={s.logoutTxt}>Cerrar sesión</Text>
           </TouchableOpacity>
         </View>
@@ -451,10 +476,12 @@ export default function ProfileScreen() {
           <View style={s.overlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
               <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : 'height'}>
-                <View style={s.modalBox}>
+                <View style={s.modalBox} accessibilityViewIsModal accessibilityLabel="Editar perfil">
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg }}>
-                    <Text style={s.modalTitle}>EDITAR PERFIL</Text>
-                    <TouchableOpacity onPress={() => { Keyboard.dismiss(); setEditModal(false); }}>
+                    <Text style={s.modalTitle} accessibilityRole="header">EDITAR PERFIL</Text>
+                    <TouchableOpacity onPress={() => { Keyboard.dismiss(); setEditModal(false); }}
+                      hitSlop={A11y.hitSlop}
+                      accessibilityRole="button" accessibilityLabel="Cancelar y cerrar sin guardar">
                       <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textMuted }}>Cancelar</Text>
                     </TouchableOpacity>
                   </View>
@@ -470,6 +497,7 @@ export default function ProfileScreen() {
                       autoCapitalize="words"
                       returnKeyType="next"
                       placeholderTextColor={Colors.textMuted}
+                      accessibilityLabel="Tu nombre"
                     />
 
                     {/* Apodo */}
@@ -483,6 +511,7 @@ export default function ProfileScreen() {
                       maxLength={20}
                       returnKeyType="next"
                       placeholderTextColor={Colors.textMuted}
+                      accessibilityLabel="Tu apodo, así te llama el coach. Opcional"
                     />
 
                     {/* Datos físicos */}
@@ -491,7 +520,8 @@ export default function ProfileScreen() {
                         <Text style={s.fieldLabel}>Edad</Text>
                         <View style={s.fieldRow}>
                           <TextInput style={s.fieldInput} value={age} onChangeText={setAge}
-                            keyboardType="number-pad" maxLength={2} returnKeyType="next" />
+                            keyboardType="number-pad" maxLength={2} returnKeyType="next"
+                            accessibilityLabel="Tu edad en años" />
                           <Text style={s.fieldUnit}>años</Text>
                         </View>
                       </View>
@@ -499,7 +529,8 @@ export default function ProfileScreen() {
                         <Text style={s.fieldLabel}>Peso</Text>
                         <View style={s.fieldRow}>
                           <TextInput style={s.fieldInput} value={weight} onChangeText={setWeight}
-                            keyboardType="number-pad" maxLength={3} returnKeyType="next" />
+                            keyboardType="number-pad" maxLength={3} returnKeyType="next"
+                            accessibilityLabel="Tu peso en kilogramos" />
                           <Text style={s.fieldUnit}>kg</Text>
                         </View>
                       </View>
@@ -511,7 +542,8 @@ export default function ProfileScreen() {
                         <View style={s.fieldRow}>
                           <TextInput style={s.fieldInput} value={height} onChangeText={setHeight}
                             keyboardType="number-pad" maxLength={3} returnKeyType="done"
-                            onSubmitEditing={Keyboard.dismiss} />
+                            onSubmitEditing={Keyboard.dismiss}
+                            accessibilityLabel="Tu altura en centímetros" />
                           <Text style={s.fieldUnit}>cm</Text>
                         </View>
                       </View>
@@ -549,7 +581,10 @@ export default function ProfileScreen() {
                         <TouchableOpacity key={g.key}
                           style={[s.optionBtn, goal === g.key && s.optionBtnSel]}
                           onPress={() => { setGoal(g.key); Haptics.selectionAsync(); }}
-                          activeOpacity={0.8}>
+                          activeOpacity={0.8}
+                          accessibilityRole="radio"
+                          accessibilityLabel={g.label}
+                          accessibilityState={{ selected: goal === g.key }}>
                           <Text style={[s.optionTxt, goal === g.key && { color: Colors.accent }]}>
                             {g.emoji} {g.label}
                           </Text>
@@ -563,7 +598,10 @@ export default function ProfileScreen() {
                       <TouchableOpacity key={a.key}
                         style={[s.actRow, activityLevel === a.key && s.actRowSel]}
                         onPress={() => { setActivityLevel(a.key); Haptics.selectionAsync(); }}
-                        activeOpacity={0.8}>
+                        activeOpacity={0.8}
+                        accessibilityRole="radio"
+                        accessibilityLabel={`${a.label}. ${a.desc}`}
+                        accessibilityState={{ selected: activityLevel === a.key }}>
                         <View style={[s.radio, activityLevel === a.key && s.radioSel]}>
                           {activityLevel === a.key && <View style={s.radioDot} />}
                         </View>
@@ -581,6 +619,9 @@ export default function ProfileScreen() {
                       onPress={saveChanges}
                       disabled={saving}
                       activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel={saving ? 'Guardando tus cambios' : 'Guardar cambios del perfil'}
+                      accessibilityState={{ disabled: saving, busy: saving }}
                     >
                       <Text style={s.saveBtnTxt}>
                         {saving ? 'Guardando...' : 'GUARDAR CAMBIOS'}
@@ -610,7 +651,7 @@ const s = StyleSheet.create({
   profileName: { fontFamily: Fonts.heading, fontSize: 32, color: Colors.textPrimary, marginBottom: 8 },
   goalBadge: { backgroundColor: Colors.accentMuted, borderRadius: Radii.full, borderWidth: 1, borderColor: Colors.accentBorder, paddingHorizontal: 16, paddingVertical: 6 },
   goalBadgeTxt: { fontFamily: Fonts.bodySemi, fontSize: 13, color: Colors.accent },
-  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginHorizontal: Spacing.lg, marginBottom: 10, marginTop: 4 },
+  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginHorizontal: Spacing.lg, marginBottom: 10, marginTop: 4 },
   card: { marginHorizontal: Spacing.lg, backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: 16 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.md },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -627,7 +668,7 @@ const s = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   modalBox: { backgroundColor: Colors.bgCard, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border, maxHeight: '92%' },
   modalTitle: { fontFamily: Fonts.heading, fontSize: 26, color: Colors.textPrimary },
-  fieldLabel: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, marginTop: Spacing.md },
+  fieldLabel: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, marginTop: Spacing.md },
   input: { backgroundColor: Colors.bgInput, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.md, paddingHorizontal: Spacing.md, paddingVertical: 14, fontFamily: Fonts.bodyMedium, fontSize: 16, color: Colors.textPrimary, marginBottom: 4 },
   fieldRow: { backgroundColor: Colors.bgInput, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.md, paddingHorizontal: Spacing.md, paddingVertical: 10, flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginBottom: 4 },
   fieldInput: { fontFamily: Fonts.headingBold, fontSize: 28, color: Colors.textPrimary, flex: 1, padding: 0 },
@@ -641,7 +682,7 @@ const s = StyleSheet.create({
   radioSel: { borderColor: Colors.accent },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.accent },
   actLbl: { fontFamily: Fonts.bodySemi, fontSize: 14, color: Colors.textPrimary },
-  actDesc: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  actDesc: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   saveBtn: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 16, alignItems: 'center', marginTop: Spacing.lg },
   saveBtnTxt: { fontFamily: Fonts.heading, fontSize: 18, color: '#0a0a0b', letterSpacing: 0.8 },
 });

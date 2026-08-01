@@ -12,7 +12,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 export default function WorkoutCompleteScreen() {
   const p = useLocalSearchParams<{
@@ -56,27 +56,32 @@ export default function WorkoutCompleteScreen() {
   return (
     <SafeAreaView style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
-        <Animated.Text style={[s.trophy, { transform: [{ scale }] }]}>🏆</Animated.Text>
-        <Text style={s.title}>¡ENTRENAMIENTO{'\n'}COMPLETADO!</Text>
+        <Animated.Text style={[s.trophy, { transform: [{ scale }] }]}
+          importantForAccessibility="no" accessibilityElementsHidden>🏆</Animated.Text>
+        <Text style={s.title} accessibilityRole="header">¡ENTRENAMIENTO{'\n'}COMPLETADO!</Text>
 
         {/* Stats principales */}
         <View style={s.statsRow}>
-          <View style={s.statCell}>
+          <View style={s.statCell} accessible accessibilityLabel={`Duración: ${duration}`}>
             <Text style={s.statVal}>{duration}</Text>
             <Text style={s.statLbl}>Duración</Text>
           </View>
-          <View style={s.statCell}>
+          <View style={s.statCell} accessible accessibilityLabel={`${exercises} ejercicios`}>
             <Text style={s.statVal}>{exercises}</Text>
             <Text style={s.statLbl}>Ejercicios</Text>
           </View>
-          <View style={s.statCell}>
+          <View style={s.statCell} accessible accessibilityLabel={`Ganaste ${xp} puntos de experiencia`}>
             <Text style={[s.statVal, { color: Colors.accent }]}>+{xp}</Text>
             <Text style={s.statLbl}>XP</Text>
           </View>
         </View>
 
         {/* Racha */}
-        <View style={s.streakCard}>
+        <View style={s.streakCard} accessible
+          accessibilityLabel={
+            `Racha de ${streak} día${streak === '1' ? '' : 's'}` +
+            (freezeUsed ? '. Un comodín salvó tu racha' : '')
+          }>
           <Text style={{ fontSize: 30 }}>🔥</Text>
           <View style={{ flex: 1 }}>
             <Text style={s.streakTxt}>Racha de {streak} día{streak === '1' ? '' : 's'}</Text>
@@ -88,8 +93,9 @@ export default function WorkoutCompleteScreen() {
 
         {/* PRs */}
         {prs.length > 0 && (
-          <View style={s.prCard}>
-            <Text style={s.prTitle}>🏅 ¡RÉCORD PERSONAL!</Text>
+          <View style={s.prCard} accessible
+            accessibilityLabel={`¡Récord personal! En ${prs.join(', ')}`}>
+            <Text style={s.prTitle} accessibilityRole="header">🏅 ¡RÉCORD PERSONAL!</Text>
             {prs.map((name) => (
               <Text key={name} style={s.prItem}>{name}</Text>
             ))}
@@ -108,7 +114,8 @@ export default function WorkoutCompleteScreen() {
           </View>
         ))}
 
-        <TouchableOpacity style={s.shareBtn} onPress={share} activeOpacity={0.85} accessibilityLabel="Compartir entrenamiento">
+        <TouchableOpacity style={s.shareBtn} onPress={share} activeOpacity={0.85}
+          accessibilityRole="button" accessibilityLabel="Compartir mi entrenamiento">
           <Text style={s.shareTxt}>📤  COMPARTIR</Text>
         </TouchableOpacity>
 
@@ -116,6 +123,7 @@ export default function WorkoutCompleteScreen() {
           style={s.doneBtn}
           onPress={() => router.replace('/(tabs)' as any)}
           activeOpacity={0.85}
+          accessibilityRole="button" accessibilityLabel="Ver mi progreso"
         >
           <Text style={s.doneTxt}>VER MI PROGRESO →</Text>
         </TouchableOpacity>
@@ -132,7 +140,7 @@ const s = StyleSheet.create({
   statsRow: { flexDirection: 'row', gap: 10, width: '100%', marginBottom: 12 },
   statCell: { flex: 1, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.lg, padding: Spacing.md, alignItems: 'center' },
   statVal: { fontFamily: Fonts.heading, fontSize: 26, color: Colors.textPrimary },
-  statLbl: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  statLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   streakCard: { flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%', backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.lg, padding: Spacing.md, marginBottom: 12 },
   streakTxt: { fontFamily: Fonts.headingSemi, fontSize: 18, color: Colors.textPrimary },
   freezeTxt: { fontFamily: Fonts.body, fontSize: 12, color: Colors.macroCarbs, marginTop: 2 },

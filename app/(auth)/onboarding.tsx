@@ -16,7 +16,7 @@ import HealthForm from '../../Components/HealthForm';
 import { EMPTY_HEALTH, computeRisk, type HealthProfile } from '../../lib/healthMath';
 import { saveHealthProfile } from '../../lib/health';
 import { track, flush } from '../../lib/analytics';
-import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
 import { MIN_AGE, MAX_AGE, AGE_CONFIRMATION, MEDICAL_DISCLAIMER } from '../../lib/safety';
 
 const { width } = Dimensions.get('window');
@@ -349,6 +349,7 @@ export default function OnboardingScreen() {
                     returnKeyType="next"
                     onSubmitEditing={() => ageRef.current?.focus()}
                     blurOnSubmit={false}
+                    accessibilityLabel="Tu nombre"
                   />
 
                   <Text style={s.lbl}>¿Cómo quieres que te llame? (opcional)</Text>
@@ -363,6 +364,7 @@ export default function OnboardingScreen() {
                     returnKeyType="next"
                     onSubmitEditing={() => ageRef.current?.focus()}
                     blurOnSubmit={false}
+                    accessibilityLabel="Tu apodo, así te hablará tu coach. Opcional"
                   />
 
                   <View style={s.grid}>
@@ -381,6 +383,7 @@ export default function OnboardingScreen() {
                           returnKeyType="next"
                           onSubmitEditing={() => weightRef.current?.focus()}
                           blurOnSubmit={false}
+                          accessibilityLabel="Tu edad en años"
                         />
                         <Text style={s.cardUnit}>años</Text>
                       </View>
@@ -400,6 +403,7 @@ export default function OnboardingScreen() {
                           returnKeyType="next"
                           onSubmitEditing={() => heightRef.current?.focus()}
                           blurOnSubmit={false}
+                          accessibilityLabel="Tu peso en kilogramos"
                         />
                         <Text style={s.cardUnit}>kg</Text>
                       </View>
@@ -421,6 +425,7 @@ export default function OnboardingScreen() {
                           maxLength={3}
                           returnKeyType="done"
                           onSubmitEditing={Keyboard.dismiss}
+                          accessibilityLabel="Tu altura en centímetros"
                         />
                         <Text style={s.cardUnit}>cm</Text>
                       </View>
@@ -455,6 +460,8 @@ export default function OnboardingScreen() {
                     style={s.cta}
                     onPress={() => validateStep1() && nextStep()}
                     activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel="Continuar al siguiente paso"
                   >
                     <Text style={s.ctaTxt}>CONTINUAR →</Text>
                   </TouchableOpacity>
@@ -462,12 +469,14 @@ export default function OnboardingScreen() {
                   <Text style={s.consentTxt}>Al continuar, {AGE_CONFIRMATION}</Text>
                   <Text style={s.disclaimerTxt}>{MEDICAL_DISCLAIMER}</Text>
 
-                  <TouchableOpacity onPress={() => setSignInSheet(true)} style={{ alignItems: 'center', marginTop: Spacing.md }}>
+                  <TouchableOpacity onPress={() => setSignInSheet(true)} style={{ alignItems: 'center', marginTop: Spacing.md }}
+                    accessibilityRole="button" accessibilityLabel="¿Ya tienes cuenta? Inicia sesión">
                     <Text style={s.signInLink}>¿Ya tienes cuenta? Inicia sesión</Text>
                   </TouchableOpacity>
 
                   {__DEV__ && (
-                    <TouchableOpacity onPress={() => router.push('/live-coach' as any)} style={{ alignItems: 'center', marginTop: Spacing.md }}>
+                    <TouchableOpacity onPress={() => router.push('/live-coach' as any)} style={{ alignItems: 'center', marginTop: Spacing.md }}
+                      accessibilityRole="button" accessibilityLabel="Modo desarrollo: probar el coach en vivo">
                       <Text style={[s.signInLink, { color: Colors.textMuted }]}>🎥 [DEV] Probar Coach en vivo →</Text>
                     </TouchableOpacity>
                   )}
@@ -488,6 +497,9 @@ export default function OnboardingScreen() {
                         style={[s.goalCard, goal === g.key && s.goalSel]}
                         onPress={() => { setGoal(g.key); Haptics.selectionAsync(); }}
                         activeOpacity={0.8}
+                        accessibilityRole="radio"
+                        accessibilityLabel={`${g.label}. ${g.desc}`}
+                        accessibilityState={{ selected: goal === g.key }}
                       >
                         <Text style={{ fontSize: 26, marginBottom: 6 }}>{g.emoji}</Text>
                         <Text style={[s.goalLbl, goal === g.key && { color: Colors.accent }]}>
@@ -505,6 +517,9 @@ export default function OnboardingScreen() {
                       style={[s.actRow, activityLevel === a.key && s.actSel]}
                       onPress={() => { setActivityLevel(a.key); Haptics.selectionAsync(); }}
                       activeOpacity={0.8}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`${a.label}. ${a.desc}`}
+                      accessibilityState={{ selected: activityLevel === a.key }}
                     >
                       <View style={[s.radio, activityLevel === a.key && s.radioSel]}>
                         {activityLevel === a.key && <View style={s.radioDot} />}
@@ -608,6 +623,7 @@ export default function OnboardingScreen() {
                           }
                           placeholderTextColor={Colors.textMuted}
                           maxLength={5}
+                          accessibilityLabel="Tu peso objetivo en kilogramos. Opcional"
                         />
                         <Text style={s.cardUnit}>kg objetivo</Text>
                       </View>
@@ -618,6 +634,7 @@ export default function OnboardingScreen() {
                         placeholder="¿Por qué lo quieres lograr? (te lo recordaré)"
                         placeholderTextColor={Colors.textMuted}
                         maxLength={120}
+                        accessibilityLabel="Por qué quieres lograr tu meta. Opcional"
                       />
                     </>
                   )}
@@ -626,6 +643,8 @@ export default function OnboardingScreen() {
                     style={s.cta}
                     onPress={() => validateStep2() && nextStep()}
                     activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel="Continuar al siguiente paso"
                   >
                     <Text style={s.ctaTxt}>CONTINUAR →</Text>
                   </TouchableOpacity>
@@ -643,7 +662,8 @@ export default function OnboardingScreen() {
 
                   <HealthForm value={health} onChange={setHealth} age={+age || 30} />
 
-                  <TouchableOpacity style={s.cta} onPress={handleFinish} activeOpacity={0.85}>
+                  <TouchableOpacity style={s.cta} onPress={handleFinish} activeOpacity={0.85}
+                    accessibilityRole="button" accessibilityLabel="Generar mi plan con inteligencia artificial">
                     <Text style={s.ctaTxt}>GENERAR MI PLAN IA ✦</Text>
                   </TouchableOpacity>
                   <Text style={s.disclaimerTxt}>
@@ -704,11 +724,11 @@ const s = StyleSheet.create({
     borderRadius: Radii.full, paddingHorizontal: 14, paddingVertical: 6, marginBottom: Spacing.lg,
   },
   badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },
-  badgeText: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.accent, letterSpacing: 0.8 },
+  badgeText: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, letterSpacing: 0.8 },
   title: { fontFamily: Fonts.heading, fontSize: 58, color: Colors.textPrimary, lineHeight: 54, letterSpacing: -0.5, marginBottom: 12 },
   accent: { color: Colors.accent },
   sub: { fontFamily: Fonts.body, fontSize: 15, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.xl },
-  lbl: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8, marginTop: Spacing.md },
+  lbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8, marginTop: Spacing.md },
   input: {
     backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border,
     borderRadius: Radii.md, paddingHorizontal: Spacing.md, paddingVertical: 16,
@@ -724,10 +744,10 @@ const s = StyleSheet.create({
   cardUnit: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted, paddingBottom: 4 },
   cta: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 18, alignItems: 'center', marginTop: Spacing.xl },
   ctaTxt: { fontFamily: Fonts.heading, fontSize: 20, color: '#0a0a0b', letterSpacing: 1 },
-  consentTxt: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.md, lineHeight: 16 },
-  disclaimerTxt: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm, lineHeight: 15 },
+  consentTxt: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.md, lineHeight: 16 },
+  disclaimerTxt: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm, lineHeight: 15 },
   signInLink: { fontFamily: Fonts.bodySemi, fontSize: 13, color: Colors.accent, textDecorationLine: 'underline' },
-  secLbl: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 },
+  secLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 },
   goalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   goalCard: {
     width: '47%', backgroundColor: Colors.bgCard, borderWidth: 1.5,
@@ -735,7 +755,7 @@ const s = StyleSheet.create({
   },
   goalSel: { backgroundColor: Colors.bgSelected, borderColor: Colors.accent },
   goalLbl: { fontFamily: Fonts.bodySemi, fontSize: 13, color: Colors.textPrimary, marginBottom: 3, textAlign: 'center' },
-  goalDesc: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
+  goalDesc: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center' },
   actRow: {
     flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: Colors.bgCard,
     borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.md, padding: Spacing.md, marginBottom: 8,
@@ -754,7 +774,7 @@ const s = StyleSheet.create({
   dayChipSel: { backgroundColor: Colors.bgSelected, borderColor: Colors.accent },
   dayChipTxt: { fontFamily: Fonts.headingBold, fontSize: 22, color: Colors.textPrimary },
   dayChipTxtSel: { color: Colors.accent },
-  dayChipUnit: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  dayChipUnit: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   gen: { flex: 1, alignItems: 'center', paddingTop: 60 },
   orb: {
     width: 100, height: 100, borderRadius: 50, overflow: 'hidden',

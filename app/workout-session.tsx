@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Alert, Vibration, TextInput, Modal,
+  Alert, Vibration, TextInput, Modal, AccessibilityInfo,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,7 +21,7 @@ import { captureError } from '../lib/monitoring';
 import { loadHealthSafe } from '../lib/health';
 import { exerciseConflicts, INJURY_ZONES, type InjuryZone } from '../lib/healthMath';
 import { exercisesForGroup, EXERCISE_LIBRARY, type LibraryExercise } from '../constants/exercises';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../constants/theme';
 
 export default function WorkoutSessionScreen() {
   useSafeKeepAwake('workout'); // pantalla siempre encendida durante el entreno
@@ -173,6 +173,9 @@ export default function WorkoutSessionScreen() {
           setResting(false);
           Vibration.vibrate([0, 300, 100, 300]);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          // El fin del descanso solo se comunicaba por vibración y por el
+          // cambio visual: sin esto, quien usa lector de pantalla no se entera.
+          AccessibilityInfo.announceForAccessibility('Descanso terminado. Empieza la siguiente serie');
           return 0;
         }
         return r - 1;
@@ -505,17 +508,24 @@ export default function WorkoutSessionScreen() {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
-        <TouchableOpacity style={s.closeBtn} onPress={confirmFinish}>
+        <TouchableOpacity style={s.closeBtn} onPress={confirmFinish} hitSlop={A11y.hitSlopLg}
+          accessibilityRole="button" accessibilityLabel="Terminar la sesión y salir">
           <Text style={s.closeTxt}>✕</Text>
         </TouchableOpacity>
-        <View style={s.timerWrap}>
+        {/* El cronómetro cambia cada segundo: se etiqueta sin live region para
+            no bombardear al lector con un anuncio por segundo. */}
+        <View style={s.timerWrap} accessible
+          accessibilityLabel={`Tiempo de la sesión: ${formatTime(elapsed)}`}>
           <Text style={s.timerLabel}>TIEMPO</Text>
           <Text style={s.timer}>{formatTime(elapsed)}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={s.progressWrap}>
+      <View style={s.progressWrap} accessible
+        accessibilityRole="progressbar"
+        accessibilityLabel={`Llevas ${doneSets} de ${totalSets} series`}
+        accessibilityValue={{ min: 0, max: totalSets, now: doneSets }}>
         <View style={s.progressBg}>
           <View style={[s.progressFill, { width: `${overallProgress * 100}%` }]} />
         </View>
@@ -534,6 +544,7 @@ export default function WorkoutSessionScreen() {
           <TouchableOpacity
             style={[s.closeBtn, { marginTop: 32, width: 'auto', paddingHorizontal: 24 }]}
             onPress={() => router.replace('/(tabs)' as any)}
+            accessibilityRole="button" accessibilityLabel="Volver al inicio"
           >
             <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textPrimary }}>
               Volver al inicio
@@ -542,17 +553,24 @@ export default function WorkoutSessionScreen() {
         </View>
       )}
 
+      {/* El overlay de descanso va SIN `accessible`: agruparlo escondería el
+          botón de saltar descanso. Cada hijo lleva su propia etiqueta. */}
       {resting && exercises.length > 0 && (
-        <View style={s.restOverlay}>
-          <Text style={s.restTitle}>DESCANSO</Text>
-          <Text style={s.restTimer}>{restSeconds}s</Text>
-          <View style={s.restRing}>
+        <View style={s.restOverlay} accessibilityViewIsModal>
+          <Text style={s.restTitle} accessibilityRole="header">DESCANSO</Text>
+          <Text style={s.restTimer} accessibilityLabel={`Quedan ${restSeconds} segundos de descanso`}>
+            {restSeconds}s
+          </Text>
+          <View style={s.restRing} importantForAccessibility="no-hide-descendants"
+            accessibilityElementsHidden>
             <View style={[s.restRingFill, {
               height: `${(restSeconds / (ex?.rest_seconds ?? 60)) * 100}%`,
             }]} />
           </View>
           <Text style={s.restNext}>Siguiente: Serie {currentSet} de {ex?.name}</Text>
-          <TouchableOpacity style={s.skipRestBtn} onPress={() => {
+          <TouchableOpacity style={s.skipRestBtn}
+            accessibilityRole="button" accessibilityLabel="Saltar el descanso y seguir"
+            onPress={() => {
             if (restRef.current) clearInterval(restRef.current);
             setResting(false);
           }}>
@@ -570,13 +588,18 @@ export default function WorkoutSessionScreen() {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={[s.exName, { flex: 1 }]}>{ex.name}</Text>
-                <TouchableOpacity style={s.swapBtn} onPress={() => setSwapModal(true)} accessibilityLabel="Cambiar ejercicio">
+                <TouchableOpacity style={s.swapBtn} onPress={() => setSwapModal(true)}
+                  hitSlop={A11y.hitSlop}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Cambiar ${ex.name} por otro ejercicio del mismo grupo`}>
                   <Text style={s.swapTxt}>🔄</Text>
                 </TouchableOpacity>
               </View>
               <Text style={s.exGroup}>{ex.muscle_group}</Text>
 
-              <View style={s.setsRow}>
+              {/* Los puntos duplican lo que ya dice "Serie actual" abajo. */}
+              <View style={s.setsRow} importantForAccessibility="no-hide-descendants"
+                accessibilityElementsHidden>
                 {Array.from({ length: ex.sets }).map((_: any, i: number) => (
                   <View key={i} style={[
                     s.setDot,
@@ -594,15 +617,18 @@ export default function WorkoutSessionScreen() {
               </View>
 
               <View style={s.repInfo}>
-                <View style={s.repCard}>
+                <View style={s.repCard} accessible
+                  accessibilityLabel={`Objetivo: ${ex.reps} repeticiones`}>
                   <Text style={s.repVal}>{ex.reps}</Text>
                   <Text style={s.repLbl}>Reps</Text>
                 </View>
-                <View style={s.repCard}>
+                <View style={s.repCard} accessible
+                  accessibilityLabel={`Descanso entre series: ${ex.rest_seconds} segundos`}>
                   <Text style={s.repVal}>{ex.rest_seconds}s</Text>
                   <Text style={s.repLbl}>Descanso</Text>
                 </View>
-                <View style={s.repCard}>
+                <View style={s.repCard} accessible
+                  accessibilityLabel={`Vas en la serie ${currentSet} de ${ex.sets}`}>
                   <Text style={s.repVal}>{currentSet}/{ex.sets}</Text>
                   <Text style={s.repLbl}>Serie actual</Text>
                 </View>
@@ -661,7 +687,10 @@ export default function WorkoutSessionScreen() {
                 </View>
               )}
 
-              <TouchableOpacity style={s.doneBtn} onPress={completeSet} activeOpacity={0.85}>
+              <TouchableOpacity style={s.doneBtn} onPress={completeSet} activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Marcar serie ${currentSet} de ${ex.sets} como completada`}
+                accessibilityHint="Guarda el peso y las reps que anotaste, y arranca el descanso">
                 <Text style={s.doneBtnTxt}>✓  SERIE COMPLETADA</Text>
               </TouchableOpacity>
             </View>
@@ -669,7 +698,8 @@ export default function WorkoutSessionScreen() {
 
           <Text style={s.queueLbl}>PRÓXIMOS EJERCICIOS</Text>
           {exercises.slice(currentEx + 1).map((e: any, i: number) => (
-            <View key={i} style={s.queueItem}>
+            <View key={i} style={s.queueItem} accessible
+              accessibilityLabel={`Ejercicio ${currentEx + i + 2}: ${e.name}, ${e.sets} series de ${e.reps}`}>
               <View style={s.queueNum}>
                 <Text style={s.queueNumTxt}>{currentEx + i + 2}</Text>
               </View>
@@ -680,7 +710,8 @@ export default function WorkoutSessionScreen() {
             </View>
           ))}
 
-          <TouchableOpacity style={s.finishBtn} onPress={confirmFinish} activeOpacity={0.8}>
+          <TouchableOpacity style={s.finishBtn} onPress={confirmFinish} activeOpacity={0.8}
+            accessibilityRole="button" accessibilityLabel="Terminar la sesión de entrenamiento">
             <Text style={s.finishBtnTxt}>Terminar sesión</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -689,8 +720,8 @@ export default function WorkoutSessionScreen() {
       {/* Modal: sustituir ejercicio */}
       <Modal visible={swapModal} transparent animationType="slide" onRequestClose={() => setSwapModal(false)}>
         <View style={s.swapOverlay}>
-          <View style={s.swapSheet}>
-            <Text style={s.swapTitle}>Cambiar ejercicio</Text>
+          <View style={s.swapSheet} accessibilityViewIsModal>
+            <Text style={s.swapTitle} accessibilityRole="header">Cambiar ejercicio</Text>
             <Text style={s.swapSub}>Mismo grupo muscular ({ex?.muscle_group})</Text>
             <ScrollView style={{ maxHeight: 360 }}>
               {(exercisesForGroup(ex?.muscle_group ?? '').length > 0
@@ -699,7 +730,12 @@ export default function WorkoutSessionScreen() {
               ).map((lib) => {
                 const risky = exerciseConflicts(lib.name, injuries).length > 0;
                 return (
-                  <TouchableOpacity key={lib.id} style={s.swapItem} onPress={() => requestSwap(lib)} activeOpacity={0.8}>
+                  <TouchableOpacity key={lib.id} style={s.swapItem} onPress={() => requestSwap(lib)} activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Cambiar a ${lib.name}`}
+                    accessibilityHint={risky
+                      ? 'Cuidado: carga una zona que marcaste lesionada'
+                      : lib.equipment}>
                     <Text style={{ fontSize: 22 }}>{lib.emoji}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={s.swapItemName}>{lib.name}{risky ? '  ⚠️' : ''}</Text>
@@ -711,7 +747,8 @@ export default function WorkoutSessionScreen() {
                 );
               })}
             </ScrollView>
-            <TouchableOpacity style={s.swapCancel} onPress={() => setSwapModal(false)}>
+            <TouchableOpacity style={s.swapCancel} onPress={() => setSwapModal(false)}
+              accessibilityRole="button" accessibilityLabel="Cancelar y no cambiar el ejercicio">
               <Text style={s.swapCancelTxt}>Cancelar</Text>
             </TouchableOpacity>
           </View>
@@ -727,12 +764,12 @@ const s = StyleSheet.create({
   closeBtn: { width: 40, height: 40, backgroundColor: Colors.bgCard, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   closeTxt: { fontFamily: Fonts.headingBold, fontSize: 16, color: Colors.textMuted },
   timerWrap: { alignItems: 'center' },
-  timerLabel: { fontFamily: Fonts.bodySemi, fontSize: 9, color: Colors.textMuted, letterSpacing: 1, textTransform: 'uppercase' },
+  timerLabel: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 1, textTransform: 'uppercase' },
   timer: { fontFamily: Fonts.heading, fontSize: 42, color: Colors.accent, letterSpacing: -1 },
   progressWrap: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.md },
   progressBg: { height: 4, backgroundColor: Colors.border, borderRadius: 2, overflow: 'hidden', marginBottom: 4 },
   progressFill: { height: '100%', backgroundColor: Colors.accent, borderRadius: 2 },
-  progressTxt: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, textAlign: 'right' },
+  progressTxt: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'right' },
   restOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
   restTitle: { fontFamily: Fonts.heading, fontSize: 20, color: Colors.textMuted, letterSpacing: 2, marginBottom: 12 },
   restTimer: { fontFamily: Fonts.heading, fontSize: 96, color: Colors.accent, lineHeight: 96 },
@@ -743,7 +780,7 @@ const s = StyleSheet.create({
   skipRestTxt: { fontFamily: Fonts.bodySemi, fontSize: 13, color: Colors.textMuted },
   currentExCard: { backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, marginBottom: 16 },
   exBadge: { backgroundColor: Colors.accentMuted, borderRadius: Radii.full, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 10 },
-  exBadgeTxt: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent, letterSpacing: 0.8 },
+  exBadgeTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, letterSpacing: 0.8 },
   exName: { fontFamily: Fonts.heading, fontSize: 32, color: Colors.textPrimary, marginBottom: 4 },
   exGroup: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted, marginBottom: 20 },
   setsRow: { flexDirection: 'row', gap: 8, marginBottom: 20, flexWrap: 'wrap' },
@@ -754,24 +791,24 @@ const s = StyleSheet.create({
   repInfo: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   repCard: { flex: 1, backgroundColor: Colors.bgInput, borderRadius: Radii.md, padding: 12, alignItems: 'center' },
   repVal: { fontFamily: Fonts.heading, fontSize: 26, color: Colors.textPrimary },
-  repLbl: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  repLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   logRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
   logField: { flex: 1, backgroundColor: Colors.bgInput, borderRadius: Radii.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 8 },
-  logLbl: { fontFamily: Fonts.bodySemi, fontSize: 9, color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 2 },
+  logLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 2 },
   logInput: { fontFamily: Fonts.heading, fontSize: 26, color: Colors.textPrimary, padding: 0 },
   platesTxt: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
   lastPerfTxt: { fontFamily: Fonts.body, fontSize: 12, color: Colors.accent, marginBottom: 16 },
   notesBox: { backgroundColor: Colors.bgInput, borderRadius: Radii.md, padding: 12, marginBottom: 16, borderLeftWidth: 2, borderLeftColor: Colors.accent },
-  notesLbl: { fontFamily: Fonts.bodySemi, fontSize: 9, color: Colors.accent, letterSpacing: 0.6, marginBottom: 4 },
+  notesLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, letterSpacing: 0.6, marginBottom: 4 },
   notesTxt: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
   doneBtn: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 16, alignItems: 'center' },
   doneBtnTxt: { fontFamily: Fonts.heading, fontSize: 18, color: '#0a0a0b', letterSpacing: 0.8 },
-  queueLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
+  queueLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
   queueItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.bgCard, borderRadius: Radii.md, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.border },
   queueNum: { width: 28, height: 28, borderRadius: 8, backgroundColor: Colors.bgInput, alignItems: 'center', justifyContent: 'center' },
   queueNumTxt: { fontFamily: Fonts.headingSemi, fontSize: 13, color: Colors.textMuted },
   queueName: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textPrimary },
-  queueMeta: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted },
+  queueMeta: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   finishBtn: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   finishBtnTxt: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textMuted },
   swapBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.bgInput, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
@@ -782,7 +819,7 @@ const s = StyleSheet.create({
   swapSub: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted, marginBottom: Spacing.md },
   swapItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
   swapItemName: { fontFamily: Fonts.bodySemi, fontSize: 14, color: Colors.textPrimary },
-  swapItemMeta: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  swapItemMeta: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   swapCancel: { paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   swapCancelTxt: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textMuted },
 });

@@ -42,3 +42,6 @@ yarn-error.*
 
 # Supabase CLI (metadata local del link, no versionar)
 supabase/.temp/
+
+# Respaldos de historial de conversación (decenas de MB, crecen sin límite)
+docs/backup-historial/

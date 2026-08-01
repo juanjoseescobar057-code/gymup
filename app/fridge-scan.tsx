@@ -24,7 +24,7 @@ import { track } from '../lib/analytics';
 import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../lib/cameraConsent';
 import CameraDisclosureModal from '../Components/CameraDisclosureModal';
 import ReportContentButton from '../Components/ReportContentButton';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 import type { FridgeAnalysis, Recipe } from '../lib/openai-features';
 
 function QualityBar({ score }: { score: number }) {
@@ -447,23 +447,23 @@ const s = StyleSheet.create({
   analyzingMsg: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
   resultPhoto: { width: '100%', height: 200, borderRadius: Radii.xl, marginBottom: 16 },
   qualityMsg: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 16 },
-  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12, marginTop: 4 },
+  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12, marginTop: 4 },
   ingredientChip: { backgroundColor: Colors.bgCard, borderRadius: Radii.md, borderWidth: 1, borderColor: Colors.border, padding: 10, minWidth: 100 },
   ingredientName: { fontFamily: Fonts.bodyMedium, fontSize: 12, color: Colors.textPrimary, marginBottom: 2 },
-  ingredientQty: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted },
+  ingredientQty: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   recipeCard: { backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 12 },
   recipeHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 10 },
   recipeName: { fontFamily: Fonts.headingSemi, fontSize: 20, color: Colors.textPrimary, marginBottom: 4 },
   recipeDesc: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted, lineHeight: 18 },
   alignBadge: { borderRadius: Radii.md, padding: 8, alignItems: 'center', minWidth: 48 },
   alignTxt: { fontFamily: Fonts.heading, fontSize: 22 },
-  alignLbl: { fontFamily: Fonts.body, fontSize: 9 },
+  alignLbl: { fontFamily: Fonts.body, fontSize: Type.micro },
   recipeMeta: { flexDirection: 'row', gap: 12, marginBottom: 10 },
   recipeMetaItem: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted },
   recipeMacros: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   recipeMacroPill: { flex: 1, backgroundColor: Colors.bgInput, borderRadius: Radii.md, padding: 8, alignItems: 'center' },
   recipeMacroVal: { fontFamily: Fonts.headingBold, fontSize: 18 },
-  recipeMacroLbl: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted },
+  recipeMacroLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   recipeExpanded: { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12, marginTop: 4 },
   recipeStepsTitle: { fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.textPrimary, marginBottom: 10 },
   recipeStep: { flexDirection: 'row', gap: 10, marginBottom: 8 },
@@ -476,7 +476,7 @@ const s = StyleSheet.create({
   tipBox: { backgroundColor: Colors.accentMuted, borderRadius: Radii.md, padding: 10, marginTop: 8 },
   tipTitle: { fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.accent, marginBottom: 4 },
   tipTxt: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
-  expandHint: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 8 },
+  expandHint: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center', marginTop: 8 },
   shoppingCard: { backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 12 },
   shoppingTxt: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
 });

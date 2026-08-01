@@ -194,11 +194,13 @@ function PoseCameraInner({ active, onPose, onUnavailable }: Props) {
   if (hasPermission !== true) {
     return (
       <View style={[StyleSheet.absoluteFill, s.center]}>
-        <Text style={{ fontSize: 44, marginBottom: 12 }}>📷</Text>
+        <Text style={{ fontSize: 44, marginBottom: 12 }}
+          importantForAccessibility="no" accessibilityElementsHidden>📷</Text>
         <Text style={s.msg}>
           GymUp necesita la cámara para contar tus reps y corregir tu técnica.
         </Text>
-        <TouchableOpacity style={s.permBtn} onPress={() => requestPermission()} activeOpacity={0.85}>
+        <TouchableOpacity style={s.permBtn} onPress={() => requestPermission()} activeOpacity={0.85}
+          accessibilityRole="button" accessibilityLabel="Conceder permiso de cámara">
           <Text style={s.permBtnTxt}>Conceder permiso</Text>
         </TouchableOpacity>
       </View>
@@ -207,7 +209,8 @@ function PoseCameraInner({ active, onPose, onUnavailable }: Props) {
 
   if (!device) {
     return (
-      <View style={[StyleSheet.absoluteFill, s.center]}>
+      <View style={[StyleSheet.absoluteFill, s.center]} accessible
+        accessibilityLabel="Buscando cámara" accessibilityState={{ busy: true }}>
         <Text style={s.msg}>Buscando cámara…</Text>
       </View>
     );

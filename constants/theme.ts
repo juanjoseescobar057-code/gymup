@@ -62,3 +62,26 @@ export const Spacing = {
   xl: 32,
   xxl: 48,
 };
+
+// ─── Accesibilidad ───────────────────────────────────────
+// Tokens para que las decisiones de accesibilidad vivan en un solo lugar
+// y no se re-decidan (mal) pantalla por pantalla.
+
+/** Tamaños de texto. `micro` es el PISO: nada más pequeño que esto.
+ *  Apple HIG pide 11pt mínimo y Material 12sp para captions; 11 es el
+ *  compromiso que no reflowea los layouts que ya existen. */
+export const Type = {
+  micro: 11,   // etiquetas de eje, unidades, badges — el piso absoluto
+  caption: 12, // texto secundario
+  body: 14,
+  bodyLg: 16,
+};
+
+export const A11y = {
+  /** hitSlop estándar para iconos pequeños: expande el área táctil sin
+   *  tocar el layout visual. Úsalo cuando el botón dibujado mide menos de
+   *  los 44pt (Apple) / 48dp (Material) recomendados. */
+  hitSlop: { top: 10, bottom: 10, left: 10, right: 10 },
+  /** hitSlop generoso para iconos de ~24px (cerrar, volver, +/-). */
+  hitSlopLg: { top: 14, bottom: 14, left: 14, right: 14 },
+};

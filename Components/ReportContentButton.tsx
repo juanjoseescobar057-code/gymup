@@ -10,7 +10,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Alert } fro
 import * as Haptics from 'expo-haptics';
 import { useUserStore } from '../store/userStore';
 import { reportAIContent, AI_REPORT_REASONS, type AIReportFeature, type AIReportReason } from '../lib/aiReports';
-import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../constants/theme';
 
 type Props = {
   feature: AIReportFeature;
@@ -53,24 +53,30 @@ export default function ReportContentButton({ feature, content, label = '🚩 Re
 
   return (
     <>
-      <TouchableOpacity onPress={() => setOpen(true)} style={s.trigger} activeOpacity={0.7}>
+      <TouchableOpacity onPress={() => setOpen(true)} style={s.trigger} activeOpacity={0.7}
+        hitSlop={A11y.hitSlop}
+        accessibilityRole="button"
+        accessibilityLabel="Reportar esta respuesta de la inteligencia artificial"
+        accessibilityHint="Se abre un formulario para contarnos qué anduvo mal">
         <Text style={s.triggerTxt}>{label}</Text>
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={close}>
         <View style={s.overlay}>
-          <View style={s.sheet}>
+          <View style={s.sheet} accessibilityViewIsModal>
             {sent ? (
               <>
-                <Text style={s.title}>Gracias por avisarnos</Text>
+                <Text style={s.title} accessibilityRole="header"
+                  accessibilityLiveRegion="polite">Gracias por avisarnos</Text>
                 <Text style={s.subtitle}>Revisaremos este contenido. Tu reporte ayuda a mejorar la IA.</Text>
-                <TouchableOpacity style={s.primaryBtn} onPress={close} activeOpacity={0.85}>
+                <TouchableOpacity style={s.primaryBtn} onPress={close} activeOpacity={0.85}
+                  accessibilityRole="button" accessibilityLabel="Cerrar">
                   <Text style={s.primaryBtnTxt}>Cerrar</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <Text style={s.title}>Reportar este contenido</Text>
+                <Text style={s.title} accessibilityRole="header">Reportar este contenido</Text>
                 <Text style={s.subtitle}>¿Qué anduvo mal con esta respuesta de la IA?</Text>
 
                 {AI_REPORT_REASONS.map((r) => (
@@ -78,7 +84,10 @@ export default function ReportContentButton({ feature, content, label = '🚩 Re
                     key={r.id}
                     style={[s.reasonRow, reason === r.id && s.reasonRowSel]}
                     onPress={() => { setReason(r.id); Haptics.selectionAsync(); }}
-                    activeOpacity={0.8}>
+                    activeOpacity={0.8}
+                    accessibilityRole="radio"
+                    accessibilityLabel={r.label}
+                    accessibilityState={{ selected: reason === r.id }}>
                     <View style={[s.radio, reason === r.id && s.radioSel]}>
                       {reason === r.id && <View style={s.radioDot} />}
                     </View>
@@ -94,16 +103,21 @@ export default function ReportContentButton({ feature, content, label = '🚩 Re
                   onChangeText={setNote}
                   multiline
                   maxLength={500}
+                  accessibilityLabel="Detalles adicionales. Opcional"
                 />
 
                 <TouchableOpacity
                   style={[s.primaryBtn, (!reason || busy) && { opacity: 0.4 }]}
                   disabled={!reason || busy}
                   onPress={submit}
-                  activeOpacity={0.85}>
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={busy ? 'Enviando tu reporte' : 'Enviar reporte'}
+                  accessibilityState={{ disabled: !reason || busy, busy }}>
                   <Text style={s.primaryBtnTxt}>{busy ? 'Enviando...' : 'Enviar reporte'}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={s.secondaryBtn} onPress={close} activeOpacity={0.85}>
+                <TouchableOpacity style={s.secondaryBtn} onPress={close} activeOpacity={0.85}
+                  accessibilityRole="button" accessibilityLabel="Cancelar y cerrar">
                   <Text style={s.secondaryBtnTxt}>Cancelar</Text>
                 </TouchableOpacity>
               </>
@@ -117,7 +131,7 @@ export default function ReportContentButton({ feature, content, label = '🚩 Re
 
 const s = StyleSheet.create({
   trigger: { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 2 },
-  triggerTxt: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, textDecorationLine: 'underline' },
+  triggerTxt: { fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textMuted, textDecorationLine: 'underline' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: Colors.bgCard, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: Spacing.xl },
   title: { fontFamily: Fonts.heading, fontSize: 22, color: Colors.textPrimary, marginBottom: 6 },

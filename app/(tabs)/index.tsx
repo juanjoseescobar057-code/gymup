@@ -16,7 +16,7 @@ import { checkPremium } from '../../lib/purchases';
 import { isPlanStaleForHealth } from '../../lib/health';
 import { fetchTodayFoodLogs, localDateKey } from '../../lib/foodLogs';
 import { getWaterCount, addWater, WATER_GOAL } from '../../lib/water';
-import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
   const size = 120;
@@ -26,7 +26,12 @@ function CalorieRing({ consumed, target }: { consumed: number; target: number })
   const pct = Math.min(consumed / Math.max(target, 1), 1);
   const offset = circ * (1 - pct);
   return (
-    <View style={{ width: size, height: size }}>
+    // El anillo es un SVG: se agrupa con una frase para el lector de pantalla.
+    <View style={{ width: size, height: size }} accessible
+      accessibilityLabel={
+        `Calorías de hoy: ${Math.round(consumed).toLocaleString()} de ${target.toLocaleString()}. ` +
+        `${Math.round(pct * 100)} por ciento de tu meta.`
+      }>
       <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
         <Circle cx={size/2} cy={size/2} r={r} stroke={Colors.border} strokeWidth={sw} fill="none" />
         <Circle cx={size/2} cy={size/2} r={r} stroke={Colors.accent} strokeWidth={sw} fill="none"
@@ -47,7 +52,8 @@ function MacroBar({ name, consumed, target, color }: {
 }) {
   const pct = Math.min((consumed / Math.max(target, 1)) * 100, 100);
   return (
-    <View style={{ marginBottom: 10 }}>
+    <View style={{ marginBottom: 10 }} accessible
+      accessibilityLabel={`${name}: ${Math.round(consumed)} de ${target} gramos, ${Math.round(pct)} por ciento`}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
         <Text style={s.macroName}>{name}</Text>
         <Text style={s.macroVal}>{Math.round(consumed)}<Text style={s.macroTotal}>/{target}g</Text></Text>
@@ -253,7 +259,8 @@ export default function DashboardScreen() {
             {/* El apodo primero: la app te llama como TÚ quieres */}
             <Text style={s.userName}>{(profile.nickname || profile.name || '').toUpperCase()} 💪</Text>
           </View>
-          <View style={s.avatar}>
+          <View style={s.avatar} importantForAccessibility="no-hide-descendants"
+            accessibilityElementsHidden>
             <Text style={s.avatarTxt}>{(profile.nickname || profile.name)?.[0]?.toUpperCase() ?? '?'}</Text>
           </View>
         </View>
@@ -280,7 +287,9 @@ export default function DashboardScreen() {
                 key={i}
                 onPress={() => tapCup(i)}
                 style={s.waterCup}
-                accessibilityLabel={`Vaso de agua ${i + 1}`}
+                accessibilityRole="checkbox"
+                accessibilityLabel={`Vaso de agua ${i + 1} de ${WATER_GOAL}`}
+                accessibilityState={{ checked: i < water }}
                 activeOpacity={0.7}
               >
                 <Text style={{ fontSize: 22, opacity: i < water ? 1 : 0.22 }}>💧</Text>
@@ -293,7 +302,7 @@ export default function DashboardScreen() {
         </View>
 
         {/* Comparativas del mes */}
-        <Text style={s.sectionLbl}>ESTE MES VS MES ANTERIOR</Text>
+        <Text style={s.sectionLbl} accessibilityRole="header">ESTE MES VS MES ANTERIOR</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 10, marginBottom: 8 }}>
           {[
@@ -305,7 +314,13 @@ export default function DashboardScreen() {
             const pct = item.prev > 0 ? Math.round(Math.abs(diff / item.prev) * 100) : 0;
             const good = diff >= 0;
             return (
-              <View key={item.label} style={s.compareCard}>
+              <View key={item.label} style={s.compareCard} accessible
+                accessibilityLabel={
+                  `${item.label} este mes: ${item.val} ${item.unit}. ` +
+                  (item.prev > 0
+                    ? `${good ? 'Subiste' : 'Bajaste'} ${pct} por ciento respecto al mes pasado.`
+                    : 'Sin datos del mes pasado para comparar.')
+                }>
                 <Text style={s.compareIcon}>{item.icon}</Text>
                 <Text style={s.compareLabel}>{item.label}</Text>
                 <Text style={s.compareVal}>{item.val}<Text style={s.compareUnit}> {item.unit}</Text></Text>
@@ -322,10 +337,12 @@ export default function DashboardScreen() {
 
         {/* Indicador de día del plan */}
         <View style={s.planDayRow}>
-          <Text style={s.sectionLbl}>
+          <Text style={s.sectionLbl} accessibilityRole="header">
              DÍA {todayIndex + 1} DE 7 · {new Date().toLocaleDateString('es-CO', { weekday: 'long' }).toUpperCase()}
           </Text>
-          <View style={s.planDots}>
+          {/* Los puntos solo repiten visualmente el día que ya dice el título. */}
+          <View style={s.planDots} importantForAccessibility="no-hide-descendants"
+            accessibilityElementsHidden>
             {Array.from({ length: 7 }).map((_, i) => (
               <View key={i} style={[
                 s.planDot,
@@ -342,6 +359,9 @@ export default function DashboardScreen() {
             style={s.staleCard}
             onPress={() => router.push('/(tabs)/profile' as any)}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Tu plan no incluye tu último cambio de salud"
+            accessibilityHint="Abre tu perfil para ajustarlo con la inteligencia artificial"
           >
             <Text style={{ fontSize: 20 }}>🩺</Text>
             <Text style={s.staleTxt}>
@@ -378,10 +398,14 @@ export default function DashboardScreen() {
               <Text style={s.moreEx}>+ {todayPlan.exercises.length - 3} ejercicios más</Text>
             )}
             <TouchableOpacity style={s.startBtn}
-              onPress={() => router.push('/workout-session' as any)} activeOpacity={0.85}>
+              onPress={() => router.push('/workout-session' as any)} activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Iniciar entrenamiento de ${todayPlan.muscle_groups?.join(' y ')}`}
+              accessibilityHint={`${todayPlan.exercises?.length} ejercicios, unos ${todayPlan.estimated_duration_min} minutos`}>
               <Text style={s.startBtnTxt}>▶  INICIAR ENTRENAMIENTO</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/exercises' as any)} activeOpacity={0.7}>
+            <TouchableOpacity onPress={() => router.push('/exercises' as any)} activeOpacity={0.7}
+              accessibilityRole="button" accessibilityLabel="Ver biblioteca de ejercicios">
               <Text style={s.libraryLink}>📚 Ver biblioteca de ejercicios</Text>
             </TouchableOpacity>
           </View>
@@ -422,6 +446,9 @@ export default function DashboardScreen() {
           style={s.aiCard}
           onPress={() => router.push('/coach-chat' as any)}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Tu coach: ${aiSuggestion || 'cargando a tu coach'}`}
+          accessibilityHint="Abre el chat para responderle o preguntarle lo que quieras"
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <View style={s.aiDot} />
@@ -434,15 +461,18 @@ export default function DashboardScreen() {
 
         {/* Accesos rápidos */}
         <View style={s.quickRow}>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/food-scan' as any)} activeOpacity={0.85}>
+          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/food-scan' as any)} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Escanear comida con la cámara">
             <Text style={{ fontSize: 24 }}>🍽️</Text>
             <Text style={s.quickLbl}>Escanear comida</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/fridge-scan' as any)} activeOpacity={0.85}>
+          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/fridge-scan' as any)} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Escanear mi nevera con la cámara">
             <Text style={{ fontSize: 24 }}>🧊</Text>
             <Text style={s.quickLbl}>Escanear nevera</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/body-scan' as any)} activeOpacity={0.85}>
+          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/body-scan' as any)} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Escanear mi cuerpo con la cámara">
             <Text style={{ fontSize: 24 }}>💪</Text>
             <Text style={s.quickLbl}>Escanear cuerpo</Text>
           </TouchableOpacity>
@@ -462,19 +492,19 @@ const s = StyleSheet.create({
   avatarTxt: { fontFamily: Fonts.heading, fontSize: 20, color: '#0a0a0b' },
   macroCard: { marginHorizontal: Spacing.lg, marginBottom: 12, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.xl, padding: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
   ringKcal: { fontFamily: Fonts.heading, fontSize: 22, color: Colors.textPrimary },
-  ringLbl: { fontFamily: Fonts.body, fontSize: 9, color: Colors.textMuted, textAlign: 'center' },
-  macroName: { fontFamily: Fonts.bodyMedium, fontSize: 11, color: Colors.textSecondary },
+  ringLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center' },
+  macroName: { fontFamily: Fonts.bodyMedium, fontSize: Type.micro, color: Colors.textSecondary },
   macroVal: { fontFamily: Fonts.headingSemi, fontSize: 13, color: Colors.textPrimary },
-  macroTotal: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted },
+  macroTotal: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   barBg: { height: 5, backgroundColor: Colors.border, borderRadius: 10, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 10 },
-  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginHorizontal: Spacing.lg, marginBottom: 10, marginTop: 4 },
+  sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginHorizontal: Spacing.lg, marginBottom: 10, marginTop: 4 },
   waterCard: { marginHorizontal: Spacing.lg, marginBottom: 12, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.xl, padding: Spacing.md },
-  waterTitle: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.textMuted, letterSpacing: 0.6 },
+  waterTitle: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 0.6 },
   waterCount: { fontFamily: Fonts.headingSemi, fontSize: 14, color: Colors.macroCarbs },
   waterRow: { flexDirection: 'row', justifyContent: 'space-between' },
   waterCup: { padding: 4 },
-  waterDone: { fontFamily: Fonts.body, fontSize: 11, color: Colors.accent, marginTop: 6, textAlign: 'center' },
+  waterDone: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.accent, marginTop: 6, textAlign: 'center' },
   planDayRow: { marginHorizontal: Spacing.lg, marginBottom: 12 },
   planDots: { flexDirection: 'row', gap: 6, marginTop: 8 },
   planDot: { width: 28, height: 4, borderRadius: 2, backgroundColor: Colors.border },
@@ -482,12 +512,12 @@ const s = StyleSheet.create({
   planDotCurrent: { backgroundColor: Colors.accent, width: 40 },
   compareCard: { backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, width: 120, alignItems: 'center', gap: 4 },
   compareIcon: { fontSize: 24 },
-  compareLabel: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted },
+  compareLabel: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   compareVal: { fontFamily: Fonts.heading, fontSize: 28, color: Colors.textPrimary },
   compareUnit: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted },
   compareBadge: { borderRadius: Radii.full, paddingHorizontal: 8, paddingVertical: 3 },
-  compareDiff: { fontFamily: Fonts.bodySemi, fontSize: 11 },
-  compareVs: { fontFamily: Fonts.body, fontSize: 9, color: Colors.textMuted },
+  compareDiff: { fontFamily: Fonts.bodySemi, fontSize: Type.micro },
+  compareVs: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
   workoutCard: { marginHorizontal: Spacing.lg, backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 12 },
   workoutTitle: { fontFamily: Fonts.headingBold, fontSize: 20, color: Colors.textPrimary },
   workoutMeta: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, marginTop: 2 },
@@ -497,7 +527,7 @@ const s = StyleSheet.create({
   exNum: { width: 28, height: 28, borderRadius: 8, backgroundColor: Colors.bgInput, alignItems: 'center', justifyContent: 'center' },
   exNumTxt: { fontFamily: Fonts.headingSemi, fontSize: 13, color: Colors.textMuted },
   exName: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textPrimary },
-  exMeta: { fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  exMeta: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
   moreEx: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, textAlign: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.border },
   startBtn: { backgroundColor: Colors.accent, borderRadius: Radii.md, paddingVertical: 14, alignItems: 'center', marginTop: Spacing.md },
   startBtnTxt: { fontFamily: Fonts.heading, fontSize: 17, color: '#0a0a0b', letterSpacing: 0.8 },
@@ -507,12 +537,12 @@ const s = StyleSheet.create({
   restDesc: { fontFamily: Fonts.body, fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   aiCard: { marginHorizontal: Spacing.lg, backgroundColor: Colors.bgSelected, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.xl, padding: Spacing.md, marginBottom: 12 },
   aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },
-  aiLbl: { fontFamily: Fonts.bodySemi, fontSize: 10, color: Colors.accent, letterSpacing: 0.8 },
+  aiLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, letterSpacing: 0.8 },
   aiTxt: { fontFamily: Fonts.body, fontSize: 13, color: '#ccc', lineHeight: 20 },
-  aiCta: { fontFamily: Fonts.bodySemi, fontSize: 11, color: Colors.accent, marginTop: 10 },
+  aiCta: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, marginTop: 10 },
   staleCard: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: Spacing.lg, marginBottom: 12, backgroundColor: 'rgba(255,157,58,0.08)', borderWidth: 1, borderColor: 'rgba(255,157,58,0.35)', borderRadius: Radii.lg, padding: Spacing.md },
   staleTxt: { flex: 1, fontFamily: Fonts.bodyMedium, fontSize: 12, color: Colors.warning, lineHeight: 18 },
   quickRow: { flexDirection: 'row', gap: 8, marginHorizontal: Spacing.lg, marginBottom: 12 },
   quickBtn: { flex: 1, backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: 12, alignItems: 'center', gap: 6 },
-  quickLbl: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
+  quickLbl: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center' },
 });

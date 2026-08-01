@@ -16,10 +16,16 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+// Quien recibe esto ya faltó varios días y lo más probable es que ya se sienta
+// mal por eso. Regañarlo ("el sofá va ganando", "no tienes que querer; solo
+// hacerlo") le suma vergüenza a la culpa, y de ahí no sale un entrenamiento:
+// sale una desinstalación. Criterio del copy: faltar es normal, la decisión es
+// suya, el descanso también cuenta, y la puerta de entrada es una sesión mínima
+// viable (10 minutos) en vez de la sesión completa.
 const MESSAGES = [
-  { title: '¿Qué pasó? 👀', body: 'Llevas días sin entrenar. Tu versión de hace una semana te está esperando.' },
-  { title: 'El sofá va ganando 🛋️', body: '3-0. ¿Lo dejas así o entras hoy aunque sea 15 minutos?' },
-  { title: 'Tu racha te extraña 🔥', body: 'Vuelve hoy y la retomamos. No tienes que querer; solo hacerlo.' },
+  { title: 'Aquí seguimos, sin apuros 💚', body: 'Faltar unos días nos pasa a todos. Cuando quieras volver, arrancamos con 10 minutos y ya está.' },
+  { title: 'Descansar también es progreso 😴', body: 'El músculo crece en el descanso, no solo en el entreno. Si tu cuerpo pidió pausa, hiciste bien. Retomamos cuando digas.' },
+  { title: '¿Y si hoy son solo 10 minutos? ⏱️', body: 'Tú eliges qué hacer y cuándo parar. Media sesión cuenta; la sesión completa puede esperar.' },
 ];
 
 Deno.serve(async (req) => {

@@ -93,15 +93,16 @@
 <main class="page">
   <h1>Eliminar tu cuenta de GymUp</h1>
 
-  <p>Puedes eliminar tu cuenta y todos tus datos asociados de GymUp en cualquier momento, de forma permanente e irreversible.</p>
+  <p>Puedes eliminar tu cuenta y todos tus datos asociados de GymUp en cualquier momento. Una vez completada, la eliminación es permanente e irreversible.</p>
 
   <h2>Cómo solicitar la eliminación</h2>
   <div class="steps">
-    <p><strong>Opción 1 — Desde la app (recomendado, inmediato):</strong></p>
+    <p><strong>Opción 1 — Desde la app (recomendado, se ejecuta en el momento):</strong></p>
     <ol>
       <li>Abre GymUp y entra a la pestaña <strong>Perfil</strong>.</li>
       <li>Toca <strong>Eliminar cuenta</strong>.</li>
       <li>Confirma la acción cuando la app te lo pida.</li>
+      <li>Si el proceso falla, la app te lo dirá: tu cuenta seguirá activa y podrás reintentarlo desde el mismo botón.</li>
     </ol>
     <p style="margin-top: 1rem;"><strong>Opción 2 — Si ya no tienes la app instalada:</strong></p>
     <p style="margin-bottom: 0;">Escríbenos a <a href="mailto:juanjoseescobar057@gmail.com?subject=Solicitud%20de%20eliminaci%C3%B3n%20de%20cuenta%20GymUp">juanjoseescobar057@gmail.com</a> desde el correo asociado a tu cuenta (si vinculaste uno), indicando que deseas eliminar tu cuenta y tus datos. Procesamos la solicitud manualmente en un plazo razonable.</p>
@@ -110,18 +111,25 @@
   <h2>Qué se elimina</h2>
   <p>Al eliminar tu cuenta, borramos de forma permanente:</p>
   <ul>
-    <li>Tu perfil (nombre, edad, peso, altura, objetivos, metas)</li>
+    <li>Tu perfil (nombre, edad, peso, altura, sexo biológico, objetivos, metas)</li>
     <li>Tu perfil de salud (tamizaje PAR-Q+, condiciones, lesiones declaradas)</li>
     <li>Tu historial de entrenamiento, planes y series registradas</li>
     <li>Tu historial de comidas y registros de peso corporal</li>
-    <li>Tus fotos de transformación guardadas</li>
+    <li>Los resultados de tus análisis corporales y de postura</li>
+    <li>Tus fotos de transformación guardadas (los archivos en el almacenamiento en la nube, no solo su referencia)</li>
     <li>La memoria del coach de IA (hechos aprendidos de tus conversaciones)</li>
     <li>Tu racha, nivel, insignias y misiones</li>
+    <li>Tus preferencias de notificaciones y el token de tu dispositivo</li>
+    <li>Tus registros de uso de IA, telemetría y eventos de analítica</li>
+    <li>Los reportes de contenido de IA que hayas enviado</li>
     <li>Tu identidad de autenticación (la cuenta en sí)</li>
   </ul>
 
+  <h2>Cómo se ejecuta el borrado</h2>
+  <p>Primero borramos tus datos y <strong>solo si todos se eliminaron correctamente</strong> borramos tu identidad de autenticación. Si algo falla, el proceso se detiene antes de ese último paso: <strong>tu cuenta no se elimina</strong> y puedes reintentarlo con tu sesión intacta. Preferimos fallar y avisarte antes que dejar datos tuyos sin dueño ni forma de alcanzarlos. Los datos que sí alcanzamos a borrar en un intento fallido ya no se recuperan.</p>
+
   <h2>Qué se conserva y por cuánto tiempo</h2>
-  <p>No conservamos ninguno de los datos anteriores tras la eliminación. Como excepción, podemos conservar por un periodo breve (hasta 30 días) registros técnicos agregados y anónimos sin capacidad de identificarte (por ejemplo, para prevenir fraude o cumplir obligaciones legales), y el estado de tu suscripción en RevenueCat/Apple/Google puede persistir según las políticas de esas plataformas, independientes de GymUp.</p>
+  <p>No conservamos ninguno de los datos anteriores tras una eliminación completada. Como salvedades: las copias de seguridad y los registros técnicos de nuestro proveedor de infraestructura (Supabase) pueden retener datos hasta 30 días adicionales antes de su eliminación definitiva; conservamos los registros de eventos de facturación que nos envía RevenueCat (identificador del evento, tipo y fecha) como soporte de las transacciones; y el estado de tu suscripción en RevenueCat/Apple/Google puede persistir según las políticas de esas plataformas, independientes de GymUp.</p>
 
   <p>Para más detalle sobre el tratamiento de tus datos, consulta nuestra <a href="./privacy-policy.html">Política de Privacidad</a>.</p>
 

@@ -8,7 +8,8 @@
 
 export type Feature = 'body_scan' | 'coach' | 'coach_chat' | 'food_scan' | 'regenerate_plan' | 'fridge_scan';
 
-// Qué puede hacer el plan GRATIS. Lo no listado como ilimitado tiene tope.
+// Qué puede hacer el plan GRATIS. Todo tiene tope diario; lo que está en false
+// es exclusivo de Premium.
 export const FREE_LIMITS = {
   foodScansPerDay: 3,
   fridgeScansPerDay: 1,
@@ -18,16 +19,42 @@ export const FREE_LIMITS = {
   regeneratePlan: false,  // premium
 };
 
+// Topes DIARIOS del plan Premium. Premium NO es ilimitado: el servidor aplica
+// estos topes de verdad (FEATURE_POLICY en supabase/functions/ai-proxy/index.ts)
+// y devuelve 429 al pasarse. Prometer "ilimitado" o "sin límites" en el paywall
+// era publicidad engañosa: motivo de rechazo en tienda y de reembolsos.
+//
+// ⚠️ SINCRONIZACIÓN MANUAL con FEATURE_POLICY.premiumLimit del ai-proxy: si un
+// tope cambia allí, HAY QUE cambiarlo aquí (y viceversa). Nada en CI lo verifica
+// porque el proxy corre en Deno y esto en el bundle de la app. Lo correcto a
+// futuro es que el servidor exponga los topes y el paywall los pinte, en vez de
+// duplicar los números en dos repos de código que se despliegan por separado.
+export const PREMIUM_LIMITS = {
+  bodyScansPerDay: 5,      // ai-proxy: body_scan.premiumLimit
+  coachPosturePerDay: 30,  // ai-proxy: coach.premiumLimit
+  coachMessagesPerDay: 60, // ai-proxy: coach_chat.premiumLimit
+  foodScansPerDay: 30,     // ai-proxy: food_scan.premiumLimit
+  fridgeScansPerDay: 10,   // ai-proxy: fridge_scan.premiumLimit
+  planRegensPerDay: 5,     // ai-proxy: plan.premiumLimit (regenerar plan)
+};
+
+// `price` es solo un RESPALDO VISUAL en USD para mientras cargan las ofertas de
+// la tienda: el precio que se cobra de verdad es el localizado que devuelve
+// RevenueCat (priceString), y es el que pinta el paywall. Ver app/paywall.tsx.
 export const PLANS = {
   monthly: { id: 'gymup_premium_monthly', price: '$9.99', period: 'mes' },
   yearly:  { id: 'gymup_premium_yearly',  price: '$79.99', period: 'año', save: '33%' },
 };
 
+// Los beneficios se arman con los números reales para que no puedan desviarse
+// del texto: si alguien toca PREMIUM_LIMITS, el paywall cambia con él.
 export const PREMIUM_BENEFITS = [
-  '📷 Análisis corporal ilimitado',
-  '🧠 Coach de postura con IA',
-  '🍽️ Escaneos de comida ilimitados',
-  '🔄 Regenera tu plan cuando quieras',
+  `📷 Análisis corporal con IA: hasta ${PREMIUM_LIMITS.bodyScansPerDay} al día`,
+  `🧠 Coach de postura: ${PREMIUM_LIMITS.coachPosturePerDay} análisis diarios`,
+  `💬 Chat con tu coach: ${PREMIUM_LIMITS.coachMessagesPerDay} mensajes al día (gratis: ${FREE_LIMITS.coachMessagesPerDay})`,
+  `🍽️ Escaneo de comida: hasta ${PREMIUM_LIMITS.foodScansPerDay} al día (gratis: ${FREE_LIMITS.foodScansPerDay})`,
+  `🥗 Escaneo de nevera: hasta ${PREMIUM_LIMITS.fridgeScansPerDay} al día (gratis: ${FREE_LIMITS.fridgeScansPerDay})`,
+  `🔄 Regenera tu plan hasta ${PREMIUM_LIMITS.planRegensPerDay} veces al día`,
   '📈 Predicción de resultados',
   '🚫 Sin anuncios',
 ];
@@ -43,6 +70,9 @@ export function canUseFeature(
   isPremium: boolean,
   usedToday = 0
 ): GateResult {
+  // Premium tampoco es ilimitado (ver PREMIUM_LIMITS), pero sus topes los cuenta
+  // y aplica el servidor: acá no hay un contador fiable del uso premium del día,
+  // así que el gate local lo deja pasar y el proxy responde 429 si se pasó.
   if (isPremium) return { allowed: true };
 
   switch (feature) {

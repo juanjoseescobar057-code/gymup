@@ -137,6 +137,10 @@ export type UserProfile = {
   user_id: string;
   name: string;
   age: number;
+  // Sexo biológico: sin él, Mifflin-St Jeor usaba SIEMPRE la constante masculina
+  // (~166 kcal/día de error basal en mujeres, que se propaga a macros, déficit y
+  // superávit). 'unspecified' es una opción real para quien prefiere no decirlo.
+  sex: 'male' | 'female' | 'unspecified';
   weight_kg: number;
   height_cm: number;
   goal: 'muscle_gain' | 'fat_loss' | 'performance' | 'endurance';
@@ -155,6 +159,9 @@ export type UserProfile = {
   created_at: string;
   updated_at: string;
 };
+
+/** Alias del sexo biológico para los módulos que lo usan sin depender del perfil entero. */
+export type BiologicalSex = UserProfile['sex'];
 
 export type TrainingPlan = {
   id: string;

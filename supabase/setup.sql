@@ -35,6 +35,11 @@ create table if not exists public.user_profiles (
   age integer not null check (age between 18 and 90),
   weight_kg numeric(5,1) not null check (weight_kg between 30 and 300),
   height_cm numeric(5,1) not null check (height_cm between 130 and 230),
+  -- Sexo biológico: sin él, Mifflin-St Jeor usaba SIEMPRE la constante masculina
+  -- (+5), lo que da ~166 kcal/día de error basal en mujeres y contamina macros,
+  -- déficit y superávit. 'unspecified' usa el punto medio (-78) para acotar ese
+  -- error a ±83 kcal en quien prefiere no decirlo.
+  sex text not null default 'unspecified' check (sex in ('male','female','unspecified')),
   goal text not null check (goal in ('muscle_gain','fat_loss','performance','endurance')),
   activity_level text not null check (activity_level in ('sedentary','light','moderate','active','very_active')),
   daily_calories integer not null default 2000,
@@ -56,6 +61,15 @@ alter table if exists public.user_profiles add column if not exists target_weigh
 alter table if exists public.user_profiles add column if not exists goal_why text;
 alter table if exists public.user_profiles add column if not exists goal_start_weight_kg numeric(5,1);
 alter table if exists public.user_profiles add column if not exists nickname text;
+alter table if exists public.user_profiles add column if not exists sex text not null default 'unspecified';
+-- El CHECK va aparte: "add constraint" no tiene "if not exists", así que
+-- atrapamos el duplicado para que el script siga siendo re-ejecutable.
+do $$
+begin
+  alter table public.user_profiles
+    add constraint user_profiles_sex_check check (sex in ('male','female','unspecified'));
+exception when duplicate_object then null;
+end $$;
 select public._apply_owner_rls('user_profiles');
 -- SEGURIDAD DE PAGOS: is_premium NO es editable por el cliente. El helper
 -- otorga UPDATE de tabla completa; aquí lo estrechamos a columnas seguras.
@@ -66,7 +80,7 @@ revoke update on public.user_profiles from anon, authenticated;
 -- columna, Postgres devuelve 42501 "permission denied" en cualquier reintento de
 -- onboarding sobre un perfil ya existente. La política WITH CHECK (auth.uid() = user_id)
 -- ya impide reasignar el perfil a otro usuario, así que otorgar UPDATE aquí es seguro.
-grant update (user_id, name, nickname, age, weight_kg, height_cm, goal, activity_level,
+grant update (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,
   daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,
   current_plan_day, last_active_date, target_weight_kg, goal_why,
   goal_start_weight_kg, updated_at)
@@ -158,6 +172,272 @@ create table if not exists public.user_stats (
   updated_at timestamptz default now()
 );
 select public._apply_owner_rls('user_stats');
+-- INTEGRIDAD DE LA GAMIFICACIÓN: el helper otorga INSERT/UPDATE de tabla
+-- completa, así que un cliente modificado podía escribirse XP, nivel, racha y
+-- badges a voluntad. Los "resultados demostrables" son la promesa central del
+-- producto: si el propio usuario los puede falsificar, no valen nada. El
+-- cliente pasa a SOLO LEER sus stats; la única vía de escritura es la RPC
+-- apply_workout_stats, que recalcula todo del lado del servidor.
+-- DELETE se conserva: el borrado de cuenta (profile.tsx y la Edge Function
+-- delete-account) elimina esta fila con el JWT del propio usuario.
+revoke insert, update on public.user_stats from anon, authenticated;
+
+-- Aplica un entrenamiento completado sobre las stats del usuario autenticado.
+-- El user_id NO es parámetro: se deriva de auth.uid(), así que nadie puede
+-- escribir sobre las stats de otro aunque llame la RPC directamente.
+-- La racha y el nivel replican EXACTAMENTE lib/streaksMath.ts (tolerancia de
+-- hasta 2 días por los descansos del plan, comodín hasta FREEZE_MAX_GAP = 8,
+-- nivel = floor(sqrt(xp/100)) + 1) para no alterar el progreso ya ganado.
+create or replace function public.apply_workout_stats(
+  p_xp_delta integer,
+  p_workout_date date,
+  p_badges text[] default '{}'
+)
+returns table (
+  current_streak integer,
+  longest_streak integer,
+  total_xp integer,
+  level integer,
+  total_workouts integer,
+  earned_badges text[],
+  streak_freezes integer
+)
+language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_date date := coalesce(p_workout_date, current_date);
+  v_xp integer;
+  v_last date;
+  v_streak integer;
+  v_freezes integer;
+  v_gap integer;
+  v_new_streak integer;
+  v_freeze_used boolean := false;
+  v_same_day boolean := false;
+begin
+  if v_uid is null then
+    raise exception 'apply_workout_stats requiere un usuario autenticado';
+  end if;
+
+  -- El cliente sigue decidiendo el monto (base + bono de racha + XP de badges),
+  -- pero no puede inflarlo. El tope NO puede ser 500: el badge streak_100 vale
+  -- 3000 XP por sí solo (ver BADGES en lib/streaks.ts), así que un tope menor
+  -- silenciaría el logro más grande del producto. 3200 cubre el peor caso
+  -- legítimo (streak_100 + XP base + bono de racha) sin dejar margen de abuso.
+  v_xp := least(greatest(coalesce(p_xp_delta, 0), 0), 3200);
+
+  -- El cliente ya no puede crear su fila, así que la asegura la propia RPC.
+  insert into public.user_stats (user_id) values (v_uid)
+  on conflict (user_id) do nothing;
+
+  -- FOR UPDATE: dos entrenamientos cerrados casi a la vez (o un reintento de
+  -- red) no deben leer la misma racha y contarla dos veces.
+  select s.last_workout_date, coalesce(s.current_streak, 0), coalesce(s.streak_freezes, 0)
+    into v_last, v_streak, v_freezes
+  from public.user_stats s
+  where s.user_id = v_uid
+  for update;
+
+  if v_last is null then
+    v_new_streak := 1;
+  else
+    v_gap := v_date - v_last;
+    if v_gap <= 0 then
+      -- Mismo día (o fecha anterior por reloj desfasado): idempotente.
+      v_new_streak := v_streak;
+      v_same_day := true;
+    elsif v_gap <= 2 then
+      v_new_streak := v_streak + 1;
+    elsif v_freezes > 0 and v_gap <= 8 then
+      v_new_streak := v_streak + 1;
+      v_freeze_used := true;
+    else
+      v_new_streak := 1;
+    end if;
+  end if;
+
+  update public.user_stats s set
+    current_streak = v_new_streak,
+    longest_streak = greatest(coalesce(s.longest_streak, 0), v_new_streak),
+    total_xp = coalesce(s.total_xp, 0) + v_xp,
+    level = floor(sqrt((coalesce(s.total_xp, 0) + v_xp) / 100.0))::integer + 1,
+    total_workouts = coalesce(s.total_workouts, 0) + case when v_same_day then 0 else 1 end,
+    earned_badges = coalesce(s.earned_badges, '{}'::text[]) || (
+      select coalesce(array_agg(distinct b), '{}'::text[])
+      from unnest(coalesce(p_badges, '{}'::text[])) as b
+      where not (b = any (coalesce(s.earned_badges, '{}'::text[])))
+    ),
+    last_workout_date = greatest(coalesce(s.last_workout_date, v_date), v_date),
+    streak_freezes = greatest(coalesce(s.streak_freezes, 0) - case when v_freeze_used then 1 else 0 end, 0),
+    updated_at = now()
+  where s.user_id = v_uid;
+
+  return query
+    select s.current_streak, s.longest_streak, s.total_xp, s.level,
+           s.total_workouts, s.earned_badges, s.streak_freezes
+    from public.user_stats s
+    where s.user_id = v_uid;
+end $$;
+grant execute on function public.apply_workout_stats(integer, date, text[]) to authenticated;
+
+-- Actividades que NO son entrenamiento (comida registrada, día perfecto de
+-- macros, escaneo corporal). Sin esta RPC, el revoke de arriba dejaría esas
+-- tres vías sin forma de escribir y el usuario perdería su XP en silencio.
+-- p_kind decide QUÉ contador sube; el XP lo propone el cliente pero el
+-- servidor lo acota (peor caso legítimo: comida 15 + día perfecto 50 +
+-- badges meals_50 400 + macro_day_7 300 = 765).
+create or replace function public.apply_activity_stats(
+  p_kind text,
+  p_xp_delta integer,
+  p_badges text[] default '{}',
+  p_macro_perfect boolean default false
+)
+returns table (
+  total_xp integer,
+  level integer,
+  total_meals_logged integer,
+  total_macro_perfect_days integer,
+  total_body_scans integer,
+  earned_badges text[]
+)
+language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_xp integer;
+begin
+  if v_uid is null then
+    raise exception 'apply_activity_stats requiere un usuario autenticado';
+  end if;
+  if p_kind not in ('meal', 'body_scan') then
+    raise exception 'apply_activity_stats: p_kind inválido (%)', p_kind;
+  end if;
+
+  v_xp := least(greatest(coalesce(p_xp_delta, 0), 0), 1000);
+
+  insert into public.user_stats (user_id) values (v_uid)
+  on conflict (user_id) do nothing;
+
+  update public.user_stats s set
+    total_xp = coalesce(s.total_xp, 0) + v_xp,
+    level = floor(sqrt((coalesce(s.total_xp, 0) + v_xp) / 100.0))::integer + 1,
+    total_meals_logged = coalesce(s.total_meals_logged, 0)
+      + case when p_kind = 'meal' then 1 else 0 end,
+    total_macro_perfect_days = coalesce(s.total_macro_perfect_days, 0)
+      + case when p_kind = 'meal' and p_macro_perfect then 1 else 0 end,
+    total_body_scans = coalesce(s.total_body_scans, 0)
+      + case when p_kind = 'body_scan' then 1 else 0 end,
+    earned_badges = coalesce(s.earned_badges, '{}'::text[]) || (
+      select coalesce(array_agg(distinct b), '{}'::text[])
+      from unnest(coalesce(p_badges, '{}'::text[])) as b
+      where not (b = any (coalesce(s.earned_badges, '{}'::text[])))
+    ),
+    updated_at = now()
+  where s.user_id = v_uid;
+
+  return query
+    select s.total_xp, s.level, s.total_meals_logged,
+           s.total_macro_perfect_days, s.total_body_scans, s.earned_badges
+    from public.user_stats s
+    where s.user_id = v_uid;
+end $$;
+grant execute on function public.apply_activity_stats(text, integer, text[], boolean) to authenticated;
+
+-- Cobro de una misión semanal. La protección real aquí NO es el tope de XP
+-- sino la IDEMPOTENCIA: p_mission_id se guarda en claimed_missions y un
+-- segundo cobro del mismo id no paga nada, así que la misión no se puede
+-- farmear repitiendo la llamada.
+create or replace function public.claim_mission(
+  p_mission_id text,
+  p_xp integer
+)
+returns table (total_xp integer, level integer, claimed_missions text[], already_claimed boolean)
+language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_xp integer;
+  v_already boolean;
+begin
+  if v_uid is null then
+    raise exception 'claim_mission requiere un usuario autenticado';
+  end if;
+  if p_mission_id is null or length(trim(p_mission_id)) = 0 then
+    raise exception 'claim_mission requiere un id de misión';
+  end if;
+
+  v_xp := least(greatest(coalesce(p_xp, 0), 0), 500);
+
+  insert into public.user_stats (user_id) values (v_uid)
+  on conflict (user_id) do nothing;
+
+  select p_mission_id = any (coalesce(s.claimed_missions, '{}'::text[]))
+    into v_already
+  from public.user_stats s where s.user_id = v_uid for update;
+
+  if not v_already then
+    update public.user_stats s set
+      total_xp = coalesce(s.total_xp, 0) + v_xp,
+      level = floor(sqrt((coalesce(s.total_xp, 0) + v_xp) / 100.0))::integer + 1,
+      claimed_missions = coalesce(s.claimed_missions, '{}'::text[]) || array[p_mission_id],
+      updated_at = now()
+    where s.user_id = v_uid;
+  end if;
+
+  return query
+    select s.total_xp, s.level, s.claimed_missions, v_already
+    from public.user_stats s where s.user_id = v_uid;
+end $$;
+grant execute on function public.claim_mission(text, integer) to authenticated;
+
+-- Compra de un comodín de racha pagando XP. Es la única RPC que RESTA XP, así
+-- que el saldo se verifica en el servidor: sin esto, un cliente modificado
+-- podía comprar comodines infinitos con XP que no tenía.
+create or replace function public.buy_streak_freeze(p_xp_cost integer)
+returns table (total_xp integer, level integer, streak_freezes integer, ok boolean, reason text)
+language plpgsql security definer set search_path = public as $$
+declare
+  v_uid uuid := auth.uid();
+  v_cost integer;
+  v_xp integer;
+  v_freezes integer;
+begin
+  if v_uid is null then
+    raise exception 'buy_streak_freeze requiere un usuario autenticado';
+  end if;
+
+  -- El precio lo propone el cliente pero se acota: nunca gratis (mínimo 1) ni
+  -- absurdo. El precio real vive en FREEZE_COST de app/(tabs)/progress.tsx.
+  v_cost := least(greatest(coalesce(p_xp_cost, 0), 1), 5000);
+
+  insert into public.user_stats (user_id) values (v_uid)
+  on conflict (user_id) do nothing;
+
+  select coalesce(s.total_xp, 0), coalesce(s.streak_freezes, 0)
+    into v_xp, v_freezes
+  from public.user_stats s where s.user_id = v_uid for update;
+
+  -- Tope de 2 comodines: replica el gate de la UI (progress.tsx) para que no
+  -- se pueda acumular una reserva infinita saltándose la pantalla.
+  if v_freezes >= 2 then
+    return query select v_xp, floor(sqrt(v_xp / 100.0))::integer + 1, v_freezes, false, 'max_freezes'::text;
+    return;
+  end if;
+  if v_xp < v_cost then
+    return query select v_xp, floor(sqrt(v_xp / 100.0))::integer + 1, v_freezes, false, 'insufficient_xp'::text;
+    return;
+  end if;
+
+  update public.user_stats s set
+    total_xp = coalesce(s.total_xp, 0) - v_cost,
+    level = floor(sqrt(greatest(coalesce(s.total_xp, 0) - v_cost, 0) / 100.0))::integer + 1,
+    streak_freezes = coalesce(s.streak_freezes, 0) + 1,
+    updated_at = now()
+  where s.user_id = v_uid;
+
+  return query
+    select s.total_xp, s.level, s.streak_freezes, true, null::text
+    from public.user_stats s where s.user_id = v_uid;
+end $$;
+grant execute on function public.buy_streak_freeze(integer) to authenticated;
 
 -- ─── PESO ────────────────────────────────────────────────
 create table if not exists public.weight_entries (
@@ -436,18 +716,32 @@ create table if not exists public.ai_usage (
 );
 alter table public.ai_usage enable row level security; -- sin políticas: solo la RPC
 
-create or replace function public.increment_ai_usage(p_user_id uuid, p_feature text, p_limit integer)
+-- El user_id ya NO es parámetro. Antes esta función era SECURITY DEFINER,
+-- estaba concedida a 'authenticated' y aceptaba cualquier p_user_id sin
+-- compararlo contra auth.uid(): un usuario podía llamarla en bucle con el uuid
+-- de otro y agotarle la cuota de IA del día. Y como ai_usage tiene RLS activada
+-- pero SIN políticas, esta función era TODA la protección de la tabla. Ahora el
+-- dueño se deriva del JWT, así que no hay nada que suplantar desde el cliente.
+drop function if exists public.increment_ai_usage(uuid, text, integer);
+
+create or replace function public.increment_ai_usage(p_feature text, p_limit integer)
 returns boolean language plpgsql security definer set search_path = public as $$
-declare current_count integer;
+declare
+  v_uid uuid := auth.uid();
+  current_count integer;
 begin
+  if v_uid is null then
+    raise exception 'increment_ai_usage requiere un usuario autenticado';
+  end if;
+
   insert into public.ai_usage (user_id, date, feature, count)
-  values (p_user_id, current_date, p_feature, 1)
+  values (v_uid, current_date, p_feature, 1)
   on conflict (user_id, date, feature)
   do update set count = public.ai_usage.count + 1
   returning count into current_count;
   return current_count <= p_limit;
 end $$;
-grant execute on function public.increment_ai_usage(uuid, text, integer) to authenticated;
+grant execute on function public.increment_ai_usage(text, integer) to authenticated;
 
 -- ─── STORAGE: fotos de transformación (privado) ──────────
 insert into storage.buckets (id, name, public)

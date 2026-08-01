@@ -7,8 +7,9 @@ import {
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { supabase } from '../../lib/supabase';
+import { supabase, type WeeklyPlan } from '../../lib/supabase';
 import { generateTrainingPlan, calculateDailyMacros } from '../../lib/openai';
+import { captureError } from '../../lib/monitoring';
 import { useUserStore } from '../../store/userStore';
 import AuthSheet from '../../Components/AuthSheet';
 import HealthForm from '../../Components/HealthForm';
@@ -35,6 +36,34 @@ const ACTIVITY_LEVELS = [
   { key: 'very_active', label: 'Muy activo',  desc: 'Atleta / trabajo físico' },
 ] as const;
 
+// Sexo biológico: sin él, el BMR de Mifflin-St Jeor usaba SIEMPRE la constante
+// masculina (~166 kcal/día de error basal para mujeres, que se propaga a macros,
+// déficit y superávit). "Prefiero no decirlo" es una respuesta legítima: usa el
+// punto medio y acota el error a ±83 kcal en vez de ±166.
+const SEX_OPTIONS = [
+  { key: 'male',        label: 'Hombre' },
+  { key: 'female',      label: 'Mujer' },
+  { key: 'unspecified', label: 'Prefiero no decirlo' },
+] as const;
+
+// Experiencia real, no percibida: un principiante progresa con volumen y
+// frecuencia que a un avanzado ya no le mueven la aguja (y al revés, lo lesionan).
+const EXPERIENCE_LEVELS = [
+  { key: 'principiante', label: 'Principiante', desc: 'Menos de 6 meses entrenando con constancia' },
+  { key: 'intermedio',   label: 'Intermedio',   desc: 'Entre 6 meses y 2 años entrenando' },
+  { key: 'avanzado',     label: 'Avanzado',     desc: '2+ años con progresión estructurada' },
+] as const;
+
+// Sin equipamiento declarado, el plan puede pedir barras y máquinas a alguien
+// que entrena en la sala de su casa: se abandona en el primer día.
+const EQUIPMENT_OPTIONS = [
+  { key: 'gym',             label: 'Gimnasio completo',          desc: 'Barras, discos y máquinas' },
+  { key: 'casa_basico',     label: 'Casa con mancuernas o bandas', desc: 'Equipo básico en casa' },
+  { key: 'casa_sin_equipo', label: 'Casa sin equipo',            desc: 'Solo tu peso corporal' },
+] as const;
+
+const DAYS_OPTIONS = [2, 3, 4, 5, 6] as const;
+
 const LOADING_MESSAGES = [
   'Analizando tu perfil...',
   'Calculando tus macros ideales...',
@@ -45,6 +74,8 @@ const LOADING_MESSAGES = [
 
 type GoalKey = typeof GOALS[number]['key'];
 type ActivityKey = typeof ACTIVITY_LEVELS[number]['key'];
+type ExperienceKey = typeof EXPERIENCE_LEVELS[number]['key'];
+type EquipmentKey = typeof EQUIPMENT_OPTIONS[number]['key'];
 
 export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
@@ -54,8 +85,14 @@ export default function OnboardingScreen() {
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
+  // Sin valor por defecto: elegir "Prefiero no decirlo" es una decisión explícita
+  // del usuario, dejarlo en blanco es un dato que nunca preguntamos.
+  const [sex, setSex] = useState<'male' | 'female' | 'unspecified' | null>(null);
   const [goal, setGoal] = useState<GoalKey>('muscle_gain');
   const [activityLevel, setActivityLevel] = useState<ActivityKey>('moderate');
+  const [experience, setExperience] = useState<ExperienceKey>('principiante');
+  const [daysPerWeek, setDaysPerWeek] = useState(3);
+  const [equipment, setEquipment] = useState<EquipmentKey>('gym');
   const [targetWeight, setTargetWeight] = useState('');
   const [goalWhy, setGoalWhy] = useState('');
   const [health, setHealth] = useState<HealthProfile>(EMPTY_HEALTH);
@@ -92,6 +129,11 @@ export default function OnboardingScreen() {
     }
     if (!weight || isNaN(+weight) || +weight < 30 || +weight > 300) { Alert.alert('Peso inválido', 'Entre 30 y 300 kg.'); return false; }
     if (!height || isNaN(+height) || +height < 130 || +height > 230) { Alert.alert('Altura inválida', 'Entre 130 y 230 cm.'); return false; }
+    // Se exige responder, no se exige revelar: "Prefiero no decirlo" pasa.
+    if (sex === null) {
+      Alert.alert('Falta tu sexo biológico', 'Elige una opción. Si prefieres no decirlo, también es una respuesta válida.');
+      return false;
+    }
     return true;
   }
 
@@ -148,13 +190,31 @@ export default function OnboardingScreen() {
 
       const profileData = {
         age: +age,
+        // validateStep1 ya exige elegir; el ?? solo satisface al tipo.
+        sex: sex ?? 'unspecified',
         weight_kg: +weight,
         height_cm: +height,
         goal,
         activity_level: activityLevel,
+        // TODO: experience, days_per_week y equipment todavía NO tienen columna
+        // en user_profiles, así que solo viajan al generador y se pierden al
+        // re-planificar. Merecen columnas propias para no volver a preguntarlos.
+        experience,
+        days_per_week: daysPerWeek,
+        equipment,
       };
       const macros = calculateDailyMacros(profileData);
-      const weeklyPlan = await generateTrainingPlan(profileData, health);
+
+      // El plan es lo ÚNICO que depende de un tercero (OpenAI). Perder un
+      // onboarding entero porque su API se cayó es la peor forma de perder un
+      // usuario: el perfil y el tamizaje de salud ya valen por sí solos y el
+      // plan se puede generar después.
+      let weeklyPlan: WeeklyPlan | null = null;
+      try {
+        weeklyPlan = await generateTrainingPlan(profileData, health);
+      } catch (planErr) {
+        captureError(planErr, { screen: 'onboarding', stage: 'generate_training_plan' });
+      }
 
       // upsert: si un intento anterior alcanzó a crear el perfil, el
       // reintento lo actualiza en vez de fallar por duplicado.
@@ -165,6 +225,7 @@ export default function OnboardingScreen() {
           name: name.trim(),
           nickname: nickname.trim() || null,
           age: +age,
+          sex: profileData.sex,
           weight_kg: +weight,
           height_cm: +height,
           goal,
@@ -183,29 +244,57 @@ export default function OnboardingScreen() {
 
       if (profileError) throw new Error('Perfil: ' + profileError.message + ' | code: ' + profileError.code);
 
-      const { data: savedPlan, error: planError } = await supabase
-        .from('training_plans')
-        .insert({ user_id: userId, week_number: 1, plan_data: weeklyPlan })
-        .select()
-        .single();
-
-      if (planError) throw new Error('Plan: ' + planError.message);
+      // Solo se inserta si de verdad hubo plan. Y si el insert falla con el
+      // perfil ya guardado, tampoco se aborta: dejar al usuario en el paso 3
+      // con perfil creado es exactamente el estado a medias que queremos evitar.
+      let savedPlan: any = null;
+      if (weeklyPlan) {
+        const { data: planRow, error: planError } = await supabase
+          .from('training_plans')
+          .insert({ user_id: userId, week_number: 1, plan_data: weeklyPlan })
+          .select()
+          .single();
+        if (planError) {
+          captureError(planError, { screen: 'onboarding', stage: 'insert_training_plan' });
+        } else {
+          savedPlan = planRow;
+        }
+      }
 
       setProfile(savedProfile as any);
-      setTrainingPlan(savedPlan as any);
+      if (savedPlan) setTrainingPlan(savedPlan as any);
       setOnboardingComplete(true);
       // Activación: el evento clave del funnel. Ya hay sesión → vaciar la cola
       // (une los eventos anónimos pre-registro con el usuario recién creado).
       track('onboarding_completed', {
         goal,
         activity_level: activityLevel,
+        sex: profileData.sex,
+        experience,
+        days_per_week: daysPerWeek,
+        equipment,
         has_target_weight: tw != null,
         has_nickname: !!nickname.trim(),
+        // Cuánto pesa la caída de IA en la activación: medible desde el día 1.
+        has_plan: !!savedPlan,
       });
       flush();
       clearInterval(msgInterval);
       await new Promise((r) => setTimeout(r, 600));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      if (!savedPlan) {
+        // Honestidad: entra a la app sin plan y tiene que saberlo, además de
+        // saber que lo que respondió NO se perdió.
+        Alert.alert(
+          'Tu perfil quedó listo',
+          'No pudimos generar tu plan en este momento (nuestro servicio de IA no respondió). ' +
+          'Tu perfil y tu tamizaje de salud ya están guardados: puedes generar tu plan más ' +
+          'tarde desde tu pantalla de entrenamiento, sin volver a responder nada.',
+          [{ text: 'Entendido', onPress: () => router.replace('/(tabs)') }]
+        );
+        return;
+      }
       router.replace('/(tabs)');
 
     } catch (err: any) {
@@ -339,6 +428,29 @@ export default function OnboardingScreen() {
                     <View style={{ flex: 1 }} />
                   </View>
 
+                  <Text style={s.lbl}>Sexo biológico</Text>
+                  <Text style={[s.actDesc, { marginBottom: 10 }]}>
+                    Cambia tu metabolismo basal y cómo programamos tu plan. Puedes omitirlo.
+                  </Text>
+                  {SEX_OPTIONS.map((o) => (
+                    <TouchableOpacity
+                      key={o.key}
+                      style={[s.actRow, sex === o.key && s.actSel]}
+                      onPress={() => { setSex(o.key); Haptics.selectionAsync(); }}
+                      activeOpacity={0.8}
+                      accessibilityRole="radio"
+                      accessibilityLabel={o.label}
+                      accessibilityState={{ selected: sex === o.key }}
+                    >
+                      <View style={[s.radio, sex === o.key && s.radioSel]}>
+                        {sex === o.key && <View style={s.radioDot} />}
+                      </View>
+                      <Text style={[s.actLbl, sex === o.key && { color: Colors.accent }]}>
+                        {o.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+
                   <TouchableOpacity
                     style={s.cta}
                     onPress={() => validateStep1() && nextStep()}
@@ -402,6 +514,76 @@ export default function OnboardingScreen() {
                           {a.label}
                         </Text>
                         <Text style={s.actDesc}>{a.desc}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+
+                  {/* Experiencia, disponibilidad y equipamiento: sin esto el plan
+                      se diseñaba a ciegas (volumen de avanzado para un novato, 5
+                      días para quien tiene 3, barras para quien entrena en casa). */}
+                  <Text style={[s.secLbl, { marginTop: Spacing.lg }]}>Tu experiencia entrenando</Text>
+                  {EXPERIENCE_LEVELS.map((e) => (
+                    <TouchableOpacity
+                      key={e.key}
+                      style={[s.actRow, experience === e.key && s.actSel]}
+                      onPress={() => { setExperience(e.key); Haptics.selectionAsync(); }}
+                      activeOpacity={0.8}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`${e.label}. ${e.desc}`}
+                      accessibilityState={{ selected: experience === e.key }}
+                    >
+                      <View style={[s.radio, experience === e.key && s.radioSel]}>
+                        {experience === e.key && <View style={s.radioDot} />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.actLbl, experience === e.key && { color: Colors.accent }]}>
+                          {e.label}
+                        </Text>
+                        <Text style={s.actDesc}>{e.desc}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+
+                  <Text style={[s.secLbl, { marginTop: Spacing.lg }]}>¿Cuántos días puedes entrenar?</Text>
+                  <Text style={[s.actDesc, { marginBottom: 10 }]}>
+                    Dinos los días que de verdad puedes sostener, no los ideales.
+                  </Text>
+                  <View style={s.dayRow}>
+                    {DAYS_OPTIONS.map((d) => (
+                      <TouchableOpacity
+                        key={d}
+                        style={[s.dayChip, daysPerWeek === d && s.dayChipSel]}
+                        onPress={() => { setDaysPerWeek(d); Haptics.selectionAsync(); }}
+                        activeOpacity={0.8}
+                        accessibilityRole="radio"
+                        accessibilityLabel={`${d} días por semana`}
+                        accessibilityState={{ selected: daysPerWeek === d }}
+                      >
+                        <Text style={[s.dayChipTxt, daysPerWeek === d && s.dayChipTxtSel]}>{d}</Text>
+                        <Text style={s.dayChipUnit}>días</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={[s.secLbl, { marginTop: Spacing.lg }]}>¿Con qué equipo cuentas?</Text>
+                  {EQUIPMENT_OPTIONS.map((q) => (
+                    <TouchableOpacity
+                      key={q.key}
+                      style={[s.actRow, equipment === q.key && s.actSel]}
+                      onPress={() => { setEquipment(q.key); Haptics.selectionAsync(); }}
+                      activeOpacity={0.8}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`${q.label}. ${q.desc}`}
+                      accessibilityState={{ selected: equipment === q.key }}
+                    >
+                      <View style={[s.radio, equipment === q.key && s.radioSel]}>
+                        {equipment === q.key && <View style={s.radioDot} />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.actLbl, equipment === q.key && { color: Colors.accent }]}>
+                          {q.label}
+                        </Text>
+                        <Text style={s.actDesc}>{q.desc}</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -564,6 +746,15 @@ const s = StyleSheet.create({
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.accent },
   actLbl: { fontFamily: Fonts.bodySemi, fontSize: 14, color: Colors.textPrimary },
   actDesc: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  dayRow: { flexDirection: 'row', gap: 8 },
+  dayChip: {
+    flex: 1, backgroundColor: Colors.bgCard, borderWidth: 1.5, borderColor: Colors.border,
+    borderRadius: Radii.md, paddingVertical: 12, alignItems: 'center',
+  },
+  dayChipSel: { backgroundColor: Colors.bgSelected, borderColor: Colors.accent },
+  dayChipTxt: { fontFamily: Fonts.headingBold, fontSize: 22, color: Colors.textPrimary },
+  dayChipTxtSel: { color: Colors.accent },
+  dayChipUnit: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, marginTop: 2 },
   gen: { flex: 1, alignItems: 'center', paddingTop: 60 },
   orb: {
     width: 100, height: 100, borderRadius: 50, overflow: 'hidden',

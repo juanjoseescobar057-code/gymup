@@ -1,6 +1,6 @@
 # Política de Privacidad de GymUp
 
-**Última actualización:** 15 de julio de 2026 · **Versión:** 1.0
+**Última actualización:** 1 de agosto de 2026 · **Versión:** 1.1
 
 > ⚠️ **Antes de publicar:** este documento fue redactado como base sólida y específica para
 > GymUp, pero **no sustituye asesoría legal profesional**. Dado que la app trata **datos de
@@ -23,9 +23,10 @@ intencionalmente datos de menores).
 ## 2. Qué información recopilamos
 
 ### 2.1 Información de perfil
-Nombre, apodo (cómo quieres que te llame tu coach), edad, peso, altura, objetivo de
-entrenamiento (ganar músculo, perder grasa, rendimiento, resistencia), nivel de actividad
-y meta de peso (opcional).
+Nombre, apodo (cómo quieres que te llame tu coach), edad, peso, altura, sexo biológico
+(opcional; se usa para calcular tus requerimientos calóricos y adaptar recomendaciones de
+salud), objetivo de entrenamiento (ganar músculo, perder grasa, rendimiento, resistencia),
+nivel de actividad y meta de peso (opcional).
 
 ### 2.2 Información de salud (categoría sensible)
 Antes de generar tu plan, te hacemos un **tamizaje de salud** (preguntas de estilo
@@ -109,10 +110,46 @@ de datos**, necesaria para el funcionamiento del servicio.
 
 ## 5. Cuánto tiempo conservamos tu información
 
-Mientras tu cuenta esté activa. Si eliminas tu cuenta desde Perfil → Eliminar cuenta,
-**borramos permanentemente** tu perfil, historial de entrenamiento, comidas, pesos,
-fotos, memoria del coach, perfil de salud y tu identidad de autenticación — de forma
-irreversible y en un plazo razonable.
+Conservamos tu información mientras tu cuenta esté activa.
+
+### 5.1 Qué borramos al eliminar tu cuenta
+Si eliminas tu cuenta desde Perfil → Eliminar cuenta, borramos tu perfil, tu perfil de
+salud, tus planes e historial de entrenamiento (sesiones y series registradas), tus
+comidas y registros de peso, los resultados de tus análisis corporales y de postura, tus
+fotos de transformación (incluidos los archivos en el almacenamiento en la nube), la
+memoria del coach de IA, tus datos de gamificación (racha, nivel, insignias, misiones),
+tus preferencias y token de notificaciones, tus registros de uso de IA y de analítica,
+los reportes de contenido de IA que hayas enviado y, por último, tu identidad de
+autenticación.
+
+### 5.2 Cómo se ejecuta el borrado
+El borrado ocurre **en el momento** en que lo confirmas: no hay periodo de espera ni
+cuenta "desactivada".
+
+Primero eliminamos tus datos y **solo si todos se eliminaron correctamente** eliminamos
+tu identidad de autenticación. **Si algo falla, el proceso se detiene antes de ese último
+paso: tu cuenta NO se elimina**, sigue activa y la app te lo informa para que puedas
+reintentarlo (el reintento es seguro y retoma lo que quedó pendiente). Lo hacemos así a
+propósito: borrar la identidad dejando datos atrás te dejaría sin forma de acceder a
+ellos ni de volver a pedir su supresión. Como contrapartida, los datos que sí alcanzamos
+a borrar en un intento fallido ya no se recuperan.
+
+Cuando el proceso termina bien, la eliminación es **permanente e irreversible**: no
+conservamos ninguna copia que podamos devolverte.
+
+### 5.3 Salvedades técnicas
+- Las copias de seguridad y los registros técnicos de nuestro proveedor de infraestructura
+  (Supabase) pueden conservar datos **hasta 30 días adicionales** antes de su eliminación
+  definitiva.
+- Conservamos los registros de eventos de facturación que nos envía RevenueCat
+  (identificador del evento, identificador interno de usuario, tipo de evento y fecha,
+  sin datos de tarjeta ni de contacto) como soporte de las transacciones.
+- El estado de tu suscripción en RevenueCat, Apple o Google se rige por las políticas de
+  esas plataformas, independientes de GymUp.
+
+Si ya no tienes la app instalada, puedes pedirnos la eliminación por correo a
+**juanjoseescobar057@gmail.com** desde la dirección asociada a tu cuenta; en ese caso la
+procesamos manualmente y te confirmamos cuando se complete.
 
 ## 6. Tus derechos (Ley 1581 de 2012 — Habeas Data)
 

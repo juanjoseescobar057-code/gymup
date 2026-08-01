@@ -1,8 +1,13 @@
 // Components/CameraDisclosureModal.tsx
 // ─────────────────────────────────────────────────────────
-// Disclosure explícito antes del permiso nativo de cámara: la foto se
-// envía a un servicio de IA de terceros (OpenAI) para análisis. Se
-// muestra una sola vez por feature (ver lib/cameraConsent.ts).
+// Disclosure explícito antes de mandar una foto a analizar: la imagen se
+// envía a un servicio de IA de terceros (OpenAI). Se muestra una sola vez
+// por feature (ver lib/cameraConsent.ts).
+//
+// Ojo con el nombre del archivo: el aviso NO es sobre el permiso de cámara
+// sino sobre que la foto sale del teléfono, así que también aplica a las
+// imágenes elegidas de la galería. Por eso los textos son neutros respecto
+// al origen de la imagen.
 // ─────────────────────────────────────────────────────────
 
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
@@ -12,26 +17,49 @@ type Props = {
   visible: boolean;
   /** Qué va a analizar la IA, ej: "tu plato" / "tu nevera". */
   subject: string;
+  /**
+   * Título opcional. El default sirve para los dos orígenes de la imagen
+   * (cámara y galería); solo se sobrescribe si una pantalla necesita otro.
+   */
+  title?: string;
   onAccept: () => void;
   onCancel: () => void;
 };
 
-export default function CameraDisclosureModal({ visible, subject, onAccept, onCancel }: Props) {
+export default function CameraDisclosureModal({
+  visible,
+  subject,
+  title = 'Antes de analizar tu foto',
+  onAccept,
+  onCancel,
+}: Props) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
       <View style={s.overlay}>
         <View style={s.sheet}>
-          <Text style={{ fontSize: 40, marginBottom: 10 }}>📸</Text>
-          <Text style={s.title}>Antes de abrir la cámara</Text>
+          <Text style={{ fontSize: 40, marginBottom: 10 }} accessibilityElementsHidden importantForAccessibility="no">📸</Text>
+          <Text style={s.title} accessibilityRole="header">{title}</Text>
           <Text style={s.body}>
             La foto de {subject} se envía a un servicio de inteligencia artificial (OpenAI)
             únicamente para generar el análisis. GymUp no almacena la foto — solo guarda el
             resultado, que puedes eliminar cuando quieras desde tu perfil.
           </Text>
-          <TouchableOpacity style={s.primaryBtn} onPress={onAccept} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.primaryBtn}
+            onPress={onAccept}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Entendido, continuar con el análisis"
+          >
             <Text style={s.primaryBtnTxt}>Entendido, continuar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.secondaryBtn} onPress={onCancel} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.secondaryBtn}
+            onPress={onCancel}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Cancelar y no enviar ninguna foto"
+          >
             <Text style={s.secondaryBtnTxt}>Cancelar</Text>
           </TouchableOpacity>
         </View>

@@ -42,6 +42,9 @@ export default function FoodScanScreen() {
   const [result, setResult] = useState<FoodResult | null>(null);
   const [portion, setPortion] = useState(1); // multiplicador de porción
   const [showCameraDisclosure, setShowCameraDisclosure] = useState(false);
+  // El modal resuelve esta promesa: así asegurarDisclosure() se puede esperar
+  // como cualquier otro await al inicio de los handlers, sin duplicar el flujo.
+  const disclosureResolver = useRef<((aceptado: boolean) => void) | null>(null);
 
   // Macros escalados por la porción elegida (lo que realmente se suma al día).
   const scaled = result ? {
@@ -56,20 +59,35 @@ export default function FoodScanScreen() {
 
   const totals = getDailyTotals();
 
-  // Disclosure de cámara (una sola vez): la galería no dispara el permiso
-  // sensible de cámara, así que solo se gatea la captura en vivo.
-  async function pickPhoto(fromCamera: boolean) {
-    if (fromCamera && !(await hasSeenCameraDisclosure('food_scan'))) {
+  // Disclosure de IA (una sola vez): lo que hay que divulgar no es el permiso
+  // de cámara sino que la foto SALE del teléfono hacia un tercero (OpenAI), y
+  // eso pasa igual si la imagen viene de la galería. Antes solo se gateaba la
+  // captura en vivo, así que quien elegía de galería enviaba su foto sin haber
+  // visto nunca el aviso. Devuelve false si el usuario cancela.
+  async function asegurarDisclosure(): Promise<boolean> {
+    if (await hasSeenCameraDisclosure('food_scan')) return true;
+    return new Promise<boolean>((resolve) => {
+      disclosureResolver.current = resolve;
       setShowCameraDisclosure(true);
-      return;
-    }
+    });
+  }
+
+  async function pickPhoto(fromCamera: boolean) {
+    if (!(await asegurarDisclosure())) return;
     await doPickPhoto(fromCamera);
   }
 
   async function acceptCameraDisclosure() {
     setShowCameraDisclosure(false);
     await markCameraDisclosureSeen('food_scan');
-    await doPickPhoto(true);
+    disclosureResolver.current?.(true);
+    disclosureResolver.current = null;
+  }
+
+  function cancelCameraDisclosure() {
+    setShowCameraDisclosure(false);
+    disclosureResolver.current?.(false);
+    disclosureResolver.current = null;
   }
 
   async function doPickPhoto(fromCamera: boolean) {
@@ -192,7 +210,8 @@ export default function FoodScanScreen() {
     });
 
     // Gamificación: registrar la comida (XP + badges). Si con esta comida se
-    // alcanzaron TODAS las metas del día → cuenta como "día perfecto de macros".
+    // alcanzaron TODAS las metas del día → cuenta como día de macros completo
+    // (el evento sigue llamándose macro_day_perfect: es contrato de analítica).
     const macroPerfect =
       totals.calories + scaled.calories >= profile.daily_calories &&
       totals.protein_g + scaled.protein_g >= profile.daily_protein_g &&
@@ -203,10 +222,12 @@ export default function FoodScanScreen() {
       .then((r) => {
         if (r.macroDayCounted) {
           track('macro_day_perfect'); // adherencia nutricional total: 1 vez/día
+          // El aviso reporta el hecho y el XP; no premia ni juzga a la persona
+          // por lo que comió (ver nota de copy en la tarjeta de impacto).
           Notifications.scheduleNotificationAsync({
             content: {
-              title: '🎯 ¡Día perfecto de macros!',
-              body: 'Cumpliste TODAS tus metas de hoy. +50 XP. Así se construye un físico.',
+              title: '🎯 Metas de macros del día cubiertas',
+              body: 'Alcanzaste tus cuatro metas de hoy: calorías, proteína, carbos y grasa. +50 XP.',
               sound: 'default',
             },
             trigger: null,
@@ -222,8 +243,8 @@ export default function FoodScanScreen() {
     if (pct >= 100) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: '🎯 ¡Meta de proteína cumplida!',
-          body: 'Hoy hiciste todo bien con la nutrición. Así se construye el físico que quieres.',
+          title: '🎯 Meta de proteína cubierta',
+          body: `Llevas ${Math.round(newProtein)}g de proteína de tus ${Math.round(profile.daily_protein_g)}g de hoy.`,
           sound: 'default',
         },
         trigger: null,
@@ -232,8 +253,8 @@ export default function FoodScanScreen() {
       const remaining = Math.round(profile.daily_protein_g - newProtein);
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: '💪 Casi llegas a tu meta',
-          body: `Te faltan solo ${remaining}g de proteína. Un shake o unos huevos y cierras perfecto.`,
+          title: '💪 Cerca de tu meta de proteína',
+          body: `Te faltan ${remaining}g. Un batido o un par de huevos aportan una cantidad parecida.`,
           sound: 'default',
         },
         trigger: null,
@@ -251,19 +272,33 @@ export default function FoodScanScreen() {
     setPortion(1);
   }
 
+  // El modal se monta en TODAS las fases que pueden pedir una foto (intro y el
+  // botón "Nuevo" del resultado); si no, la promesa de asegurarDisclosure()
+  // esperaría a un modal que no está en pantalla y el botón no haría nada.
+  const modalDisclosure = (
+    <CameraDisclosureModal
+      visible={showCameraDisclosure}
+      // El sujeto deja explícito que el aviso cubre los dos orígenes de la
+      // imagen, no solo la cámara: lo que se divulga es el envío al tercero.
+      subject="tu plato — la que tomes con la cámara o elijas de tu galería —"
+      onAccept={acceptCameraDisclosure}
+      onCancel={cancelCameraDisclosure}
+    />
+  );
+
   // INTRO
   if (phase === 'intro') {
     return (
       <>
-      <CameraDisclosureModal
-        visible={showCameraDisclosure}
-        subject="tu plato"
-        onAccept={acceptCameraDisclosure}
-        onCancel={() => setShowCameraDisclosure(false)}
-      />
+      {modalDisclosure}
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
-          <TouchableOpacity style={s.back} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={s.back}
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Volver"
+          >
             <Text style={s.backTxt}>‹</Text>
           </TouchableOpacity>
           <Text style={s.navTitle}>ANALIZAR COMIDA</Text>
@@ -299,10 +334,22 @@ export default function FoodScanScreen() {
           </View>
           <Text style={s.introTitle}>Fotografía{'\n'}<Text style={{ color: Colors.accent }}>tu plato</Text></Text>
           <Text style={s.introSub}>La IA detecta los ingredientes y suma los macros a tu meta del día.</Text>
-          <TouchableOpacity style={s.primaryBtn} onPress={() => pickPhoto(true)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.primaryBtn}
+            onPress={() => pickPhoto(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Tomar foto del plato con la cámara"
+          >
             <Text style={s.primaryBtnTxt}>📷  TOMAR FOTO</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.secondaryBtn} onPress={() => pickPhoto(false)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.secondaryBtn}
+            onPress={() => pickPhoto(false)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Elegir una foto del plato desde la galería"
+          >
             <Text style={s.secondaryBtnTxt}>Elegir de galería</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -333,13 +380,24 @@ export default function FoodScanScreen() {
     const remainingCal = (profile?.daily_calories ?? 0) - newCalories;
 
     return (
+      <>
+      {modalDisclosure}
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
-          <TouchableOpacity style={s.back} onPress={reset}>
+          <TouchableOpacity
+            style={s.back}
+            onPress={reset}
+            accessibilityRole="button"
+            accessibilityLabel="Volver y descartar este análisis"
+          >
             <Text style={s.backTxt}>‹</Text>
           </TouchableOpacity>
           <Text style={s.navTitle}>RESULTADO</Text>
-          <TouchableOpacity onPress={() => pickPhoto(true)}>
+          <TouchableOpacity
+            onPress={() => pickPhoto(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Analizar una foto nueva"
+          >
             <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.accent }}>Nuevo</Text>
           </TouchableOpacity>
         </View>
@@ -358,6 +416,9 @@ export default function FoodScanScreen() {
                   style={[s.portionChip, portion === p && s.portionChipSel]}
                   onPress={() => { setPortion(p); Haptics.selectionAsync(); }}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Porción por ${p}`}
+                  accessibilityState={{ selected: portion === p }}
                 >
                   <Text style={[s.portionChipTxt, portion === p && { color: '#0a0a0b' }]}>×{p}</Text>
                 </TouchableOpacity>
@@ -395,25 +456,42 @@ export default function FoodScanScreen() {
                 {Math.round(newProtein)}/{profile?.daily_protein_g}g
               </Text>
             </View>
+            {/* El copy describe el dato y nunca califica al usuario: comer más
+                o menos de la meta no lo vuelve "perfecto" ni un fracaso, y ese
+                tono moralizante es justo el que dispara conductas de riesgo
+                alimentario en una app que se mira varias veces al día. */}
             <Text style={s.impactNote}>
               {remainingProtein > 30
                 ? `🥩 Aún faltan ${Math.round(remainingProtein)}g de proteína.`
                 : remainingProtein > 0
-                  ? `🥚 ¡Casi! Solo ${Math.round(remainingProtein)}g más.`
+                  ? `🥚 Faltan ${Math.round(remainingProtein)}g de proteína para tu meta.`
                   : remainingCal < -300
-                    ? '⚠️ Ya superaste las calorías del día.'
-                    : '✅ ¡Vas perfecto con tus macros!'}
+                    ? `📊 Vas ${Math.round(-remainingCal)} kcal por encima de tu meta de hoy.`
+                    : '✅ Ya cubriste tu meta de proteína de hoy.'}
             </Text>
           </View>
-          <TouchableOpacity style={s.primaryBtn} onPress={addToDay} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.primaryBtn}
+            onPress={addToDay}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Agregar esta comida a mi día"
+          >
             <Text style={s.primaryBtnTxt}>+ AGREGAR A MI DÍA</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.secondaryBtn} onPress={reset} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.secondaryBtn}
+            onPress={reset}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Descartar este análisis"
+          >
             <Text style={s.secondaryBtnTxt}>Descartar</Text>
           </TouchableOpacity>
           <ReportContentButton feature="food_scan" content={JSON.stringify(result)} />
         </ScrollView>
       </SafeAreaView>
+      </>
     );
   }
 
@@ -430,12 +508,14 @@ export default function FoodScanScreen() {
         </Text>
         <Text style={[s.introSub, { textAlign: 'center' }]}>
           Llevas el {pct}% de proteína hoy.
-          {pct >= 100 ? ' 🎯 ¡Meta cumplida!' : ` Faltan ${100 - pct}%.`}
+          {pct >= 100 ? ' Meta del día cubierta.' : ` Faltan ${100 - pct}%.`}
         </Text>
         <TouchableOpacity
           style={[s.primaryBtn, { width: '100%', marginTop: Spacing.xl }]}
           onPress={() => router.replace('/(tabs)' as any)}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Ver mi progreso del día"
         >
           <Text style={s.primaryBtnTxt}>VER MI PROGRESO →</Text>
         </TouchableOpacity>
@@ -443,6 +523,8 @@ export default function FoodScanScreen() {
           style={[s.secondaryBtn, { width: '100%' }]}
           onPress={reset}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Analizar y agregar otra comida"
         >
           <Text style={s.secondaryBtnTxt}>Agregar otra comida</Text>
         </TouchableOpacity>

@@ -164,6 +164,44 @@ production` — deben aparecer las 4 variables `EXPO_PUBLIC_*` de arriba (más
 `SENTRY_DISABLE_AUTO_UPLOAD`). Si agregas una variable `EXPO_PUBLIC_*` nueva al código,
 recuerda subirla también a EAS o el build de producción la va a compilar como `undefined`.
 
+## Paso 9.7 · 🔴 ORDEN DE DESPLIEGUE DEL HARDENING (auditoría 2026-08)
+
+⚠️ **Hay acople real entre la base y las Edge Functions.** Desplegar en otro orden deja
+la app rota para todos los usuarios. Secuencia obligatoria, en una sola ventana:
+
+1. **PRIMERO la base** — corre `supabase/setup.sql` completo en el SQL Editor.
+   Es idempotente. Aplica: columna `user_profiles.sex`, la nueva
+   `increment_ai_usage(p_feature, p_limit)` (y hace DROP de la firma vieja de 3
+   argumentos), el `revoke insert, update on user_stats`, y las cuatro RPC de stats
+   (`apply_workout_stats`, `apply_activity_stats`, `claim_mission`, `buy_streak_freeze`).
+2. **LUEGO las Edge Functions**:
+   ```
+   supabase functions deploy ai-proxy
+   supabase functions deploy delete-account
+   supabase functions deploy send-reactivation
+   ```
+3. **AL FINAL el build de la app** (Paso 10).
+
+**Por qué ese orden:**
+- `ai-proxy` nuevo llama `increment_ai_usage` con **2** argumentos. Si la base todavía
+  tiene solo la firma vieja de 3, PostgREST no resuelve la llamada, el fail-closed
+  dispara y **toda la IA devuelve 503**. Y al revés: si corres el SQL y no despliegas
+  la función, la función vieja llama con 3 argumentos contra una firma que ya no existe
+  — mismo resultado. Por eso van juntos.
+- El `revoke` sobre `user_stats` deja al cliente viejo sin poder escribir XP/rachas:
+  el build actual en Internal Testing seguirá funcionando (el código degrada sin romper,
+  registra el error y no otorga XP) pero **no acreditará progreso hasta que salga el
+  build nuevo**. Si eso no es aceptable, despliega el build el mismo día.
+- `delete-account` nuevo devuelve 500 cuando el borrado es parcial; el cliente nuevo lo
+  lee y ofrece reintentar. Cliente nuevo + función vieja = el bug de siempre (finge
+  éxito), no uno peor, pero no queda arreglado hasta desplegar la función.
+
+**Verificación después de desplegar:**
+- Onboarding completo de una cuenta nueva (valida la columna `sex` y el `grant update`).
+- Un entrenamiento terminado de punta a punta (valida `apply_workout_stats`).
+- Una foto de comida (valida `apply_activity_stats` + la nueva cuota derivada del payload).
+- Un análisis corporal con usuario **free**: debe devolver 402, no consumir cuota.
+
 ## Paso 10 · 🔴 Build de producción (🤖 puedo ejecutarlo, ya autenticado como `juanesco22`)
 Este build incluye TODOS los módulos nativos (SecureStore, RevenueCat, Sentry, el
 modelo de pose, `react-native-get-random-values`): es un **rebuild real**, no solo

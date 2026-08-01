@@ -11,11 +11,12 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { useUserStore } from '../../store/userStore';
-import { BADGES, loadUserStats, saveUserStats, type UserStats, type BadgeId, xpProgress } from '../../lib/streaks';
+import { BADGES, loadUserStats, type UserStats, type BadgeId, xpProgress } from '../../lib/streaks';
 import { loadWeeklyMissions, claimMission, type MissionProgress } from '../../lib/missions';
 import { uploadTransformPhoto, signPhotoUrls } from '../../lib/transformPhotos';
 import { projectGoal } from '../../lib/goalMath';
 import { track } from '../../lib/analytics';
+import { captureError } from '../../lib/monitoring';
 import { Colors, Fonts, Radii, Spacing } from '../../constants/theme';
 
 const { width } = Dimensions.get('window');
@@ -158,9 +159,16 @@ export default function ProgressScreen() {
   }
 
   // Economía de racha: comprar un comodín gastando XP (máx. 2 en reserva).
+  // El precio vive aquí, pero quien cobra es el servidor: buy_streak_freeze
+  // comprueba el saldo y descuenta dentro de la MISMA transacción. Antes esto
+  // escribía user_stats directo (hoy revocado) y el saldo se validaba solo en
+  // el cliente, o sea que era falsificable.
   const FREEZE_COST = 300;
   async function buyFreeze() {
     if (!profile || !stats) return;
+    // Atajo de UX únicamente: ahorra una llamada cuando el saldo que ya
+    // conocemos no alcanza. NO es la verificación real — `stats` puede estar
+    // desactualizado y nunca decide si la compra procede; eso lo dice la RPC.
     if (stats.total_xp < FREEZE_COST) {
       Alert.alert('Te falta XP', `Necesitas ${FREEZE_COST} XP (tienes ${stats.total_xp}). Entrena y registra comidas para ganar más.`);
       return;
@@ -173,10 +181,49 @@ export default function ProgressScreen() {
         {
           text: 'Sí, cambiar',
           onPress: async () => {
-            await saveUserStats(profile.user_id, {
-              total_xp: stats.total_xp - FREEZE_COST,
-              streak_freezes: stats.streak_freezes + 1,
+            const { data, error } = await supabase.rpc('buy_streak_freeze', {
+              p_xp_cost: FREEZE_COST,
             });
+            // La RPC devuelve `returns table`: una fila dentro de un array.
+            const fila = Array.isArray(data) ? data[0] : data;
+
+            if (error || !fila) {
+              // Sin respuesta del servidor no sabemos si cobró o no, así que
+              // no celebramos nada y refrescamos para mostrar el estado real.
+              captureError(error ?? new Error('buy_streak_freeze no devolvió fila'), {
+                scope: 'buy_streak_freeze',
+                xp_propuesto: FREEZE_COST,
+              });
+              Alert.alert(
+                'No se pudo comprar',
+                'No pudimos completar la compra del comodín. Revisa tu conexión e inténtalo de nuevo.'
+              );
+              await loadAll(true);
+              return;
+            }
+
+            if (fila.ok !== true) {
+              // Nada de anunciar éxito antes de saber si persistió: el mensaje
+              // sale del motivo REAL que devolvió el servidor, y el XP que se
+              // muestra es el suyo (el local puede ir desfasado).
+              if (fila.reason === 'max_freezes') {
+                Alert.alert(
+                  'Ya tienes el máximo',
+                  'Puedes guardar hasta 2 comodines de racha. Usa uno antes de conseguir otro.'
+                );
+              } else if (fila.reason === 'insufficient_xp') {
+                Alert.alert(
+                  'Te falta XP',
+                  `Necesitas ${FREEZE_COST} XP (tienes ${fila.total_xp ?? 0}). Entrena y registra comidas para ganar más.`
+                );
+              } else {
+                Alert.alert('No se pudo comprar', 'Inténtalo de nuevo en un momento.');
+              }
+              await loadAll(true); // el estado local estaba desfasado
+              return;
+            }
+
+            // Solo aquí hubo cobro confirmado: celebramos y medimos.
             track('streak_freeze_bought', { xp_spent: FREEZE_COST });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             await loadAll(true);

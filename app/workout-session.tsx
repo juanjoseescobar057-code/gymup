@@ -17,6 +17,7 @@ import { platesPerSide, formatPlates } from '../lib/plates';
 import { useSafeKeepAwake } from '../lib/useSafeKeepAwake';
 import { saveSession, loadSession, clearSession } from '../lib/workoutPersistence';
 import { track } from '../lib/analytics';
+import { captureError } from '../lib/monitoring';
 import { loadHealthSafe } from '../lib/health';
 import { exerciseConflicts, INJURY_ZONES, type InjuryZone } from '../lib/healthMath';
 import { exercisesForGroup, EXERCISE_LIBRARY, type LibraryExercise } from '../constants/exercises';
@@ -226,6 +227,9 @@ export default function WorkoutSessionScreen() {
           }]
         );
       } else {
+        // El snapshot debe incluir la ÚLTIMA serie: si el guardado en el
+        // servidor falla, es lo único que queda para reintentar sin perderla.
+        persist(nextCompleted, currentEx);
         finishWorkout();
       }
     }
@@ -238,131 +242,180 @@ export default function WorkoutSessionScreen() {
     // duplicaba sesión, XP y racha.
     if (finishingRef.current) return;
     finishingRef.current = true;
-    clearSession(); // el entreno terminó: ya no hay nada que restaurar
+
     const plannedSets = exercises.reduce((a: number, e: any) => a + (e.sets ?? 0), 0);
     const doneSets = Object.values(completedSets).reduce((a, b) => a + b, 0);
-    track('workout_completed', {
-      day_index: todayIndex,
-      duration_min: Math.round(elapsed / 60),
-      sets_logged: loggedSetsRef.current.length,
-      planned_sets: plannedSets,
-      completion_pct: plannedSets > 0 ? Math.round((doneSets / plannedSets) * 100) : null,
-    });
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (restRef.current) clearInterval(restRef.current);
-
     const durationMin = Math.round(elapsed / 60);
     const prNames: string[] = []; // récords detectados en esta sesión
 
-    // 1. Notificación inmediata de logro
-    const motivationalMessages = [
-      'Eso es lo que te separa de los demás. Sigue así.',
-      'El que entrena hoy, gana mañana. Bien hecho.',
-      'Tu cuerpo te lo va a agradecer esta noche.',
-      'Eso no lo hace cualquiera. Tú sí lo hiciste.',
-      'Un entrenamiento más en el banco. Nadie te lo quita.',
-    ];
-    const msg = motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)];
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: '🏆 ¡Entrenamiento completado!',
-        body: `${formatTime(elapsed)} de puro trabajo. ${msg}`,
-        sound: 'default',
-      },
-      trigger: null,
-    });
-
-    // 2. Guardar sesión en Supabase (con id para enlazar las series)
-    if (profile && trainingPlan) {
-      const { data: session, error } = await supabase.from('workout_sessions').insert({
-        user_id: profile.user_id,
-        training_plan_id: trainingPlan.id,
-        day_index: todayIndex,
-        started_at: sessionStartRef.current.toISOString(),
-        completed_at: new Date().toISOString(),
-        duration_min: durationMin,
-        exercises_completed: exercises.length,
-      }).select('id').single();
-      if (error) console.log('Error guardando sesión:', error.message);
-
-      // 2b. Detectar PRs ANTES de guardar (comparar contra el histórico previo).
-      try {
-        const byEx: Record<string, { weight_kg: number | null; reps: number | null }[]> = {};
-        for (const l of loggedSetsRef.current) (byEx[l.exercise_name] ??= []).push(l);
-        const names = Object.keys(byEx);
-        if (names.length > 0) {
-          const prevBests = await fetchExerciseBests(profile.user_id, names);
-          prNames.push(...names.filter((n) => detectNewPRs(byEx[n], prevBests[n]).any));
-          if (prNames.length > 0) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
+    try {
+      // 1. Guardar la sesión en Supabase (con id para enlazar las series).
+      // Es el ÚNICO paso que convierte el entreno en dato permanente, así que
+      // manda: hasta que termine bien, el snapshot local sigue siendo la red
+      // de seguridad y NO se toca nada más (día del plan, XP, celebración).
+      if (!profile || !trainingPlan) {
+        // Sin perfil o plan cargado no hay a dónde guardar. Si el usuario
+        // alcanzó a registrar series reales preferimos pedirle reintento
+        // antes que darlas por perdidas en silencio.
+        if (loggedSetsRef.current.length > 0) {
+          throw new Error('Perfil o plan no cargados: no hay dónde guardar la sesión');
         }
-      } catch (e: any) {
-        console.log('[Workout] PR:', e?.message);
+      } else {
+        const { data: session, error } = await supabase.from('workout_sessions').insert({
+          user_id: profile.user_id,
+          training_plan_id: trainingPlan.id,
+          day_index: todayIndex,
+          started_at: sessionStartRef.current.toISOString(),
+          completed_at: new Date().toISOString(),
+          duration_min: durationMin,
+          exercises_completed: exercises.length,
+        }).select('id').single();
+        // Antes solo se logueaba: el entreno se perdía y el usuario veía la
+        // pantalla de celebración igual. Ahora aborta y deja reintentar.
+        if (error) throw new Error(`No se pudo guardar la sesión: ${error.message}`);
+
+        // 1b. Detectar PRs ANTES de guardar (comparar contra el histórico previo).
+        // Cosmético: no detectar un récord no le cuesta el entreno a nadie.
+        try {
+          const byEx: Record<string, { weight_kg: number | null; reps: number | null }[]> = {};
+          for (const l of loggedSetsRef.current) (byEx[l.exercise_name] ??= []).push(l);
+          const names = Object.keys(byEx);
+          if (names.length > 0) {
+            const prevBests = await fetchExerciseBests(profile.user_id, names);
+            prNames.push(...names.filter((n) => detectNewPRs(byEx[n], prevBests[n]).any));
+            if (prNames.length > 0) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+          }
+        } catch (e: any) {
+          console.log('[Workout] PR:', e?.message);
+        }
+
+        // 1c. Guardar las series registradas (peso × reps).
+        await saveSetLogs(profile.user_id, session?.id ?? null, loggedSetsRef.current);
       }
 
-      // 2c. Guardar las series registradas (peso × reps).
-      await saveSetLogs(profile.user_id, session?.id ?? null, loggedSetsRef.current);
-    }
+      // 2. Datos a salvo en el servidor: RECIÉN AHORA se borra el snapshot
+      // local. Borrarlo al entrar (como se hacía) significaba que cualquier
+      // fallo posterior —hasta el de una notificación— borraba el entreno
+      // entero sin haberlo guardado nunca.
+      await clearSession();
+      track('workout_completed', {
+        day_index: todayIndex,
+        duration_min: durationMin,
+        sets_logged: loggedSetsRef.current.length,
+        planned_sets: plannedSets,
+        completion_pct: plannedSets > 0 ? Math.round((doneSets / plannedSets) * 100) : null,
+      });
 
-    // 3. Avanzar al siguiente día del plan (envuelve: tras el día 7 vuelve
-    // al día 1 — antes se quedaba atascado repitiendo el día 7 por siempre).
-    if (profile) {
-      const nextDay = ((profile.current_plan_day ?? 0) + 1) % 7;
-      const { data: updatedProfile, error: updateError } = await supabase
-        .from('user_profiles')
-        .update({ current_plan_day: nextDay })
-        .eq('user_id', profile.user_id)
-        .select()
-        .single();
-
-      if (updateError) {
-        console.log('Error actualizando día del plan:', updateError.message);
-      } else if (updatedProfile) {
-        setProfile(updatedProfile);
-      }
-    }
-
-    // 4. Actualizar gamificación (XP, racha, badges).
-    let xpGained = 0, newStreak = 0, leveledUp = false, freezeUsed = false;
-    let badgeNames: string[] = [];
-    if (profile) {
+      // 3. Notificación de logro. Va DESPUÉS de guardar (no se celebra lo que
+      // no está a salvo) y aislada: scheduleNotificationAsync lanza si el
+      // permiso está denegado o el módulo nativo no existe en ese equipo, y
+      // una notificación jamás puede costar un entrenamiento.
+      const motivationalMessages = [
+        'Eso es lo que te separa de los demás. Sigue así.',
+        'El que entrena hoy, gana mañana. Bien hecho.',
+        'Tu cuerpo te lo va a agradecer esta noche.',
+        'Eso no lo hace cualquiera. Tú sí lo hiciste.',
+        'Un entrenamiento más en el banco. Nadie te lo quita.',
+      ];
+      const msg = motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)];
       try {
-        const r = await recordWorkoutCompleted(profile.user_id);
-        xpGained = r.xpGained;
-        newStreak = r.newStreak;
-        leveledUp = r.leveledUp;
-        freezeUsed = r.freezeUsed;
-        badgeNames = r.newBadges.map((id) => {
-          const b = getBadge(id);
-          return b ? `${b.emoji} ${b.title}` : id;
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '🏆 ¡Entrenamiento completado!',
+            body: `${formatTime(elapsed)} de puro trabajo. ${msg}`,
+            sound: 'default',
+          },
+          trigger: null,
         });
-        // Dinámica de racha y logros: los eventos de retención más predictivos.
-        track('streak_extended', { streak: r.newStreak, broken_before: r.streakBroken });
-        if (r.freezeUsed) track('streak_freeze_used', { streak: r.newStreak });
-        if (r.leveledUp) track('level_up');
-        for (const id of r.newBadges) track('badge_earned', { badge_id: id });
-        if (prNames.length > 0) track('pr_achieved', { count: prNames.length });
-      } catch (e: any) {
-        console.log('[Workout] Error gamificación:', e?.message);
+      } catch (e) {
+        captureError(e, { scope: 'workout_finish_notification' });
       }
-    }
 
-    // 5. Pantalla de celebración con todo el botín de la sesión.
-    router.replace({
-      pathname: '/workout-complete' as any,
-      params: {
-        duration: formatTime(elapsed),
-        exercises: String(exercises.length),
-        xp: String(xpGained),
-        streak: String(newStreak),
-        leveledUp: leveledUp ? '1' : '0',
-        freezeUsed: freezeUsed ? '1' : '0',
-        badges: badgeNames.join('|'),
-        prs: prNames.join('|'),
-      },
-    });
+      // 4. Avanzar al siguiente día del plan (envuelve: tras el día 7 vuelve
+      // al día 1 — antes se quedaba atascado repitiendo el día 7 por siempre).
+      // Ya no es crítico: la sesión está guardada, así que un fallo aquí se
+      // reporta pero no puede tumbar la celebración ni pedir reintento.
+      if (profile) {
+        try {
+          const nextDay = ((profile.current_plan_day ?? 0) + 1) % 7;
+          const { data: updatedProfile, error: updateError } = await supabase
+            .from('user_profiles')
+            .update({ current_plan_day: nextDay })
+            .eq('user_id', profile.user_id)
+            .select()
+            .single();
+
+          if (updateError) {
+            console.log('Error actualizando día del plan:', updateError.message);
+          } else if (updatedProfile) {
+            setProfile(updatedProfile);
+          }
+        } catch (e) {
+          captureError(e, { scope: 'workout_finish_next_day' });
+        }
+      }
+
+      // 5. Actualizar gamificación (XP, racha, badges).
+      let xpGained = 0, newStreak = 0, leveledUp = false, freezeUsed = false;
+      let badgeNames: string[] = [];
+      if (profile) {
+        try {
+          const r = await recordWorkoutCompleted(profile.user_id);
+          xpGained = r.xpGained;
+          newStreak = r.newStreak;
+          leveledUp = r.leveledUp;
+          freezeUsed = r.freezeUsed;
+          badgeNames = r.newBadges.map((id) => {
+            const b = getBadge(id);
+            return b ? `${b.emoji} ${b.title}` : id;
+          });
+          // Dinámica de racha y logros: los eventos de retención más predictivos.
+          track('streak_extended', { streak: r.newStreak, broken_before: r.streakBroken });
+          if (r.freezeUsed) track('streak_freeze_used', { streak: r.newStreak });
+          if (r.leveledUp) track('level_up');
+          for (const id of r.newBadges) track('badge_earned', { badge_id: id });
+          if (prNames.length > 0) track('pr_achieved', { count: prNames.length });
+        } catch (e: any) {
+          console.log('[Workout] Error gamificación:', e?.message);
+        }
+      }
+
+      // 6. Pantalla de celebración con todo el botín de la sesión. Los
+      // cronómetros se paran aquí y no al entrar: si el guardado falla el
+      // usuario se queda EN la sesión y el reloj no puede quedar congelado.
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (restRef.current) clearInterval(restRef.current);
+      router.replace({
+        pathname: '/workout-complete' as any,
+        params: {
+          duration: formatTime(elapsed),
+          exercises: String(exercises.length),
+          xp: String(xpGained),
+          streak: String(newStreak),
+          leveledUp: leveledUp ? '1' : '0',
+          freezeUsed: freezeUsed ? '1' : '0',
+          badges: badgeNames.join('|'),
+          prs: prNames.join('|'),
+        },
+      });
+    } catch (e: any) {
+      // Camino de fallo: el snapshot local sigue intacto, así que se libera el
+      // guard para que el usuario pueda reintentar. Antes quedaba en true y
+      // "Terminar sesión" no volvía a responder nunca más.
+      finishingRef.current = false;
+      captureError(e, {
+        scope: 'workout_finish',
+        sets_logged: loggedSetsRef.current.length,
+        day_index: todayIndex,
+      });
+      Alert.alert(
+        'No pudimos guardar tu entrenamiento',
+        'Tus series siguen guardadas en el teléfono. Revisa tu conexión e intenta de nuevo.',
+        [{ text: 'Entendido' }]
+      );
+    }
   }
 
   // Sustituir el ejercicio actual por otro de la biblioteca (edita el plan + persiste).

@@ -15,6 +15,7 @@ import { canUseFeature } from '../../lib/subscription';
 import { track } from '../../lib/analytics';
 import { loadHealthSafe } from '../../lib/health';
 import { healthToPrompt, HEALTH_UNKNOWN_DIRECTIVE } from '../../lib/healthMath';
+import type { BiologicalSex } from '../../lib/supabase';
 import { router, useFocusEffect } from 'expo-router';
 import ReportContentButton from '../../Components/ReportContentButton';
 import { isPoseCameraMarkedUnsupported } from '../../lib/pose/cameraSupport';
@@ -155,7 +156,12 @@ export default function CoachScreen() {
     try {
       const load = await loadHealthSafe(profile.user_id);
       if (load.status === 'unknown') return HEALTH_UNKNOWN_DIRECTIVE;
-      return load.profile ? healthToPrompt(load.profile, profile.age) : '';
+      // El sexo entra al tamizaje (los perfiles viejos no traen la columna →
+      // 'unspecified', neutro, nunca el sesgo masculino por defecto): sin él
+      // nunca se emite la directiva de RED-S/hierro para mujeres.
+      const sex: BiologicalSex =
+        profile.sex === 'male' || profile.sex === 'female' ? profile.sex : 'unspecified';
+      return load.profile ? healthToPrompt(load.profile, profile.age, sex) : '';
     } catch {
       return HEALTH_UNKNOWN_DIRECTIVE;
     }

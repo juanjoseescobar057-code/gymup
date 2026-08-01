@@ -21,8 +21,11 @@ export const MIN_AGE = 18;
 export const MAX_AGE = 90;
 
 // ── NUTRICIÓN: PISOS DE SEGURIDAD ────────────────────────
-// No recopilamos sexo biológico, así que el cálculo de BMR es
-// conservador. Estos pisos evitan prescribir déficits peligrosos.
+// Ya SÍ recopilamos sexo biológico (user_profiles.sex), así que el BMR
+// dejó de asumir la constante masculina para todo el mundo. Aun así los
+// pisos siguen aquí como red de seguridad: 'unspecified' es una opción
+// legítima (BMR estimado con el punto medio) y Mifflin-St Jeor sigue
+// siendo una estimación poblacional, no una medición.
 //
 // Regla clínica simple que aplicamos: nunca prescribir por debajo
 // del metabolismo basal (BMR) de forma sostenida, y nunca por debajo
@@ -54,6 +57,17 @@ export function clampFatPct(pct: number): number {
   return Math.min(MAX_FAT_PCT, Math.max(MIN_FAT_PCT, Math.round(pct)));
 }
 
+// ── DESCANSO Y RECUPERACIÓN ──────────────────────────────
+// Se define aparte porque se reutiliza en dos sitios: dentro de
+// AI_SAFETY_RULES (para que el coach no programe como si el descanso
+// fuera opcional) y en la UI, donde el usuario lo lee con sus palabras.
+export const SLEEP_RECOVERY_GUIDANCE = `DESCANSO Y RECUPERACIÓN (es parte del plan, no un accesorio):
+- Dormir 7-9 h por noche cuenta como parte del entrenamiento. Si el sueño no está dando, se ajusta el plan al sueño real y no al revés.
+- El músculo se construye en la recuperación, no dentro de la sesión: entrenar da el estímulo, la adaptación ocurre después, durmiendo y comiendo.
+- Deja 48-72 h antes de volver a entrenar fuerte el mismo grupo muscular.
+- Señales de sobreentrenamiento a vigilar: dormir mal, pulso en reposo más alto de lo habitual, irritabilidad, estancamiento o caída de la fuerza, y ganas sostenidas de no entrenar.
+- Ante esas señales se BAJA el volumen (menos series, menos días o una semana suave). Nunca respondas con más trabajo.`;
+
 // ── REGLAS DE SEGURIDAD PARA PROMPTS DE IA ───────────────
 // Se antepone a CUALQUIER prompt donde la IA dé consejo nutricional,
 // de entrenamiento o corporal. La IA no debe poder sugerir prácticas
@@ -73,6 +87,8 @@ ENTRENAMIENTO (prevención de lesiones):
 - SEÑALES DE ALARMA = parar YA y buscar atención médica: dolor u opresión en el pecho, falta de aire severa, mareo o desmayo, hormigueo/entumecimiento, dolor de cabeza súbito e intenso. Sé claro y directo si aparecen.
 - Si el usuario menciona lesión, cirugía reciente, embarazo, hipertensión, diabetes, problema cardiaco u otra condición médica: NO programes ejercicio específico "para" esa condición; da solo pautas generales conservadoras y deriva a un profesional (médico/fisioterapeuta) para lo específico.
 - Incluye calentamiento antes del trabajo intenso y respeta el descanso: el sobreentrenamiento también lesiona.
+
+${SLEEP_RECOVERY_GUIDANCE}
 
 CRITERIO PROFESIONAL:
 - Ante la duda, elige SIEMPRE la opción más conservadora. Prefiere regresiones (menos peso, mejor técnica, variante más segura) antes que exigir más.

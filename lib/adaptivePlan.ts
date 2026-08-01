@@ -12,20 +12,32 @@ import { AI_SAFETY_RULES } from './safety';
 import { summarizePerformance, type PerfRow } from './adaptivePlanMath';
 import { loadHealthSafe, clearPlanStaleForHealth } from './health';
 import { healthToPrompt } from './healthMath';
-import type { UserProfile, WeeklyPlan } from './supabase';
+import type { UserProfile, WeeklyPlan, BiologicalSex } from './supabase';
 
 // Re-export de la lógica pura (vive en adaptivePlanMath para ser testeable).
 export { parseRepsHigh, progressionAdvice, summarizePerformance } from './adaptivePlanMath';
 export type { Advice } from './adaptivePlanMath';
+
+// El plan inicial ya se genera con el sexo biológico; la re-planificación
+// REEMPLAZA ese plan, así que si aquí no viaja el dato el usuario pierde en la
+// semana 2 lo que se programó bien en la semana 1.
+const SEX_LABELS: Record<BiologicalSex, string> = {
+  male: 'hombre',
+  female: 'mujer',
+  unspecified: 'no declarado',
+};
 
 /**
  * Regenera el plan adaptado al desempeño real. Devuelve el nuevo WeeklyPlan
  * (validado). Lanza si no hay IA o el JSON es inválido.
  */
 export async function regenerateAdaptivePlan(
-  profile: Pick<UserProfile, 'user_id' | 'age' | 'weight_kg' | 'height_cm' | 'goal' | 'activity_level'>,
+  profile: Pick<UserProfile, 'user_id' | 'age' | 'sex' | 'weight_kg' | 'height_cm' | 'goal' | 'activity_level'>,
   currentPlan: WeeklyPlan
 ): Promise<WeeklyPlan> {
+  // Perfiles anteriores a la columna `sex` llegan sin ella: 'unspecified' (neutro)
+  // en vez del sesgo masculino por defecto.
+  const sex: BiologicalSex = SEX_LABELS[profile.sex] ? profile.sex : 'unspecified';
   // Desempeño de las últimas ~2 semanas.
   const since = new Date(Date.now() - 14 * 86400000).toISOString();
   const { data } = await supabase
@@ -51,7 +63,7 @@ export async function regenerateAdaptivePlan(
   // síntoma de un perfil perdido (todo usuario pasa por el tamizaje en el
   // onboarding) → plan conservador, nunca asumir "sano verificado".
   const healthBlock = healthLoad.profile
-    ? healthToPrompt(healthLoad.profile, profile.age)
+    ? healthToPrompt(healthLoad.profile, profile.age, sex)
     : 'NOTA DE SEGURIDAD: este usuario no tiene tamizaje de salud registrado. Genera un plan CONSERVADOR: sin técnicas de intensidad, sin trabajo al fallo ni máximos, progresión gradual, y recuérdale en el overview completar su perfil de salud en Perfil → Salud.';
 
   const content = await aiChatContent({
@@ -62,7 +74,10 @@ export async function regenerateAdaptivePlan(
 ${healthBlock ? `\n${healthBlock}\n` : ''}
 Ajusta el plan semanal de este usuario según su DESEMPEÑO REAL de las últimas 2 semanas.
 
-Usuario: ${profile.age} años, ${profile.weight_kg}kg, ${profile.height_cm}cm, objetivo ${profile.goal}, actividad ${profile.activity_level}.
+Usuario: ${profile.age} años, sexo biológico ${SEX_LABELS[sex]}, ${profile.weight_kg}kg, ${profile.height_cm}cm, objetivo ${profile.goal}, actividad ${profile.activity_level}.
+${sex === 'unspecified'
+  ? 'Sexo no declarado: ajusta el plan de forma neutra. No lo deduzcas del objetivo, del peso ni de los ejercicios que registró, ni cambies nada por esa suposición.'
+  : 'Usa el sexo solo como dato fisiológico (tolerancia al volumen, frecuencia y recuperación). PROHIBIDO bajar cargas, series o exigencia por él: si algo choca, MANDAN el objetivo declarado, el desempeño real y las directivas de salud.'}
 
 Desempeño registrado (peso × reps):
 ${perf}

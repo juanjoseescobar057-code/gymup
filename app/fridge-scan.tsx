@@ -6,7 +6,7 @@
 //   3. Resultados: score nevera, ingredientes, 3 recetas
 // ─────────────────────────────────────────────────────────
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, Alert, Image,
@@ -29,9 +29,20 @@ import type { FridgeAnalysis, Recipe } from '../lib/openai-features';
 
 function QualityBar({ score }: { score: number }) {
   const color = score >= 75 ? Colors.accent : score >= 50 ? '#ff9d3a' : '#ff4444';
-  const label = score >= 75 ? '🟢 Nevera sana' : score >= 50 ? '🟡 Puede mejorar' : '🔴 Necesita atención';
+  // El copy describe la COMPOSICIÓN de la nevera, no califica a quien la llenó:
+  // "Nevera sana / Necesita atención" leía como una nota moral sobre la persona,
+  // y ese tono es el que dispara culpa alimentaria en una app de nutrición.
+  const label = score >= 75
+    ? 'Variedad nutricional alta'
+    : score >= 50
+      ? 'Variedad nutricional media'
+      : 'Variedad nutricional limitada';
   return (
-    <View style={{ marginBottom: 16 }}>
+    <View
+      style={{ marginBottom: 16 }}
+      accessible
+      accessibilityLabel={`${label}. Puntaje ${score} de 100.`}
+    >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
         <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 13, color }}>{label}</Text>
         <Text style={{ fontFamily: Fonts.heading, fontSize: 22, color }}>{score}/100</Text>
@@ -48,7 +59,14 @@ function RecipeCard({ recipe, goal }: { recipe: Recipe; goal: string }) {
   const alignColor = recipe.goal_alignment >= 80 ? Colors.accent : '#ff9d3a';
 
   return (
-    <TouchableOpacity style={s.recipeCard} onPress={() => setExpanded(!expanded)} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={s.recipeCard}
+      onPress={() => setExpanded(!expanded)}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`Receta ${recipe.name}. ${expanded ? 'Tocar para cerrar' : 'Tocar para ver la receta completa'}`}
+      accessibilityState={{ expanded }}
+    >
       <View style={s.recipeHeader}>
         <View style={{ flex: 1 }}>
           <Text style={s.recipeName}>{recipe.name}</Text>
@@ -112,21 +130,39 @@ export default function FridgeScanScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [result, setResult] = useState<FridgeAnalysis | null>(null);
   const [showCameraDisclosure, setShowCameraDisclosure] = useState(false);
+  // El modal resuelve esta promesa: así asegurarDisclosure() se puede esperar
+  // como cualquier otro await al inicio de los handlers, sin duplicar el flujo.
+  const disclosureResolver = useRef<((aceptado: boolean) => void) | null>(null);
 
-  // Disclosure de cámara (una sola vez): la galería no dispara el permiso
-  // sensible de cámara, así que solo se gatea la captura en vivo.
-  async function pickPhoto(fromCamera: boolean) {
-    if (fromCamera && !(await hasSeenCameraDisclosure('fridge_scan'))) {
+  // Disclosure de IA (una sola vez): lo que hay que divulgar no es el permiso
+  // de cámara sino que la foto SALE del teléfono hacia un tercero (OpenAI), y
+  // eso pasa igual si la imagen viene de la galería. Antes solo se gateaba la
+  // captura en vivo, así que quien elegía de galería enviaba su foto sin haber
+  // visto nunca el aviso. Devuelve false si el usuario cancela.
+  async function asegurarDisclosure(): Promise<boolean> {
+    if (await hasSeenCameraDisclosure('fridge_scan')) return true;
+    return new Promise<boolean>((resolve) => {
+      disclosureResolver.current = resolve;
       setShowCameraDisclosure(true);
-      return;
-    }
+    });
+  }
+
+  async function pickPhoto(fromCamera: boolean) {
+    if (!(await asegurarDisclosure())) return;
     await doPickPhoto(fromCamera);
   }
 
   async function acceptCameraDisclosure() {
     setShowCameraDisclosure(false);
     await markCameraDisclosureSeen('fridge_scan');
-    await doPickPhoto(true);
+    disclosureResolver.current?.(true);
+    disclosureResolver.current = null;
+  }
+
+  function cancelCameraDisclosure() {
+    setShowCameraDisclosure(false);
+    disclosureResolver.current?.(false);
+    disclosureResolver.current = null;
   }
 
   async function doPickPhoto(fromCamera: boolean) {
@@ -199,19 +235,33 @@ export default function FridgeScanScreen() {
     }
   }
 
+  // El modal se monta en TODAS las fases que pueden pedir una foto (intro y el
+  // botón "Nuevo scan" del resultado); si no, la promesa de asegurarDisclosure()
+  // esperaría a un modal que no está en pantalla y el botón no haría nada.
+  const modalDisclosure = (
+    <CameraDisclosureModal
+      visible={showCameraDisclosure}
+      // El sujeto deja explícito que el aviso cubre los dos orígenes de la
+      // imagen, no solo la cámara: lo que se divulga es el envío al tercero.
+      subject="tu nevera — la que tomes con la cámara o elijas de tu galería —"
+      onAccept={acceptCameraDisclosure}
+      onCancel={cancelCameraDisclosure}
+    />
+  );
+
   // INTRO
   if (phase === 'intro') {
     return (
       <>
-      <CameraDisclosureModal
-        visible={showCameraDisclosure}
-        subject="tu nevera"
-        onAccept={acceptCameraDisclosure}
-        onCancel={() => setShowCameraDisclosure(false)}
-      />
+      {modalDisclosure}
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
-          <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={s.backBtn}
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Volver"
+          >
             <Text style={s.backBtnTxt}>‹</Text>
           </TouchableOpacity>
           <Text style={s.navTitle}>ESCANEAR NEVERA</Text>
@@ -233,10 +283,12 @@ export default function FridgeScanScreen() {
 
           <View style={s.featureCard}>
             {[
-              { icon: '🔍', txt: 'Detecta todos los ingredientes visibles' },
-              { icon: '📊', txt: 'Evalúa qué tan saludable está tu nevera' },
+              { icon: '🔍', txt: 'Detecta los ingredientes visibles' },
+              // Copy descriptivo: la app resume la composición de lo que hay,
+              // no reparte notas sobre cómo come la persona.
+              { icon: '📊', txt: 'Resume la variedad nutricional de lo que hay' },
               { icon: '👨‍🍳', txt: 'Genera 3 recetas con lo que tienes' },
-              { icon: '🛒', txt: 'Te dice qué falta comprar' },
+              { icon: '🛒', txt: 'Sugiere qué ingredientes faltan' },
             ].map((f, i) => (
               <View key={i} style={s.featureRow}>
                 <Text style={{ fontSize: 20 }}>{f.icon}</Text>
@@ -245,10 +297,22 @@ export default function FridgeScanScreen() {
             ))}
           </View>
 
-          <TouchableOpacity style={s.primaryBtn} onPress={() => pickPhoto(true)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.primaryBtn}
+            onPress={() => pickPhoto(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Tomar foto de la nevera con la cámara"
+          >
             <Text style={s.primaryBtnTxt}>📷  FOTOGRAFIAR NEVERA</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.secondaryBtn} onPress={() => pickPhoto(false)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.secondaryBtn}
+            onPress={() => pickPhoto(false)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Elegir una foto de la nevera desde la galería"
+          >
             <Text style={s.secondaryBtnTxt}>Elegir foto de galería</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -276,13 +340,24 @@ export default function FridgeScanScreen() {
   // RESULTADO
   if (phase === 'result' && result) {
     return (
+      <>
+      {modalDisclosure}
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
-          <TouchableOpacity style={s.backBtn} onPress={() => { setPhase('intro'); setPhotoUri(null); setResult(null); }}>
+          <TouchableOpacity
+            style={s.backBtn}
+            onPress={() => { setPhase('intro'); setPhotoUri(null); setResult(null); }}
+            accessibilityRole="button"
+            accessibilityLabel="Volver y descartar este resultado"
+          >
             <Text style={s.backBtnTxt}>‹</Text>
           </TouchableOpacity>
           <Text style={s.navTitle}>RESULTADO</Text>
-          <TouchableOpacity onPress={() => pickPhoto(true)}>
+          <TouchableOpacity
+            onPress={() => pickPhoto(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Analizar una foto nueva"
+          >
             <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.accent }}>Nuevo scan</Text>
           </TouchableOpacity>
         </View>
@@ -320,10 +395,22 @@ export default function FridgeScanScreen() {
             <Text style={s.shoppingTxt}>{result.shopping_suggestion}</Text>
           </View>
 
-          <TouchableOpacity style={s.primaryBtn} onPress={() => pickPhoto(true)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.primaryBtn}
+            onPress={() => pickPhoto(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Escanear la nevera de nuevo con la cámara"
+          >
             <Text style={s.primaryBtnTxt}>📷  ESCANEAR DE NUEVO</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.secondaryBtn} onPress={() => router.replace('/(tabs)' as any)} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={s.secondaryBtn}
+            onPress={() => router.replace('/(tabs)' as any)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Volver al inicio"
+          >
             <Text style={s.secondaryBtnTxt}>Volver al inicio</Text>
           </TouchableOpacity>
           <ReportContentButton feature="fridge_scan" content={JSON.stringify(result)} />
@@ -331,6 +418,7 @@ export default function FridgeScanScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
+      </>
     );
   }
 

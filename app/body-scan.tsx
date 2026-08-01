@@ -25,7 +25,7 @@ import { canUseFeature } from '../lib/subscription';
 import { track } from '../lib/analytics';
 import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
-import { AI_SAFETY_RULES, clampFatPct, MEDICAL_DISCLAIMER, BODY_SCAN_CONSENT, MIN_AGE } from '../lib/safety';
+import { AI_SAFETY_RULES, clampFatPct, MEDICAL_DISCLAIMER, BODY_SCAN_CONSENT, MIN_AGE, MIN_FAT_PCT, MAX_FAT_PCT } from '../lib/safety';
 
 const POSES = [
   { id: 'front', label: 'Frente',  emoji: '🧍', instruction: 'Párate derecho mirando la cámara, brazos a los lados, cuerpo completo visible' },
@@ -65,6 +65,20 @@ const STATUS_CONFIG = {
   focus:    { color: '#ff9d3a',     bg: 'rgba(255,157,58,0.10)',     icon: '⚠️', label: 'Trabajar'  },
   priority: { color: '#ff4444',     bg: 'rgba(255,68,68,0.10)',      icon: '🔴', label: 'Prioridad' },
 };
+
+// Una foto de celular no está calibrada: no hay escala, ni pliegues, ni
+// densitometría. Estimar el % de grasa "al punto" desde ahí es falsa
+// precisión, y un número exacto es justo lo que la gente se queda mirando.
+// Guardamos el número que devuelve la IA (el esquema y la BD lo exigen)
+// pero al usuario SIEMPRE le mostramos la banda de incertidumbre.
+const FAT_PCT_UNCERTAINTY = 3; // puntos porcentuales a cada lado del valor
+
+function fatPctRange(pct: number): string {
+  const mid = Math.round(pct);
+  const low = Math.max(MIN_FAT_PCT, mid - FAT_PCT_UNCERTAINTY);
+  const high = Math.min(MAX_FAT_PCT, mid + FAT_PCT_UNCERTAINTY);
+  return `${low}-${high}%`;
+}
 
 async function validatePhoto(
   base64: string,
@@ -124,8 +138,8 @@ async function analyzeBodyPhotos(
   }));
 
   const previousContext = previousScan
-    ? `Escáner anterior (${new Date(previousScan.scanned_at).toLocaleDateString('es-CO')}): Score ${previousScan.overall_score}/100, ${previousScan.estimated_fat_pct}% grasa estimada. Compara y sé completamente honesto sobre si hay cambios visibles o no.`
-    : 'Es el primer escáner del usuario — establece la línea base con honestidad.';
+    ? `Escáner anterior (${new Date(previousScan.scanned_at).toLocaleDateString('es-CO')}): Score ${previousScan.overall_score}/100, ~${previousScan.estimated_fat_pct}% grasa (estimación visual, no una medición). Describe qué cambió y qué no, sin calificarlo.`
+    : 'Es el primer escáner del usuario — describe la línea base, sin puntuarla como si fuera una nota.';
 
   content.push({
     type: 'text',
@@ -138,13 +152,26 @@ Usuario: ${profile.age} años, ${profile.weight_kg}kg, ${profile.height_cm}cm
 Objetivo: ${goalCtx[profile.goal]}
 ${previousContext}
 
-INSTRUCCIONES CRÍTICAS:
-- Sé completamente honesto. Si no hay cambios notables desde el escáner anterior, dilo sin rodeos pero con respeto.
-- Si hay mejoras, reconócelas de forma específica y concreta.
-- Si hay retroceso, señálalo con franqueza constructiva.
+CÓMO REPORTAR — DESCRIBIR, NO JUZGAR:
+- Describe lo que se ve en las fotos. No lo califiques moralmente: nada de "retroceso", "empeoró", "te descuidaste", "recaída", "excusas" ni "disciplina".
+- Si no hay cambios visibles desde el escáner anterior, dilo con naturalidad: dos semanas rara vez cambian lo que una foto alcanza a mostrar.
+- Si hay cambios, nómbralos concretos y en ambos sentidos, como observaciones y no como veredictos.
+- Encuadra las variaciones como normales: retención de agua, sodio del día anterior, fase del ciclo menstrual, hora del día e iluminación de la foto cambian lo que se ve sin que el cuerpo haya cambiado.
 - Identifica fortalezas musculares reales y zonas a trabajar con especificidad.
-- NO seas condescendiente ni evites la verdad por ser amable.
 - Los consejos deben ser directamente aplicables, no genéricos.
+
+PRECISIÓN HONESTA — UNA FOTO NO CALIBRADA NO ES UNA MEDICIÓN:
+- "estimated_fat_pct" es el punto medio de una estimación visual, no un dato medido.
+- En TODO texto que lea el usuario expresa la grasa como RANGO (p. ej. "18-22%"), nunca como número exacto.
+- Di explícitamente, en una frase, que una foto sin calibrar no permite más precisión que ese rango.
+- El score /100 es una referencia para seguir la evolución, no una nota ni una medida de valor personal.
+
+RELACIÓN CON EL CUERPO (obligatorio):
+- Prohibido el lenguaje de urgencia ("tienes que", "ya", "antes de que"), de vergüenza, de culpa o de asco.
+- Prohibido comparar el cuerpo del usuario con ideales, modelos, atletas o cualquier estándar estético.
+- No trates el cuerpo como un problema a corregir: habla de entrenamiento, comida y descanso, no de defectos.
+- Nunca sugieras saltarse comidas, "compensar" lo que comió con más ejercicio, ni pesarse a diario.
+- Si lo que ves sugiere un peso muy bajo, una pérdida muy rápida frente al escáner anterior u otras señales de una relación problemática con la comida o con la imagen corporal, no des consejos de déficit: recomienda con empatía y sin dramatizar hablar con un profesional de la salud.
 
 SOLO JSON sin texto adicional:
 {
@@ -157,7 +184,7 @@ SOLO JSON sin texto adicional:
       "label": "Pecho",
       "status": "strength",
       "message": "Buen desarrollo visible, simetría correcta entre ambos lados.",
-      "tip": "Agrega cable crossover para definición interna del pecho."
+      "tip": "Agrega press inclinado 2 veces por semana para trabajar la porción clavicular (superior) del pectoral."
     },
     {
       "id": "abdomen",
@@ -172,24 +199,24 @@ SOLO JSON sin texto adicional:
     "Buena simetría en hombros"
   ],
   "focus_areas": [
-    "Reducir grasa en zona abdominal baja",
+    "Bajar el porcentaje de grasa general — no se puede elegir de qué zona se pierde primero",
     "Desarrollar pantorrillas"
   ],
   "refined_plan_notes": "Basado en tus fotos, tu plan debe enfocarse más en ejercicios de core y menos volumen en espalda que ya está bien desarrollada.",
-  "motivation": "Mensaje honesto y directo de 2 oraciones basado exactamente en lo que veo en las fotos. No exageres ni suavices.",
-  "prediction_30days": "Predicción realista y honesta de lo que puede lograr en 30 días si es consistente. Incluye que los cambios físicos visibles toman tiempo.",
+  "motivation": "Dos oraciones descriptivas sobre lo que muestran las fotos y el siguiente paso concreto. Sin halagos vacíos, sin urgencia y sin comparar con ningún ideal. Menciona la grasa como rango si la mencionas.",
+  "prediction_30days": "Qué puede cambiar de forma realista en 30 días si es consistente, incluyendo que los cambios visibles toman tiempo y que el rango de grasa estimado desde una foto sin calibrar no da para más precisión.",
   "recovery_tips": [
     "Foam rolling 10 min después de cada entreno enfocado en los músculos trabajados",
-    "Baño frío 2 minutos post-entrenamiento para reducir inflamación muscular"
+    "Camina 10-15 min suave el día después de una sesión dura: mueve sangre sin sumar fatiga"
   ],
   "sleep_tips": [
-    "Duerme 7-9 horas — el 70% del crecimiento muscular ocurre durante el sueño profundo",
+    "Duerme 7-9 horas: es de lo que más impacta la recuperación, la síntesis proteica y tu rendimiento del día siguiente",
     "Evita pantallas 30 minutos antes de dormir para mejorar la calidad del sueño"
   ]
 }
 
-status opciones: strength=bien desarrollado, focus=necesita más trabajo, priority=prioridad alta urgente.
-Incluye entre 4 y 7 zonas. Sé específico y completamente honesto.`,
+status opciones: strength=bien desarrollado, focus=necesita más trabajo, priority=donde hay más margen de mejora (NO implica urgencia ni alarma).
+Incluye entre 4 y 7 zonas. Sé específico y descriptivo.`,
   });
 
   const data = await aiChat({
@@ -356,7 +383,8 @@ export default function BodyScanScreen() {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
-          <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={s.backBtn} onPress={() => router.back()}
+            accessibilityRole="button" accessibilityLabel="Volver">
             <Text style={s.backBtnTxt}>‹</Text>
           </TouchableOpacity>
           <Text style={s.navTitle}>ANÁLISIS CORPORAL</Text>
@@ -390,9 +418,9 @@ export default function BodyScanScreen() {
           <View style={s.infoCard}>
             <Text style={s.infoCardTitle}>📅 Frecuencia recomendada</Text>
             <Text style={s.infoCardDesc}>
-              Para resultados precisos, recomendamos hacer el análisis cada{' '}
+              Para poder comparar, recomendamos hacer el análisis cada{' '}
               <Text style={{ color: Colors.accent, fontFamily: Fonts.bodySemi }}>15 días</Text>.
-              La IA será completamente honesta — si no hay cambios visibles, te lo dirá sin rodeos.
+              Si no hay cambios visibles, te lo dirá con claridad — en dos semanas eso es lo normal.
             </Text>
           </View>
 
@@ -416,11 +444,11 @@ export default function BodyScanScreen() {
           </View>
 
           <View style={s.infoCard}>
-            <Text style={s.infoCardTitle}>🤖 Honestidad garantizada</Text>
+            <Text style={s.infoCardTitle}>🤖 Qué vas a leer</Text>
             <Text style={s.infoCardDesc}>
-              Si no hay cambios visibles desde tu última sesión, la IA te lo dirá directamente.
-              Si hay mejoras, las reconocerá. Si hay áreas que empeoaron, también las señalará.
-              Sin suavizar la realidad.
+              El análisis describe lo que muestran tus fotos y qué cambió desde la última sesión,
+              sin calificarte ni compararte con ningún ideal. El % de grasa se entrega como rango
+              estimado: una foto sin calibrar no permite más precisión que eso.
             </Text>
           </View>
 
@@ -429,6 +457,9 @@ export default function BodyScanScreen() {
             style={s.consentRow}
             onPress={() => { setConsentChecked((v) => !v); Haptics.selectionAsync(); }}
             activeOpacity={0.8}
+            accessibilityRole="checkbox"
+            accessibilityLabel={BODY_SCAN_CONSENT}
+            accessibilityState={{ checked: consentChecked }}
           >
             <View style={[s.checkbox, consentChecked && s.checkboxOn]}>
               {consentChecked && <Text style={s.checkboxMark}>✓</Text>}
@@ -449,15 +480,22 @@ export default function BodyScanScreen() {
               setPhase('capture');
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             }}
-            activeOpacity={0.85}>
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={profile?.is_premium
+              ? 'Aceptar y empezar el análisis corporal'
+              : 'Aceptar y empezar el análisis corporal. Función premium'}
+            accessibilityState={{ disabled: !consentChecked }}>
             <Text style={s.primaryBtnTxt}>{profile?.is_premium ? 'ACEPTAR Y EMPEZAR' : 'ACEPTAR Y EMPEZAR ✦ PREMIUM'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.secondaryBtn} onPress={() => router.back()} activeOpacity={0.85}>
+          <TouchableOpacity style={s.secondaryBtn} onPress={() => router.back()} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="No por ahora, salir del análisis corporal">
             <Text style={s.secondaryBtnTxt}>No por ahora</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => setPrivacyModal(true)} style={{ alignItems: 'center', marginTop: 4 }}>
+          <TouchableOpacity onPress={() => setPrivacyModal(true)} style={{ alignItems: 'center', marginTop: 4 }}
+            accessibilityRole="button" accessibilityLabel="Ver política de privacidad completa">
             <Text style={{ fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, textDecorationLine: 'underline' }}>
               Ver política de privacidad completa
             </Text>
@@ -484,7 +522,8 @@ export default function BodyScanScreen() {
                 </Text>
               </ScrollView>
               <TouchableOpacity style={[s.primaryBtn, { marginTop: 16 }]}
-                onPress={() => setPrivacyModal(false)}>
+                onPress={() => setPrivacyModal(false)}
+                accessibilityRole="button" accessibilityLabel="Entendido, cerrar la política de privacidad">
                 <Text style={s.primaryBtnTxt}>Entendido</Text>
               </TouchableOpacity>
             </View>
@@ -502,7 +541,8 @@ export default function BodyScanScreen() {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
-          <TouchableOpacity style={s.backBtn} onPress={reset}>
+          <TouchableOpacity style={s.backBtn} onPress={reset}
+            accessibilityRole="button" accessibilityLabel="Volver">
             <Text style={s.backBtnTxt}>‹</Text>
           </TouchableOpacity>
           <Text style={s.navTitle}>FOTO {currentPoseIndex + 1}/{POSES.length}</Text>
@@ -519,7 +559,10 @@ export default function BodyScanScreen() {
                 <TouchableOpacity key={p.id}
                   style={[s.poseTab, i === currentPoseIndex && s.poseTabActive, done && s.poseTabDone]}
                   onPress={() => setCurrentPoseIndex(i)}
-                  activeOpacity={0.8}>
+                  activeOpacity={0.8}
+                  accessibilityRole="tab"
+                  accessibilityLabel={`Foto ${i + 1} de ${POSES.length}: ${p.label}${done ? '. Ya tomada' : '. Pendiente'}`}
+                  accessibilityState={{ selected: i === currentPoseIndex }}>
                   <Text style={s.poseTabEmoji}>{done ? '✅' : p.emoji}</Text>
                   <Text style={[s.poseTabLabel, i === currentPoseIndex && { color: Colors.accent }]}>
                     {p.label}
@@ -571,7 +614,12 @@ export default function BodyScanScreen() {
             style={[s.primaryBtn, validating && { opacity: 0.6 }]}
             onPress={takePhoto}
             disabled={validating}
-            activeOpacity={0.85}>
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={validating
+              ? 'Validando la foto, espera un momento'
+              : `${photoForCurrentPose ? 'Repetir' : 'Tomar'} la foto de ${currentPose.label}`}
+            accessibilityState={{ disabled: validating, busy: validating }}>
             {validating ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <ActivityIndicator color="#0a0a0b" size="small" />
@@ -588,7 +636,9 @@ export default function BodyScanScreen() {
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {currentPoseIndex > 0 && (
               <TouchableOpacity style={[s.secondaryBtn, { flex: 1 }]}
-                onPress={() => setCurrentPoseIndex(currentPoseIndex - 1)}>
+                onPress={() => setCurrentPoseIndex(currentPoseIndex - 1)}
+                accessibilityRole="button"
+                accessibilityLabel={`Ir a la foto anterior: ${POSES[currentPoseIndex - 1].label}`}>
                 <Text style={s.secondaryBtnTxt}>← Anterior</Text>
               </TouchableOpacity>
             )}
@@ -596,14 +646,20 @@ export default function BodyScanScreen() {
               <TouchableOpacity
                 style={[s.secondaryBtn, { flex: 1 }, !photoForCurrentPose && { opacity: 0.4 }]}
                 onPress={() => { if (photoForCurrentPose) setCurrentPoseIndex(currentPoseIndex + 1); }}
-                disabled={!photoForCurrentPose}>
+                disabled={!photoForCurrentPose}
+                accessibilityRole="button"
+                accessibilityLabel={`Ir a la siguiente foto: ${POSES[currentPoseIndex + 1].label}`}
+                accessibilityState={{ disabled: !photoForCurrentPose }}>
                 <Text style={s.secondaryBtnTxt}>Siguiente →</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 style={[s.primaryBtn, { flex: 1, marginBottom: 0 }, photos.length === 0 && { opacity: 0.4 }]}
                 onPress={analyze}
-                disabled={photos.length === 0}>
+                disabled={photos.length === 0}
+                accessibilityRole="button"
+                accessibilityLabel="Analizar mis fotos"
+                accessibilityState={{ disabled: photos.length === 0 }}>
                 <Text style={s.primaryBtnTxt}>ANALIZAR ✓</Text>
               </TouchableOpacity>
             )}
@@ -611,7 +667,9 @@ export default function BodyScanScreen() {
 
           {/* Analizar con fotos parciales */}
           {photos.length > 0 && currentPoseIndex < POSES.length - 1 && (
-            <TouchableOpacity style={[s.secondaryBtn, { marginTop: 6 }]} onPress={analyze}>
+            <TouchableOpacity style={[s.secondaryBtn, { marginTop: 6 }]} onPress={analyze}
+              accessibilityRole="button"
+              accessibilityLabel={`Analizar ahora con las ${photos.length} foto${photos.length > 1 ? 's' : ''} que ya tomaste`}>
               <Text style={s.secondaryBtnTxt}>
                 Analizar con {photos.length} foto{photos.length > 1 ? 's' : ''} disponible{photos.length > 1 ? 's' : ''} →
               </Text>
@@ -658,15 +716,18 @@ export default function BodyScanScreen() {
     const scoreColor =
       result.overall_score >= 80 ? Colors.accent :
       result.overall_score >= 60 ? '#ff9d3a' : '#ff4444';
+    const scoreDelta = previousScan ? result.overall_score - previousScan.overall_score : 0;
 
     return (
       <SafeAreaView style={s.container}>
         <View style={s.nav}>
-          <TouchableOpacity style={s.backBtn} onPress={reset}>
+          <TouchableOpacity style={s.backBtn} onPress={reset}
+            accessibilityRole="button" accessibilityLabel="Volver">
             <Text style={s.backBtnTxt}>‹</Text>
           </TouchableOpacity>
           <Text style={s.navTitle}>TU ANÁLISIS</Text>
-          <TouchableOpacity onPress={() => { setPhase('capture'); setPhotos([]); setCurrentPoseIndex(0); }}>
+          <TouchableOpacity onPress={() => { setPhase('capture'); setPhotos([]); setCurrentPoseIndex(0); }}
+            accessibilityRole="button" accessibilityLabel="Empezar un nuevo escaneo">
             <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.accent }}>Nuevo scan</Text>
           </TouchableOpacity>
         </View>
@@ -681,28 +742,42 @@ export default function BodyScanScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.scoreLevel}>{result.estimated_muscle_level.toUpperCase()}</Text>
-              <Text style={s.scoreFat}>~{result.estimated_fat_pct}% grasa estimada</Text>
+              {/* Se muestra la banda, no el número: el valor exacto que devuelve la
+                  IA se guarda para poder comparar escaneos, pero enseñarlo como
+                  dato cerrado vendería una precisión que la foto no tiene. */}
+              <Text style={s.scoreFat}>{fatPctRange(result.estimated_fat_pct)} grasa estimada</Text>
+              <Text style={s.scoreFatNote}>
+                Es un rango, no un dato exacto: una foto sin calibrar no permite más precisión.
+              </Text>
               {previousScan && (
                 <View style={{ marginTop: 6, gap: 2 }}>
                   <Text style={{ fontFamily: Fonts.body, fontSize: 11, color: Colors.textMuted }}>
-                    Anterior: {previousScan.overall_score}/100 · {previousScan.estimated_fat_pct}% grasa
+                    Anterior: {previousScan.overall_score}/100 · {fatPctRange(previousScan.estimated_fat_pct)} grasa
                   </Text>
+                  {/* Diferencia descriptiva. Antes decía "↑ Progresando" / "↓ A trabajar
+                      más": un juicio sobre el usuario a partir de dos fotos que pueden
+                      diferir solo por la luz. Ahora se reporta el cambio y se explica. */}
                   <Text style={{
                     fontFamily: Fonts.bodySemi, fontSize: 12,
-                    color: result.overall_score >= previousScan.overall_score ? Colors.accent : '#ff7c3a',
+                    color: scoreDelta >= 0 ? Colors.accent : Colors.textSecondary,
                   }}>
-                    {result.overall_score >= previousScan.overall_score ? '↑ Progresando' : '↓ A trabajar más'}
+                    {scoreDelta === 0
+                      ? 'Mismo score que el escáner anterior'
+                      : `${scoreDelta > 0 ? '+' : '−'}${Math.abs(scoreDelta)} pts vs. el escáner anterior`}
+                  </Text>
+                  <Text style={s.scoreFatNote}>
+                    Variaciones pequeñas son normales: agua, sodio, ciclo, hora del día e iluminación de la foto.
                   </Text>
                 </View>
               )}
             </View>
           </View>
 
-          {/* Motivación honesta */}
+          {/* Mensaje del coach — descriptivo, no evaluativo */}
           <View style={s.motivationCard}>
             <View style={s.aiDotRow}>
               <View style={s.aiDot} />
-              <Text style={s.aiDotLbl}>COACH IA · HONESTO Y DIRECTO</Text>
+              <Text style={s.aiDotLbl}>COACH IA · LO QUE MUESTRAN TUS FOTOS</Text>
             </View>
             <Text style={s.motivationTxt}>"{result.motivation}"</Text>
           </View>
@@ -806,12 +881,14 @@ export default function BodyScanScreen() {
           <ReportContentButton feature="body_scan" content={JSON.stringify(result)} />
 
           <TouchableOpacity style={s.primaryBtn}
-            onPress={() => router.replace('/(tabs)' as any)} activeOpacity={0.85}>
+            onPress={() => router.replace('/(tabs)' as any)} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Ver mi dashboard">
             <Text style={s.primaryBtnTxt}>VER MI DASHBOARD →</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={s.secondaryBtn}
-            onPress={() => { setPhase('capture'); setPhotos([]); setCurrentPoseIndex(0); }} activeOpacity={0.85}>
+            onPress={() => { setPhase('capture'); setPhotos([]); setCurrentPoseIndex(0); }} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Hacer un nuevo análisis corporal">
             <Text style={s.secondaryBtnTxt}>Hacer nuevo análisis</Text>
           </TouchableOpacity>
 
@@ -878,6 +955,7 @@ const s = StyleSheet.create({
   scoreDen: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted },
   scoreLevel: { fontFamily: Fonts.headingBold, fontSize: 20, color: Colors.textPrimary, marginBottom: 4 },
   scoreFat: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted },
+  scoreFatNote: { fontFamily: Fonts.body, fontSize: 10, color: Colors.textMuted, lineHeight: 15, marginTop: 2 },
   motivationCard: { backgroundColor: Colors.bgSelected, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md, marginBottom: 12 },
   aiDotRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },

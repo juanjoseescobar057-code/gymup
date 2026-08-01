@@ -1,13 +1,25 @@
 // lib/streaks.ts
 // ─────────────────────────────────────────────────────────
 // Sistema de rachas, XP y badges de GymUp.
-// Todo se calcula localmente y se sincroniza con Supabase.
+// La FUENTE DE VERDAD de las stats es el SERVIDOR: user_stats ya no acepta
+// INSERT/UPDATE desde el cliente (RLS revocada) porque una app modificada
+// podía escribirse XP, nivel, racha y badges a voluntad — y los "resultados
+// demostrables" no valen nada si el propio usuario los puede falsificar.
+// Cada vía tiene su RPC (todas SECURITY DEFINER, todas con auth.uid()):
+// entrenamiento → apply_workout_stats, comida y escaneo → apply_activity_stats,
+// misión → claim_mission, comodín → buy_streak_freeze. Lo que se calcula aquí
+// es proyección OPTIMISTA para la UI: si difiere de lo que devuelve el
+// servidor, manda el servidor.
 // ─────────────────────────────────────────────────────────
 
 import { supabase } from './supabase';
+import { captureError } from './monitoring';
 import { xpToLevel, calculateNewStreak, localDayKey } from './streaksMath';
 
 // Re-export de la matemática pura (vive en streaksMath para ser testeable).
+// OJO: desde que el servidor recalcula racha y nivel dentro de la RPC, estas
+// funciones son solo para MOSTRAR (barra de progreso, previsualización de la
+// racha). Nada que se persista debe decidirse con ellas.
 export { xpToLevel, xpForNextLevel, xpProgress, calculateNewStreak, localDayKey } from './streaksMath';
 
 // ─── BADGES DISPONIBLES ──────────────────────────────────
@@ -97,15 +109,30 @@ export function getBadge(id: BadgeId) {
   return BADGES.find((b) => b.id === id);
 }
 
-// ─── GUARDAR STATS EN SUPABASE ───────────────────────────
+// ─── GUARDAR STATS EN SUPABASE (YA NO SE PUEDE) ──────────
+// La escritura directa a user_stats está REVOCADA POR DISEÑO: el cliente solo
+// puede leer esa tabla. Cualquier progreso se aplica con la RPC que le
+// corresponde, todas SECURITY DEFINER y derivando el usuario de auth.uid():
+//   • entrenamiento        → apply_workout_stats
+//   • comida / escaneo     → apply_activity_stats
+//   • misión semanal       → claim_mission (idempotente por mission_id)
+//   • compra de comodín    → buy_streak_freeze (verifica el saldo en servidor)
+// Esta función se conserva EXPORTADA solo porque lib/missions.ts y
+// app/(tabs)/progress.tsx todavía la importan mientras migran a sus RPC. No
+// escribe nada y devuelve false SIEMPRE: es preferible una función honesta que
+// dice "no persistí" a una que aparenta guardar y deja al usuario creyendo que
+// ganó XP que el servidor nunca vio.
 export async function saveUserStats(
   userId: string,
   stats: Partial<UserStats>
-): Promise<void> {
-  await supabase
-    .from('user_stats')
-    .upsert({ user_id: userId, ...stats, updated_at: new Date().toISOString() })
-    .throwOnError();
+): Promise<boolean> {
+  captureError(new Error('saveUserStats: escritura directa a user_stats revocada'), {
+    scope: 'user_stats.write_revocada',
+    campos: Object.keys(stats),
+    // El id se registra para poder rastrear qué pantalla sigue sin migrar.
+    user_id: userId,
+  });
+  return false;
 }
 
 // ─── CARGAR STATS DESDE SUPABASE ─────────────────────────
@@ -161,72 +188,170 @@ function applyNewBadges(updatedStats: UserStats): { newBadges: BadgeId[]; badgeX
 }
 
 // ─── REGISTRAR ENTRENAMIENTO COMPLETADO ──────────────────
+// UNA sola llamada a apply_workout_stats: el servidor deriva el usuario de
+// auth.uid(), acota el XP, es idempotente por día y recalcula racha, nivel y
+// total_workouts. El cliente PROPONE (XP y badges), el servidor DISPONE.
 export async function recordWorkoutCompleted(
   userId: string
 ): Promise<{ newBadges: BadgeId[]; xpGained: number; streakBroken: boolean; newStreak: number; leveledUp: boolean; freezeUsed: boolean }> {
   const stats = await loadUserStats(userId);
-  const { newStreak, streakBroken, freezeUsed } = calculateNewStreak(stats);
+  const hoy = localDayKey(); // día LOCAL, no UTC (ver streaksMath)
+  const { newStreak } = calculateNewStreak(stats, hoy);
 
   const XP_PER_WORKOUT = 75;
   const streakBonus = newStreak >= 7 ? 50 : newStreak >= 3 ? 25 : 0;
   const baseXp = XP_PER_WORKOUT + streakBonus;
   const prevLevel = xpToLevel(stats.total_xp);
 
-  const updatedStats: UserStats = {
+  // Proyección OPTIMISTA, solo para decidir qué badges proponer. Replica la
+  // idempotencia del servidor (un segundo entreno el mismo día no suma
+  // total_workouts) para no proponer badges de sesiones que allá no contarían.
+  const proyeccion: UserStats = {
     ...stats,
     current_streak: newStreak,
     longest_streak: Math.max(stats.longest_streak, newStreak),
     total_xp: stats.total_xp + baseXp,
     level: xpToLevel(stats.total_xp + baseXp),
-    total_workouts: stats.total_workouts + 1,
-    last_workout_date: localDayKey(), // día LOCAL, no UTC
-    // Consumir un comodín si se usó para salvar la racha.
-    streak_freezes: Math.max(0, stats.streak_freezes - (freezeUsed ? 1 : 0)),
+    total_workouts: stats.total_workouts + (stats.last_workout_date === hoy ? 0 : 1),
+    last_workout_date: hoy,
   };
 
-  const { newBadges, badgeXp } = applyNewBadges(updatedStats);
+  const { newBadges, badgeXp } = applyNewBadges(proyeccion);
 
-  await saveUserStats(userId, updatedStats);
+  const { data, error } = await supabase.rpc('apply_workout_stats', {
+    p_xp_delta: baseXp + badgeXp,
+    p_workout_date: hoy,
+    p_badges: newBadges,
+  });
+
+  // La RPC devuelve `returns table`, o sea una fila dentro de un array.
+  const fila = Array.isArray(data) ? data[0] : data;
+
+  if (error || !fila) {
+    // La gamificación NO puede tumbar el cierre del entrenamiento: la sesión y
+    // las series ya se guardaron en sus tablas. Perder el XP de una vez es
+    // mucho menos grave que perder el entreno, así que se reporta y se
+    // devuelven los stats PREVIOS: nada que celebrar, pero nada roto.
+    captureError(error ?? new Error('apply_workout_stats no devolvió stats'), {
+      scope: 'apply_workout_stats',
+      xp_propuesto: baseXp + badgeXp,
+    });
+    return {
+      newBadges: [],
+      xpGained: 0,
+      streakBroken: false,
+      newStreak: stats.current_streak,
+      leveledUp: false,
+      freezeUsed: false,
+    };
+  }
+
+  // De aquí en adelante manda la fila del servidor, no la proyección: el XP
+  // real puede ser menor si la RPC lo acotó, y la racha puede diferir si el
+  // reloj del dispositivo iba desfasado.
+  const badgesOtorgados = ((fila.earned_badges ?? []) as BadgeId[])
+    .filter((id) => !stats.earned_badges.includes(id));
 
   return {
-    newBadges,
-    xpGained: baseXp + badgeXp,
-    streakBroken,
-    newStreak,
-    leveledUp: updatedStats.level > prevLevel,
-    freezeUsed,
+    newBadges: badgesOtorgados,
+    xpGained: Math.max(0, (fila.total_xp ?? stats.total_xp) - stats.total_xp),
+    // El servidor no devuelve "se rompió" ni "usó comodín" como tales: se
+    // deducen de su racha autoritativa y del comodín consumido.
+    streakBroken: (fila.current_streak ?? 1) <= 1 && stats.current_streak > 1,
+    newStreak: fila.current_streak ?? newStreak,
+    leveledUp: (fila.level ?? prevLevel) > prevLevel,
+    freezeUsed: (fila.streak_freezes ?? stats.streak_freezes) < stats.streak_freezes,
   };
 }
 
 // ─── REGISTRAR COMIDA LOGUEADA ───────────────────────────
+// Misma forma que el entrenamiento: el cliente PROPONE (XP y badges) y el
+// servidor DISPONE, vía apply_activity_stats con p_kind='meal'.
 export async function recordMealLogged(
   userId: string,
   macroPerfectDay = false
 ): Promise<{ newBadges: BadgeId[]; xpGained: number; leveledUp: boolean; macroDayCounted: boolean }> {
   const stats = await loadUserStats(userId);
+  const prevLevel = xpToLevel(stats.total_xp);
 
-  // "Día perfecto de macros": contar UNA sola vez por día LOCAL (dedupe con
-  // una clave en claimed_missions, que ya existe en el esquema).
-  const dayKey = `macroday:${localDayKey()}`;
-  const macroDayCounted = macroPerfectDay && !stats.claimed_missions.includes(dayKey);
+  // "Día perfecto de macros": debe pagarse UNA sola vez por día LOCAL. El
+  // dedupe ya no puede vivir en el cliente porque apply_activity_stats NO
+  // escribe claimed_missions, así que la clave 'macroday:<fecha>' nunca
+  // quedaría persistida y el bonus se cobraría en cada comida.
+  // Solución: usar claim_mission como CERROJO DE IDEMPOTENCIA por día. Con
+  // p_xp=0 no paga nada — solo intenta poner la clave del día en
+  // claimed_missions (operación atómica, con `for update`, en el servidor) y
+  // nos dice si ya estaba: already_claimed=true ⇒ el día perfecto ya se contó
+  // hoy. Es la misma garantía que da la RPC a las misiones semanales,
+  // reutilizada aquí como candado en vez de como pago.
+  let macroDayCounted = false;
+  if (macroPerfectDay) {
+    const dayKey = `macroday:${localDayKey()}`; // día LOCAL, no UTC (ver streaksMath)
+    const { data: cerrojo, error: errorCerrojo } = await supabase.rpc('claim_mission', {
+      p_mission_id: dayKey,
+      p_xp: 0,
+    });
+    const filaCerrojo = Array.isArray(cerrojo) ? cerrojo[0] : cerrojo;
+
+    if (errorCerrojo || !filaCerrojo) {
+      // Sin confirmación del cerrojo NO contamos el día perfecto: dejar de
+      // pagar un bonus una vez es mucho menos grave que pagarlo dos veces.
+      captureError(errorCerrojo ?? new Error('claim_mission no devolvió fila'), {
+        scope: 'claim_mission.macroday',
+        mission_id: dayKey,
+      });
+    } else {
+      macroDayCounted = !filaCerrojo.already_claimed;
+    }
+  }
 
   const XP_PER_MEAL = 15;
   const baseXp = XP_PER_MEAL + (macroDayCounted ? 50 : 0);
-  const prevLevel = xpToLevel(stats.total_xp);
 
-  const updatedStats: UserStats = {
+  // Proyección OPTIMISTA: solo sirve para decidir qué badges PROPONER. Lo que
+  // se muestra al usuario sale después de la fila que devuelve el servidor.
+  const proyeccion: UserStats = {
     ...stats,
     total_xp: stats.total_xp + baseXp,
     level: xpToLevel(stats.total_xp + baseXp),
     total_meals_logged: stats.total_meals_logged + 1,
     total_macro_perfect_days: stats.total_macro_perfect_days + (macroDayCounted ? 1 : 0),
-    claimed_missions: macroDayCounted ? [...stats.claimed_missions, dayKey] : stats.claimed_missions,
   };
 
-  const { newBadges, badgeXp } = applyNewBadges(updatedStats);
+  const { newBadges, badgeXp } = applyNewBadges(proyeccion);
 
-  await saveUserStats(userId, updatedStats);
-  return { newBadges, xpGained: baseXp + badgeXp, leveledUp: updatedStats.level > prevLevel, macroDayCounted };
+  const { data, error } = await supabase.rpc('apply_activity_stats', {
+    p_kind: 'meal',
+    p_xp_delta: baseXp + badgeXp,
+    p_badges: newBadges,
+    p_macro_perfect: macroDayCounted,
+  });
+
+  // La RPC devuelve `returns table`, o sea una fila dentro de un array.
+  const fila = Array.isArray(data) ? data[0] : data;
+
+  if (error || !fila) {
+    // La gamificación no puede tumbar el flujo: la comida YA se guardó en
+    // food_logs. Se reporta y se devuelve "nada que celebrar" en vez de
+    // anunciar XP que el servidor nunca registró.
+    captureError(error ?? new Error('apply_activity_stats no devolvió stats'), {
+      scope: 'apply_activity_stats.meal',
+      xp_propuesto: baseXp + badgeXp,
+    });
+    return { newBadges: [], xpGained: 0, leveledUp: false, macroDayCounted: false };
+  }
+
+  // De aquí en adelante manda el servidor: el XP real puede ser menor si la
+  // RPC lo acotó, y los badges son los que él aceptó.
+  const badgesOtorgados = ((fila.earned_badges ?? []) as BadgeId[])
+    .filter((id) => !stats.earned_badges.includes(id));
+
+  return {
+    newBadges: badgesOtorgados,
+    xpGained: Math.max(0, (fila.total_xp ?? stats.total_xp) - stats.total_xp),
+    leveledUp: (fila.level ?? prevLevel) > prevLevel,
+    macroDayCounted,
+  };
 }
 
 // ─── REGISTRAR ESCANEO CORPORAL ──────────────────────────
@@ -237,15 +362,60 @@ export async function recordBodyScan(
   const XP_PER_SCAN = 40;
   const prevLevel = xpToLevel(stats.total_xp);
 
-  const updatedStats: UserStats = {
+  // Proyección optimista solo para proponer badges (ver recordMealLogged).
+  const proyeccion: UserStats = {
     ...stats,
     total_xp: stats.total_xp + XP_PER_SCAN,
     level: xpToLevel(stats.total_xp + XP_PER_SCAN),
     total_body_scans: stats.total_body_scans + 1,
   };
 
-  const { newBadges, badgeXp } = applyNewBadges(updatedStats);
+  const { newBadges, badgeXp } = applyNewBadges(proyeccion);
 
-  await saveUserStats(userId, updatedStats);
-  return { newBadges, xpGained: XP_PER_SCAN + badgeXp, leveledUp: updatedStats.level > prevLevel };
+  const { data, error } = await supabase.rpc('apply_activity_stats', {
+    p_kind: 'body_scan',
+    p_xp_delta: XP_PER_SCAN + badgeXp,
+    p_badges: newBadges,
+    p_macro_perfect: false,
+  });
+
+  const fila = Array.isArray(data) ? data[0] : data;
+
+  if (error || !fila) {
+    // El escaneo YA se guardó en su tabla; perder el XP no justifica romper.
+    captureError(error ?? new Error('apply_activity_stats no devolvió stats'), {
+      scope: 'apply_activity_stats.body_scan',
+      xp_propuesto: XP_PER_SCAN + badgeXp,
+    });
+    return { newBadges: [], xpGained: 0, leveledUp: false };
+  }
+
+  const badgesOtorgados = ((fila.earned_badges ?? []) as BadgeId[])
+    .filter((id) => !stats.earned_badges.includes(id));
+
+  return {
+    newBadges: badgesOtorgados,
+    xpGained: Math.max(0, (fila.total_xp ?? stats.total_xp) - stats.total_xp),
+    leveledUp: (fila.level ?? prevLevel) > prevLevel,
+  };
 }
+
+// ─── PENDIENTE (siguiente paso del blindaje) ─────────────
+// Las VÍAS DE ESCRITURA ya están cerradas: entrenamiento, comida, escaneo,
+// misión y compra de comodín pasan cada una por su RPC, y user_stats no acepta
+// insert/update desde el cliente. Lo que sigue abierto es OTRA cosa:
+//
+// El servidor no REVERIFICA los badges. checkAndAwardBadges() corre aquí, en el
+// cliente, y las RPC se limitan a hacer union de p_badges con earned_badges sin
+// comprobar que la condición ('streak_30', 'meals_50'…) se cumpla de verdad
+// contra las stats reales. Una app modificada todavía puede pedir badges que no
+// ganó — no el XP asociado, que sí está acotado por RPC ([0,1000] en actividad,
+// [0,500] en misión), pero sí la insignia. Falta mover la verificación al
+// servidor: que la RPC derive los badges de las stats posteriores al update y
+// ignore p_badges (dejándolo, si acaso, como pista para la celebración local).
+//
+// Menor, del mismo tema: si apply_activity_stats falla DESPUÉS de que el
+// cerrojo claim_mission('macroday:…') ya quedó puesto, el bonus de día perfecto
+// se pierde hasta mañana. Se prefirió ese sesgo (perder un bonus) sobre el
+// contrario (pagarlo dos veces), pero desaparece cuando el conteo del día
+// perfecto viva dentro de la misma transacción que el resto de la actividad.

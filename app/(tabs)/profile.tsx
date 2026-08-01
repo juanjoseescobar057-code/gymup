@@ -8,7 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { supabase } from '../../lib/supabase';
+import { supabase, type BiologicalSex } from '../../lib/supabase';
 import { useUserStore } from '../../store/userStore';
 import { calculateDailyMacros } from '../../lib/openai';
 import { getAccountEmail, deleteAccountServerSide } from '../../lib/account';
@@ -32,6 +32,22 @@ const ACTIVITY_LABELS: Record<string, string> = {
   moderate:    'Moderado',
   active:      'Activo',
   very_active: 'Muy activo',
+};
+
+// Mismas 3 opciones y mismas etiquetas que el onboarding: el sexo biológico
+// entra en la constante de Mifflin-St Jeor, así que equivocarse al registrarse
+// desplaza las calorías diarias ~166 kcal y ese error se arrastra para siempre
+// si no hay forma de corregirlo. Aquí es donde se corrige.
+const SEX_OPTIONS = [
+  { key: 'male',        label: 'Hombre' },
+  { key: 'female',      label: 'Mujer' },
+  { key: 'unspecified', label: 'Prefiero no decirlo' },
+] as const;
+
+const SEX_LABELS: Record<string, string> = {
+  male:        'Hombre',
+  female:      'Mujer',
+  unspecified: 'Prefiero no decirlo',
 };
 
 const GOALS = [
@@ -74,6 +90,11 @@ export default function ProfileScreen() {
   const [age, setAge] = useState(String(profile?.age ?? ''));
   const [weight, setWeight] = useState(String(profile?.weight_kg ?? ''));
   const [height, setHeight] = useState(String(profile?.height_cm ?? ''));
+  // Respaldo 'unspecified': la columna es NOT NULL en la DB, pero un perfil que
+  // quedó en memoria/caché desde antes de la migración llega sin el campo, y
+  // calculateDailyMacros ya no acepta un sexo undefined. El punto medio es la
+  // única suposición que no le mete un sesgo sistemático a nadie.
+  const [sex, setSex] = useState<BiologicalSex>(profile?.sex ?? 'unspecified');
   const [goal, setGoal] = useState(profile?.goal ?? 'muscle_gain');
   const [activityLevel, setActivityLevel] = useState(profile?.activity_level ?? 'moderate');
 
@@ -88,6 +109,7 @@ export default function ProfileScreen() {
 
     const newMacros = calculateDailyMacros({
       age: +age,
+      sex,
       weight_kg: +weight,
       height_cm: +height,
       goal,
@@ -100,6 +122,7 @@ export default function ProfileScreen() {
         name: name.trim(),
         nickname: nickname.trim() || null,
         age: +age,
+        sex,
         weight_kg: +weight,
         height_cm: +height,
         goal,
@@ -148,6 +171,12 @@ export default function ProfileScreen() {
   }
 
   // Derecho al olvido — borrar TODOS los datos del usuario y cerrar sesión.
+  // El borrado vive entero en el servidor (ver la Edge Function
+  // delete-account). Aquí ya NO hay respaldo cliente-side: borrar por filas
+  // desde el cliente nunca podía eliminar la identidad de auth ni las fotos de
+  // Storage, así que cerraba sesión sobre un borrado a medias — le mostraba al
+  // usuario un éxito que no había ocurrido y, al perder la sesión, lo dejaba
+  // sin JWT para reintentar. Si falla, se dice y se conserva la sesión.
   async function handleDeleteAccount() {
     Alert.alert(
       'Eliminar mi cuenta y datos',
@@ -158,22 +187,17 @@ export default function ProfileScreen() {
           text: 'Eliminar todo',
           style: 'destructive',
           onPress: async () => {
-            const uid = profile.user_id;
-            // Preferir el borrado server-side (elimina también la identidad de auth).
-            const doneServerSide = await deleteAccountServerSide();
-            if (!doneServerSide) {
-              // Respaldo: borrar por filas desde el cliente.
-              const tables = [
-                'set_logs', 'body_scans', 'posture_feedback', 'workout_sessions',
-                'food_logs', 'weight_entries', 'transform_photos',
-                'training_plans', 'user_stats', 'notification_preferences',
-                'push_tokens', 'ai_usage', 'coach_memory', 'ai_telemetry',
-                'analytics_events', 'health_profile', 'user_profiles',
-              ];
-              for (const t of tables) {
-                const { error } = await supabase.from(t).delete().eq('user_id', uid);
-                if (error) console.log(`[DeleteAccount] ${t}:`, error.message);
-              }
+            const res = await deleteAccountServerSide();
+            if (!res.ok) {
+              Alert.alert(
+                'No se pudo eliminar tu cuenta',
+                `${res.error ?? 'Error desconocido.'}\n\nTu cuenta y tus datos siguen intactos. Puedes intentarlo de nuevo.`,
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Reintentar', onPress: handleDeleteAccount },
+                ]
+              );
+              return;
             }
             await resetPurchasesIdentity(); // desvincula RevenueCat de este uid antes de perder la sesión
             await supabase.auth.signOut();
@@ -248,6 +272,7 @@ export default function ProfileScreen() {
             setAge(String(profile.age));
             setWeight(String(profile.weight_kg));
             setHeight(String(profile.height_cm));
+            setSex(profile.sex ?? 'unspecified');
             setGoal(profile.goal);
             setActivityLevel(profile.activity_level);
             setEditModal(true);
@@ -279,6 +304,7 @@ export default function ProfileScreen() {
             { label: 'Edad', value: `${profile.age} años` },
             { label: 'Peso', value: `${profile.weight_kg} kg` },
             { label: 'Altura', value: `${profile.height_cm} cm` },
+            { label: 'Sexo biológico', value: SEX_LABELS[profile.sex] ?? SEX_LABELS.unspecified },
             { label: 'Actividad', value: ACTIVITY_LABELS[profile.activity_level] },
             { label: 'Objetivo', value: `${goalInfo.emoji} ${goalInfo.label}` },
             { label: 'Día del plan', value: `Día ${(profile.current_plan_day ?? 0) + 1} de 7` },
@@ -491,6 +517,30 @@ export default function ProfileScreen() {
                       </View>
                       <View style={{ flex: 1 }} />
                     </View>
+
+                    {/* Sexo biológico — editable porque cambia el BMR y, con él,
+                        las calorías diarias. Al guardar, saveChanges recalcula
+                        los macros, así que el cambio se ve de inmediato. */}
+                    <Text style={s.fieldLabel}>Sexo biológico</Text>
+                    <Text style={[s.actDesc, { marginBottom: 10 }]}>
+                      Cambia tu metabolismo basal y cómo programamos tu plan. Puedes omitirlo.
+                    </Text>
+                    {SEX_OPTIONS.map((o) => (
+                      <TouchableOpacity key={o.key}
+                        style={[s.actRow, sex === o.key && s.actRowSel]}
+                        onPress={() => { setSex(o.key); Haptics.selectionAsync(); }}
+                        activeOpacity={0.8}
+                        accessibilityRole="radio"
+                        accessibilityLabel={o.label}
+                        accessibilityState={{ selected: sex === o.key }}>
+                        <View style={[s.radio, sex === o.key && s.radioSel]}>
+                          {sex === o.key && <View style={s.radioDot} />}
+                        </View>
+                        <Text style={[s.actLbl, sex === o.key && { color: Colors.accent }]}>
+                          {o.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
 
                     {/* Objetivo */}
                     <Text style={s.fieldLabel}>Objetivo</Text>

@@ -2,13 +2,18 @@
 // ─────────────────────────────────────────────────────────
 // Punto ÚNICO desde el que la app habla con la IA.
 //
-// En producción debe ir por el proxy (Edge Function ai-proxy), para que
-// la API key de OpenAI NO viaje en el cliente. Si EXPO_PUBLIC_AI_PROXY_URL
-// está configurada, se usa el proxy con el JWT del usuario.
+// TODA llamada va por el proxy (Edge Function ai-proxy) con el JWT del usuario.
+// NO hay camino directo a OpenAI, tampoco en desarrollo, por dos razones:
+//  1. La política de privacidad publicada promete que la app nunca llama a
+//     OpenAI directamente y que la key vive solo en el servidor. Un fallback
+//     "solo de desarrollo" que puede ejecutarse en producción convierte esa
+//     promesa en falsa: basta con que falte una variable de entorno.
+//  2. Cualquier EXPO_PUBLIC_* queda incrustada en el bundle JS y se extrae del
+//     APK con herramientas triviales, así que una key de OpenAI en el cliente
+//     es una key filtrada, no una key "de desarrollo".
 //
-// Solo como fallback de DESARROLLO (sin proxy configurado) se llama a OpenAI
-// directo con EXPO_PUBLIC_OPENAI_API_KEY. Esa key NO debe incluirse en
-// builds de producción.
+// Si el proxy no está configurado la IA simplemente no funciona: preferimos un
+// error claro a una fuga de datos silenciosa.
 // ─────────────────────────────────────────────────────────
 
 import { supabase } from './supabase';
@@ -17,7 +22,6 @@ import { computeCostUsd } from './aiMetrics';
 import { logAiCall } from './aiTelemetry';
 
 const PROXY_URL = process.env.EXPO_PUBLIC_AI_PROXY_URL ?? '';
-const DIRECT_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 
 // Timeout duro: sin esto, en redes móviles inestables una llamada podía
 // colgarse minutos con el usuario mirando un spinner.
@@ -42,47 +46,34 @@ export type AIMeta = {
   onLogged?: (telemetryId: string | null) => void; // para adjuntar score después
 };
 
-// La llamada cruda, sin telemetría (proxy o directo).
+// La llamada cruda, sin telemetría. Único camino: el proxy.
 async function aiChatRaw(body: object, feature: AIFeature): Promise<any> {
-  // ── Camino seguro: proxy backend ──
-  if (PROXY_URL) {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) throw new Error('Sesión no válida para usar la IA.');
-
-    const res = await fetchWithTimeout(PROXY_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        'x-gymup-feature': feature,
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const msg = await res.text();
-      captureError(new Error(`ai-proxy ${res.status}`), { status: res.status, msg });
-      if (res.status === 429) throw new Error('Alcanzaste el límite de IA de hoy. Vuelve mañana o pásate a Premium.');
-      if (res.status === 402) throw new Error('Esta función es Premium. Suscríbete para usarla.');
-      throw new Error(`IA no disponible (${res.status}): ${msg}`);
-    }
-    return res.json();
+  // Se valida en cada llamada y no al importar el módulo: sin proxy la app debe
+  // arrancar igual, solo que las funciones de IA fallan con un mensaje entendible.
+  if (!PROXY_URL) {
+    throw new Error('IA no disponible: falta configurar el proxy de IA (EXPO_PUBLIC_AI_PROXY_URL). La app nunca llama al proveedor de IA directamente.');
   }
 
-  // ── Fallback de desarrollo: directo a OpenAI ──
-  if (!DIRECT_KEY) {
-    throw new Error('IA no configurada. Define EXPO_PUBLIC_AI_PROXY_URL (producción) o EXPO_PUBLIC_OPENAI_API_KEY (desarrollo).');
-  }
-  if (!__DEV__) {
-    // Aviso en runtime si por error se publica sin proxy.
-    console.warn('[aiClient] ⚠️ Usando OpenAI directo en producción. Configura el proxy ai-proxy.');
-  }
-  const res = await fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error('Sesión no válida para usar la IA.');
+
+  const res = await fetchWithTimeout(PROXY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${DIRECT_KEY}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      'x-gymup-feature': feature,
+    },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const msg = await res.text();
+    captureError(new Error(`ai-proxy ${res.status}`), { status: res.status, msg });
+    if (res.status === 429) throw new Error('Alcanzaste el límite de IA de hoy. Vuelve mañana o pásate a Premium.');
+    if (res.status === 402) throw new Error('Esta función es Premium. Suscríbete para usarla.');
+    throw new Error(`IA no disponible (${res.status}): ${msg}`);
+  }
   return res.json();
 }
 

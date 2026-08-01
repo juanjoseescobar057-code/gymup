@@ -1,18 +1,41 @@
 // app/paywall.tsx
 // Pantalla de suscripción Premium. La compra real se conecta con RevenueCat.
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { PLANS, PREMIUM_BENEFITS } from '../lib/subscription';
-import { purchasePlan, restorePurchases } from '../lib/purchases';
+import { purchasePlan, restorePurchases, checkPremium } from '../lib/purchases';
 import { track } from '../lib/analytics';
 import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
 
+type PlanKey = 'monthly' | 'yearly';
+// Precio tal como lo devuelve la tienda: `texto` ya viene formateado en la
+// moneda y el formato del usuario ("$36.900" en CO, "9,99 €" en ES).
+type PrecioTienda = { texto: string; valor: number };
+
+// Carga perezosa del SDK nativo, mismo criterio que lib/purchases.ts: si el
+// módulo no está en esta build, el paywall sigue funcionando con el respaldo.
+function rc(): any | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('react-native-purchases').default;
+  } catch {
+    return null;
+  }
+}
+
+// Mismo criterio de coincidencia que purchasePlan: exacta o con el separador
+// ':' de Play Billing (base plan id), nunca un startsWith desnudo.
+function esElPlan(identifier: string, planId: string): boolean {
+  return identifier === planId || identifier.startsWith(`${planId}:`);
+}
+
 export default function PaywallScreen() {
-  const [plan, setPlan] = useState<'monthly' | 'yearly'>('yearly');
+  const [plan, setPlan] = useState<PlanKey>('yearly');
   const [busy, setBusy] = useState(false);
+  const [precios, setPrecios] = useState<Partial<Record<PlanKey, PrecioTienda>>>({});
   const purchasedRef = useRef(false);
 
   // Monetización: ver el paywall, y CUÁNTO dudó antes de cerrarlo sin comprar
@@ -26,6 +49,54 @@ export default function PaywallScreen() {
       }
     };
   }, []);
+
+  // PRECIO REAL, no el de la lista de precios de EE. UU. Los de PLANS están en
+  // USD fijos, pero la tienda cobra en la moneda del país (COP, MXN, EUR…) con
+  // su propio redondeo: enseñar "$9.99" a alguien en Colombia es anunciar un
+  // precio que nadie le va a cobrar. RevenueCat ya trae el precio formateado,
+  // así que ese manda y el de PLANS queda solo como respaldo mientras carga.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const P = rc();
+      if (!P) return; // build sin el módulo nativo: se queda el respaldo
+      try {
+        // checkPremium() configura el SDK con la identidad del usuario de forma
+        // idempotente (lib/purchases no expone ensureConfigured). Sin eso,
+        // getOfferings lanza si se llega al paywall antes de que la Home haya
+        // sincronizado el entitlement.
+        await checkPremium();
+        const paquetes = (await P.getOfferings())?.current?.availablePackages ?? [];
+        const encontrados: Partial<Record<PlanKey, PrecioTienda>> = {};
+        (['monthly', 'yearly'] as PlanKey[]).forEach((k) => {
+          const prod = paquetes.find((p: any) => esElPlan(p?.product?.identifier ?? '', PLANS[k].id))?.product;
+          if (prod?.priceString) encontrados[k] = { texto: prod.priceString, valor: Number(prod.price) };
+        });
+        if (vivo && Object.keys(encontrados).length > 0) setPrecios(encontrados);
+      } catch {
+        // Sin red, sin ofertas configuradas o SDK sin inicializar: el paywall no
+        // se bloquea por esto, muestra el respaldo marcado como aproximado.
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  // El "ahorra 33%" salía de dividir los dos precios USD hardcodeados. Con
+  // precios de tienda la proporción puede ser otra (cada país redondea a su
+  // manera), así que si tenemos los dos reales el ahorro se recalcula, y si el
+  // anual no sale a cuenta simplemente no se anuncia ahorro.
+  const ahorroAnual = useMemo(() => {
+    const mensual = precios.monthly?.valor;
+    const anual = precios.yearly?.valor;
+    if (!mensual || !anual || mensual <= 0 || anual <= 0) return PLANS.yearly.save;
+    const pct = Math.round((1 - anual / (mensual * 12)) * 100);
+    return pct > 0 ? `${pct}%` : null;
+  }, [precios]);
+
+  // Mientras no haya precio de tienda se marca como aproximado: es un respaldo
+  // visual, no una oferta.
+  const etiquetaPrecio = (k: PlanKey) =>
+    precios[k]?.texto ?? `≈ ${PLANS[k].price} USD`;
 
   async function subscribe() {
     setBusy(true);
@@ -50,7 +121,7 @@ export default function PaywallScreen() {
 
       <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
         <Text style={s.title}>GymUp <Text style={{ color: Colors.accent }}>Premium</Text></Text>
-        <Text style={s.sub}>Desbloquea todo tu potencial. Sin límites.</Text>
+        <Text style={s.sub}>Desbloquea todo GymUp. Estos son los cupos diarios reales de cada función.</Text>
 
         <View style={s.benefits}>
           {PREMIUM_BENEFITS.map((b, i) => (
@@ -65,7 +136,9 @@ export default function PaywallScreen() {
         >
           <View style={{ flex: 1 }}>
             <Text style={s.planName}>Anual</Text>
-            <Text style={s.planMeta}>{PLANS.yearly.price}/{PLANS.yearly.period} · ahorra {PLANS.yearly.save}</Text>
+            <Text style={s.planMeta}>
+              {etiquetaPrecio('yearly')}/{PLANS.yearly.period}{ahorroAnual ? ` · ahorra ${ahorroAnual}` : ''}
+            </Text>
           </View>
           <View style={[s.radio, plan === 'yearly' && s.radioOn]} />
         </TouchableOpacity>
@@ -77,7 +150,7 @@ export default function PaywallScreen() {
         >
           <View style={{ flex: 1 }}>
             <Text style={s.planName}>Mensual</Text>
-            <Text style={s.planMeta}>{PLANS.monthly.price}/{PLANS.monthly.period}</Text>
+            <Text style={s.planMeta}>{etiquetaPrecio('monthly')}/{PLANS.monthly.period}</Text>
           </View>
           <View style={[s.radio, plan === 'monthly' && s.radioOn]} />
         </TouchableOpacity>
@@ -91,7 +164,7 @@ export default function PaywallScreen() {
         </TouchableOpacity>
 
         <Text style={s.legal}>
-          La suscripción se renueva automáticamente salvo que la canceles al menos 24h antes del fin del periodo. Puedes gestionarla en la tienda.
+          El precio mostrado es el de la tienda en tu moneda; si aparece con «≈» todavía lo estamos consultando y es solo orientativo. Las funciones con IA tienen los cupos diarios indicados arriba. La suscripción se renueva automáticamente salvo que la canceles al menos 24h antes del fin del periodo. Puedes gestionarla en la tienda.
         </Text>
       </ScrollView>
     </SafeAreaView>

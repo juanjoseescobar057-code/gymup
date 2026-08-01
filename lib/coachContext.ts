@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────
 
 import { supabase } from './supabase';
-import type { UserProfile, TrainingPlan } from './supabase';
+import type { UserProfile, TrainingPlan, BiologicalSex } from './supabase';
 import { loadUserStats } from './streaks';
 import { bestFromSets } from './prs';
 import { getWaterCount } from './water';
@@ -24,6 +24,16 @@ export const GOAL_LABELS: Record<string, string> = {
   endurance: 'mejorar resistencia',
 };
 
+// El sexo biológico entra a la ficha del coach como un dato más del perfil: sin
+// él el coach recomendaba entrenamiento y nutrición "por defecto" (que en la
+// práctica es por defecto masculino). 'unspecified' se DECLARA en vez de
+// omitirse: callarlo invita al modelo a deducirlo del nombre o del objetivo.
+export const SEX_LABELS: Record<BiologicalSex, string> = {
+  male: 'hombre',
+  female: 'mujer',
+  unspecified: 'no declarado',
+};
+
 export type TopLift = { exercise: string; bestWeight: number; e1rm: number };
 
 export type TopSet = { exercise: string; weight: number | null; reps: number | null };
@@ -32,6 +42,7 @@ export type CoachSnapshot = {
   name: string;
   nickname: string | null;
   age: number;
+  sex: BiologicalSex;
   goal: string;
   goalLabel: string;
   goalWhy: string | null;
@@ -116,6 +127,10 @@ export async function fetchCoachSnapshot(args: {
   // ok / caché local / desconocido; en 'unknown' se inyecta la directiva
   // fail-closed y la brecha queda medible en telemetría (contextGaps).
   const contextGaps: string[] = [];
+  // Los perfiles creados antes de que existiera la columna `sex` llegan sin ella
+  // (o con basura): se tratan como 'unspecified' en vez de reintroducir el sesgo
+  // masculino por defecto.
+  const sex: BiologicalSex = SEX_LABELS[profile.sex] ? profile.sex : 'unspecified';
   const healthLoad = healthRes.status === 'fulfilled'
     ? healthRes.value
     : ({ status: 'unknown' } as const);
@@ -124,7 +139,9 @@ export async function fetchCoachSnapshot(args: {
     healthBlock = HEALTH_UNKNOWN_DIRECTIVE;
     contextGaps.push('salud');
   } else {
-    healthBlock = healthLoad.profile ? healthToPrompt(healthLoad.profile, profile.age) : '';
+    // El sexo va al tamizaje: sin él nunca se emite la directiva de RED-S/hierro
+    // para mujeres, que es justo el perfil donde ese riesgo pasa desapercibido.
+    healthBlock = healthLoad.profile ? healthToPrompt(healthLoad.profile, profile.age, sex) : '';
     // Operando sobre caché local: registrado en telemetría/prompt (informativo,
     // no dispara el banner fuerte — la caché ES el último contexto bueno).
     if (healthLoad.status === 'cached') contextGaps.push('salud-en-cache-local');
@@ -249,6 +266,7 @@ export async function fetchCoachSnapshot(args: {
     name: profile.name,
     nickname: profile.nickname ?? null,
     age: profile.age,
+    sex,
     goal: profile.goal,
     goalLabel: GOAL_LABELS[profile.goal] ?? profile.goal,
     goalWhy: profile.goal_why ?? null,
@@ -289,7 +307,15 @@ export function snapshotToPrompt(s: CoachSnapshot): string {
     );
   }
   if (s.nickname) L.push(`- Quiere que lo llames "${s.nickname}" — úsalo siempre.`);
-  L.push(`- Edad: ${s.age} años · Peso actual: ${s.currentWeight.toFixed(1)} kg`);
+  L.push(`- Edad: ${s.age} años · Sexo biológico: ${SEX_LABELS[s.sex]} · Peso actual: ${s.currentWeight.toFixed(1)} kg`);
+  // El dato viaja SIEMPRE con su regla de uso: es fisiología (gasto energético,
+  // reparto de volumen y frecuencia), nunca licencia para estereotipar ni para
+  // bajarle la exigencia a nadie. Mismo criterio que el generador de plan.
+  L.push(
+    s.sex === 'unspecified'
+      ? '- Sexo no declarado: aconseja de forma neutra. NO lo deduzcas del nombre, del objetivo ni del peso, ni ajustes nada por esa suposición.'
+      : '- Cómo usar el sexo: solo como dato fisiológico al programar entrenamiento y nutrición. PROHIBIDO cambiarle el tono, la exigencia o el objetivo por él (nada de "tonificar" ni de cargas simbólicas): manda su objetivo declarado, y por encima de todo sus directivas de salud.'
+  );
   L.push(`- Objetivo: ${s.goalLabel}${s.targetWeight != null ? ` (meta: ${s.targetWeight.toFixed(1)} kg)` : ''}`);
   if (s.goalWhy) L.push(`- Su motivación ("el porqué"): "${s.goalWhy}"`);
 

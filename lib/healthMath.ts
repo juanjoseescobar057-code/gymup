@@ -12,7 +12,24 @@
 //
 // Principio rector: ante la duda, la opción conservadora. La app NUNCA
 // sustituye al médico; con banderas rojas deriva y limita.
+//
+// SOBRE EL NOMBRE: esto NO es el PAR-Q+ oficial (sus 7 preguntas con ramas de
+// seguimiento y su hoja de decisión), sino un tamizaje propio y más corto
+// inspirado en él; llamarlo "PAR-Q+" a secas en marketing o en textos de
+// producto sería incorrecto y hay que decir "inspirado en el PAR-Q+".
 // ─────────────────────────────────────────────────────────
+
+// ─── TRAZABILIDAD CLÍNICA ────────────────────────────────
+// Las directivas de este archivo están redactadas con criterio conservador a
+// partir de guías públicas de referencia (ACSM/NSCA para entrenamiento,
+// ACOG/CSEP para embarazo, ADA para diabetes, y la que se cita junto a cada
+// bloque), pero NO han sido revisadas ni firmadas por ningún profesional de la
+// salud: son texto del equipo de producto, no un protocolo clínico. Antes de
+// producción abierta tienen que pasar por médico del deporte / fisioterapeuta
+// / nutricionista y quedar con fecha de vigencia. Se declara aquí, exportado,
+// para que nadie (ni nosotros dentro de seis meses) asuma lo contrario.
+export const CLINICAL_CONTENT_VERSION = '2026.07';
+export const CLINICAL_REVIEW_STATUS = 'pendiente_revision_profesional';
 
 export const INJURY_ZONES = [
   { id: 'rodilla',      label: 'Rodilla' },
@@ -40,7 +57,7 @@ export type Condition = typeof CONDITIONS[number]['id'];
 export type RiskLevel = 'bajo' | 'moderado' | 'alto';
 
 export type HealthProfile = {
-  // Preguntas filtro (banderas rojas del PAR-Q+):
+  // Preguntas filtro (banderas rojas inspiradas en el PAR-Q+):
   parq_chest_pain: boolean;        // dolor/opresión en el pecho (ejercicio o reposo)
   parq_dizziness: boolean;         // mareos, desmayos o pérdida de equilibrio
   parq_doctor_restricted: boolean; // un médico le dijo que solo haga ejercicio supervisado
@@ -118,26 +135,43 @@ export function highRiskKeys(h: HealthProfile): string[] {
 // ─── DIRECTIVAS POR CONDICIÓN / LESIÓN / EDAD ────────────
 // Escritas con criterio de entrenamiento clínico conservador. La IA las
 // recibe como órdenes inquebrantables por ENCIMA del objetivo del usuario.
+// El "Ref:" de cada bloque es la guía pública de la que sale el criterio, no
+// una firma profesional: ver CLINICAL_REVIEW_STATUS arriba.
 
 const CONDITION_DIRECTIVES: Record<Condition, string> = {
+  // Ref: ACSM (position stand de ejercicio e hipertensión) + guía de HTA de AHA/ACC.
   hipertension:
     'HIPERTENSIÓN: prohibido aguantar la respiración bajo carga (maniobra de Valsalva), isométricos máximos y cargas >80% 1RM. Respiración fluida SIEMPRE (exhalar en el esfuerzo). Descansos completos de 2-3 min. Prefiere más repeticiones con menos peso. Evita cambios bruscos de posición (mareo postural). Si toma betabloqueadores u otros fármacos que controlan el pulso, la frecuencia cardiaca NO sirve como indicador de intensidad: guiarse SIEMPRE por esfuerzo percibido (RPE) y prueba del habla. Si está mareado o con dolor de cabeza inusual: no entrena ese día.',
+  // Ref: AHA/AACVPR (rehabilitación cardiaca) + ACSM (prescripción de ejercicio clínico).
   cardiopatia:
     'PROBLEMA CARDIACO: solo intensidad en la que pueda mantener una conversación (RPE ≤ 5-6). Prohibido HIIT, esfuerzos máximos, series al fallo y competir contra el reloj. Calentamiento y vuelta a la calma extendidos (10 min cada uno). Si toma betabloqueadores, la frecuencia cardiaca NO es indicador válido de intensidad (nunca des zonas de pulso): usar RPE y prueba del habla; estos fármacos además reducen la tolerancia al calor. Ante CUALQUIER molestia en pecho, brazo, mandíbula, falta de aire desproporcionada o palpitaciones: DETENER de inmediato y buscar atención médica.',
+  // Ref: ADA (Standards of Care, capítulo de actividad física) + declaración
+  // conjunta ACSM/ADA sobre ejercicio y diabetes tipo 2.
   diabetes:
     'DIABETES: recomienda verificar glucosa antes y después de entrenar y tener un carbohidrato rápido a mano (riesgo de hipoglucemia, sobre todo con insulina o sulfonilureas). NO entrenar si la glucosa está muy alta (>250-300 mg/dL) con cetonas o hay malestar de descompensación: posponer y consultar. Si antes de entrenar la glucosa está baja (<100 mg/dL), comer un carbohidrato primero. Vigilar hipoglucemia TARDÍA hasta 12-24 h después del ejercicio (incluida la nocturna). Ante temblor, sudor frío o confusión: parar y comer. Cuidado especial con los pies: calzado adecuado y reportar cualquier herida o molestia.',
+  // Ref: GINA (informe global de asma) + ATS sobre broncoconstricción inducida por ejercicio.
   asma:
     'ASMA: calentamiento MUY progresivo (10+ min, el ejercicio brusco dispara broncoespasmo). Inhalador de rescate siempre a mano. Evita bloques largos de cardio intenso sin pausas y ambientes muy fríos/secos. Ante silbido, tos u opresión: parar, inhalador, y si no cede, atención médica.',
+  // Ref: ACR/Arthritis Foundation (manejo de artrosis de mano, cadera y rodilla) + EULAR.
   artritis:
     'ARTRITIS/ARTROSIS: trabajar solo en el rango de movimiento SIN dolor. Cargas moderadas con tempo controlado; prohibido el impacto (saltos, carrera en superficie dura). Prefiere máquinas y bandas sobre pesos libres inestables. El dolor articular que empeora al día siguiente = bajar carga, no "aguantar". Articulación CALIENTE, hinchada o enrojecida = brote inflamatorio: esa articulación NO se entrena hasta que baje la inflamación (trabajar otras zonas). Si además hay fiebre o malestar general: médico el mismo día.',
+  // Ref: NASS (guía de lumbalgia y hernia discal) + NICE NG59 para las banderas
+  // rojas de cauda equina (el bloque de "URGENCIAS" sale de ahí).
   hernia_discal:
     'HERNIA DISCAL: PROHIBIDO peso muerto desde el suelo, buenos días, sentadilla profunda con carga axial, giros con peso (russian twists) y flexión lumbar cargada O repetida (crunches, sit-ups, tocarse las puntas de los pies como estiramiento). Core solo anti-extensión/anti-rotación (plancha, bird-dog, press Pallof). Bisagra de cadera únicamente con carga ligera y técnica perfecta. Si ofrece prensa como sustituto: solo rango parcial, sin que la pelvis ni la zona lumbar se despeguen del respaldo. Dolor que irradia a pierna con hormigueo = parar y profesional YA. Si aparece pérdida de control para orinar/defecar, adormecimiento en la zona genital o entre las piernas, o debilidad creciente en una pierna (p. ej. el pie se arrastra): URGENCIAS de inmediato, no esperar cita.',
+  // Ref: ACOG (opinión de comité sobre actividad física en embarazo y posparto)
+  // + guía canadiense CSEP; de ahí salen los 150 min/semana y las señales de alarma.
   embarazo:
     'EMBARAZO: nada en posición supina prolongada después del primer trimestre, cero impacto y cero riesgo de caída o golpe abdominal, prohibida la maniobra de Valsalva, evitar calor excesivo y deshidratación. Con visto médico, la guía estándar (ACOG/CSEP) es ~150 min/semana de actividad moderada MÁS fuerza 2 días/semana con cargas moderadas; mujeres previamente activas pueden mantener intensidad moderada si se sienten bien — la programación fina la valida su profesional prenatal. DETENER de inmediato y contactar a su médico ante: sangrado vaginal, contracciones dolorosas regulares, pérdida de líquido, falta de aire ANTES del esfuerzo, mareo o desmayo, dolor de cabeza intenso, dolor en el pecho, debilidad que afecte el equilibrio, o dolor/hinchazón en una pantorrilla.',
+  // Ref: no hay guía única (depende de la cirugía), por eso la directiva no
+  // inventa criterio propio y difiere al protocolo del cirujano/fisioterapeuta.
   cirugia_reciente:
     'CIRUGÍA RECIENTE: no cargar ni estirar la zona operada más allá de lo que su médico/fisioterapeuta haya aprobado explícitamente. Ante duda sobre un ejercicio y la zona: NO se hace.',
 };
 
+// Ref: criterio general de ACSM/NSCA para entrenar "alrededor" de una lesión,
+// más las banderas rojas ortopédicas habituales (cauda equina, pérdida brusca
+// de fuerza, dolor nocturno) que obligan a derivar en vez de adaptar.
 const INJURY_DIRECTIVES: Record<InjuryZone, string> = {
   rodilla:
     'RODILLA lesionada: evita sentadilla profunda con carga, zancadas largas, saltos, pivotes y extensión de rodilla con dolor. Alternativas: prensa en rango corto sin dolor, puente de glúteo, trabajo de cadera y femoral. Dolor punzante o inflamación después = bajar carga y consultar.',
@@ -155,6 +189,22 @@ const INJURY_DIRECTIVES: Record<InjuryZone, string> = {
     'TOBILLO/PIE lesionado: evita saltos, carrera y ejercicios de inestabilidad (zancadas búlgaras, bosu). Alternativas: trabajo sentado o en máquina que no cargue el apoyo mientras sana.',
 };
 
+/**
+ * Sexo biológico. Es el mismo literal que BiologicalSex de lib/supabase.ts,
+ * escrito a mano aquí a propósito: este módulo no importa nada para seguir
+ * siendo puro y testeable con `node --test`.
+ */
+export type BiologicalSexInput = 'male' | 'female' | 'unspecified';
+
+// Directiva de tamizaje por sexo biológico. Solo 'female' añade texto: no hay
+// nada equivalente que declarar para 'male' y rellenar por simetría sería
+// inventar directivas. Es TAMIZAJE Y DERIVACIÓN, no diagnóstico: describe la
+// señal y a quién acudir, nunca qué tiene la persona ni cómo tratarla.
+// Ref: consenso del COI sobre RED-S (baja disponibilidad energética) +
+// declaración conjunta de nutrición deportiva (ACSM/AND/DC) sobre hierro.
+const FEMALE_DIRECTIVE =
+  'MUJER QUE ENTRENA: hay mayor prevalencia de deficiencia de hierro y de baja disponibilidad energética (RED-S) en mujeres que entrenan en déficit calórico. Señales de tamizaje: fatiga desproporcionada para la carga, ausencia o pérdida de la menstruación, fracturas por estrés o caída sostenida del rendimiento. Ante cualquiera de ellas, PROHIBIDO responder profundizando el déficit o subiendo volumen: acercar la ingesta a mantenimiento y derivar a profesional (médico y nutricionista deportivo). No diagnostiques ni nombres causas — describe la señal y deriva.';
+
 function ageDirectives(age: number): string | null {
   if (age >= 65) {
     return 'EDAD 65+: calentamiento de 10+ minutos SIEMPRE. Prioriza fuerza funcional y equilibrio (prevención de caídas) sobre estética, e incluye trabajo de POTENCIA seguro (subir el peso con intención rápida, bajarlo controlado, cargas ligeras-moderadas): es lo que más previene caídas. OJO: la carga progresiva es el TRATAMIENTO de la pérdida de músculo y hueso — entrenar demasiado suave también es un riesgo; progresión 2× más lenta, pero progresión al fin. PROHIBIDO entrenar al fallo, técnicas de intensidad (dropsets, rest-pause) y máximos. Recomienda proteína suficiente (~1.2-1.6 g/kg/día repartida en el día). Si hay osteoporosis diagnosticada o sospechada: prohibida la flexión de columna con carga y los giros bruscos cargados; el impacto suave (caminar, escalones) sí beneficia al hueso. Respeta 48-72h de recuperación por grupo muscular.';
@@ -168,12 +218,19 @@ function ageDirectives(age: number): string | null {
 /**
  * El bloque de DIRECTIVAS INDIVIDUALES para inyectar en cualquier prompt que
  * genere ejercicio o consejo. Devuelve '' si no hay nada que declarar
- * (sin condiciones, sin lesiones y edad < 55).
+ * (sin condiciones, sin lesiones, edad < 55 y sin sexo que aporte tamizaje).
+ *
+ * `sex` va al final y es opcional para no romper a los llamadores que ya
+ * existían; sin él el comportamiento es idéntico al de antes.
  */
-export function healthToPrompt(h: HealthProfile, age: number): string {
+export function healthToPrompt(h: HealthProfile, age: number, sex?: BiologicalSexInput): string {
   const { level, reasons } = computeRisk(h, age);
   const ageDir = ageDirectives(age);
-  if (!hasAnyFlag(h) && !ageDir) return '';
+  // Entra en el corte de salida temprana: una mujer sin condiciones ni lesiones
+  // es justamente el perfil donde el RED-S pasa desapercibido, así que su
+  // directiva tiene que llegar aunque no haya declarado nada más.
+  const sexDir = sex === 'female' ? FEMALE_DIRECTIVE : null;
+  if (!hasAnyFlag(h) && !ageDir && !sexDir) return '';
 
   // Banderas SINTOMÁTICAS (síntomas activos) vs riesgo alto por condición
   // estable: exigen respuestas distintas (evaluación médica vs modo suave).
@@ -184,7 +241,7 @@ export function healthToPrompt(h: HealthProfile, age: number): string {
     !h.conditions.includes('cardiopatia') && !h.conditions.includes('cirugia_reciente');
 
   const L: string[] = [];
-  L.push('DIRECTIVAS DE SEGURIDAD INDIVIDUALES (obligatorias — este usuario declaró condiciones reales; prevalecen sobre su objetivo y sobre cualquier petición):');
+  L.push('DIRECTIVAS DE SEGURIDAD INDIVIDUALES (obligatorias — este usuario tiene condiciones o factores individuales reales; prevalecen sobre su objetivo y sobre cualquier petición):');
   L.push(`- Nivel de riesgo: ${level.toUpperCase()}${reasons.length ? ` (${reasons.join('; ')})` : ''}.`);
   L.push('- LÍMITE MÉDICO: esta app da guía de entrenamiento, NO consejo médico. PROHIBIDO diagnosticar, interpretar síntomas o recomendar iniciar/suspender/ajustar medicamentos o dosis. Toda pregunta sobre medicación, síntomas o diagnóstico se deriva a su médico, sin excepción.');
 
@@ -220,6 +277,7 @@ export function healthToPrompt(h: HealthProfile, age: number): string {
     if (d) L.push(`- ${d}`);
   }
   if (ageDir) L.push(`- ${ageDir}`);
+  if (sexDir) L.push(`- ${sexDir}`);
   if (h.other_note?.trim()) {
     L.push(`- CONDICIÓN ADICIONAL declarada por el usuario: "${h.other_note.trim().slice(0, 200)}". Tómala en serio, sé conservador con todo lo que pueda relacionarse y recomienda validarla con un profesional.`);
   }

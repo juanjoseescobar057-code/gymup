@@ -52,22 +52,52 @@ export async function linkEmailPassword(
   return { ok: true, needsEmailConfirm };
 }
 
+export type DeleteAccountResult = { ok: boolean; error?: string };
+
+/**
+ * El `error` de functions.invoke solo dice "Edge Function returned a non-2xx
+ * status code": el motivo real (ya redactado en español por la función) viaja
+ * en el CUERPO de la respuesta, que supabase-js deja sin leer en `context`.
+ * Sin esto la UI no puede mostrarle al usuario qué falló.
+ */
+async function readFunctionError(error: any): Promise<string | null> {
+  try {
+    const res = error?.context;
+    if (res && typeof res.json === 'function') {
+      const body = await res.json();
+      if (body?.error) return String(body.error);
+    }
+  } catch {
+    // El cuerpo no era JSON (p.ej. un 502 del gateway): se usa el mensaje genérico.
+  }
+  return null;
+}
+
 /**
  * Borrado total de la cuenta vía Edge Function (datos + identidad de auth).
- * Devuelve true si la función lo hizo; false si no está disponible (para que
- * el caller use el borrado por filas como respaldo).
+ * Si algún dato no se pudo borrar, el servidor NO elimina la identidad y aquí
+ * llega ok:false con el motivo — la sesión sigue viva y el reintento es
+ * idempotente. Devuelve el error real (no un booleano pelado) porque el caller
+ * tiene que MOSTRARLO: fingir éxito sobre un borrado fallido es exactamente lo
+ * que rompía la promesa de la política de privacidad.
  */
-export async function deleteAccountServerSide(): Promise<boolean> {
+export async function deleteAccountServerSide(): Promise<DeleteAccountResult> {
   try {
-    const { error } = await supabase.functions.invoke('delete-account', { body: {} });
+    const { data, error } = await supabase.functions.invoke('delete-account', { body: {} });
     if (error) {
-      console.log('[account] delete-account no disponible:', error.message);
-      return false;
+      const detail = await readFunctionError(error);
+      console.log('[account] delete-account falló:', detail ?? error.message);
+      return { ok: false, error: detail ?? 'No pudimos contactar el servidor de borrado.' };
     }
-    return true;
+    // Cinturón y tirantes: la función responde 2xx solo en éxito total, pero si
+    // alguna vez devolviera ok:false con 200, no queremos leerlo como éxito.
+    if (data && (data as any).ok === false) {
+      return { ok: false, error: (data as any).error ?? 'El borrado no se completó.' };
+    }
+    return { ok: true };
   } catch (e: any) {
     console.log('[account] delete-account error:', e?.message);
-    return false;
+    return { ok: false, error: e?.message ?? 'Error de red al eliminar la cuenta.' };
   }
 }
 

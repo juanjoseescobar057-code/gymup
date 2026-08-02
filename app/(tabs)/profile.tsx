@@ -15,6 +15,7 @@ import { getAccountEmail, deleteAccountServerSide } from '../../lib/account';
 import { regenerateAdaptivePlan, saveAdaptedPlan } from '../../lib/adaptivePlan';
 import { canUseFeature } from '../../lib/subscription';
 import { resetPurchasesIdentity } from '../../lib/purchases';
+import { phReset } from '../../lib/posthog';
 import AuthSheet from '../../Components/AuthSheet';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
@@ -201,6 +202,7 @@ export default function ProfileScreen() {
               return;
             }
             await resetPurchasesIdentity(); // desvincula RevenueCat de este uid antes de perder la sesión
+            phReset(); // y PostHog: sin esto el próximo usuario hereda la identidad del anterior
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);
@@ -246,6 +248,7 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             await resetPurchasesIdentity(); // sin esto, el próximo usuario en este dispositivo hereda el RevenueCat de este
+            phReset();
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);

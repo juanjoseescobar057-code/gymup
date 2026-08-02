@@ -1,6 +1,6 @@
 # Política de Privacidad de GymUp
 
-**Última actualización:** 1 de agosto de 2026 · **Versión:** 1.1
+**Última actualización:** 2 de agosto de 2026 · **Versión:** 1.2
 
 > ⚠️ **Antes de publicar:** este documento fue redactado como base sólida y específica para
 > GymUp, pero **no sustituye asesoría legal profesional**. Dado que la app trata **datos de
@@ -71,6 +71,13 @@ identificador anónimo de dispositivo, información técnica (modelo, sistema op
 versión de la app, idioma, zona horaria), y — si nos das permiso — token de
 notificaciones push.
 
+**Grabaciones de pantalla.** Para entender dónde la app confunde o falla, grabamos cómo
+la usas. Estas grabaciones van **enmascaradas**: todo el texto y todas las imágenes se
+sustituyen por bloques de color, así que no vemos lo que escribes ni tus fotos, solo por
+dónde te mueves y qué tocas. Además **desactivamos la grabación por completo** en las
+pantallas de análisis corporal, escáner de comida y nevera, tamizaje de salud y chat con
+tu coach: ahí no se graba nada, ni siquiera enmascarado.
+
 ### 2.7 Información de pago
 Si te suscribes a GymUp Premium, el pago lo procesa **Apple App Store o Google Play**
 directamente: **no vemos ni almacenamos tu información de tarjeta**. Recibimos, a
@@ -87,8 +94,9 @@ activar los beneficios Premium.
 - Gestionar tu suscripción Premium.
 - Enviarte notificaciones (si las activas) sobre tu progreso y recordatorios.
 - Prevenir abuso y fraude (límites de uso diario, protección de cuentas).
-- Mejorar la app mediante analítica de producto propia (nunca vendida ni compartida con
-  redes publicitarias de terceros).
+- Mejorar la app mediante analítica de producto: la nuestra y la de PostHog, nuestro
+  proveedor de analítica y grabación de pantalla. Estos datos **nunca se venden ni se
+  comparten con redes publicitarias**.
 - Cumplir obligaciones legales.
 
 ## 4. Con quién compartimos tu información
@@ -101,6 +109,8 @@ operar la app (encargados del tratamiento), bajo contrato de confidencialidad:
 | **Supabase** (base de datos, autenticación, almacenamiento) | Alojar toda tu información | Todo lo descrito arriba |
 | **OpenAI** (a través de nuestro servidor, nunca directo desde tu dispositivo) | Analizar tus fotos y responder en el chat | Fotos de comida/nevera/cuerpo/postura, mensajes del chat, tu ficha de contexto (sin identificarte por nombre real ante ellos más allá de lo necesario) |
 | **RevenueCat** | Gestionar tu suscripción | Estado de la suscripción, identificador de usuario |
+| **PostHog** | Entender cómo se usa la app y mejorarla | Eventos de uso (qué pantallas ves, qué botones tocas, si terminas un entrenamiento), tu identificador de usuario y datos del dispositivo. **Grabaciones de pantalla** con todo el texto y las imágenes ocultos. **Nunca grabamos** las pantallas de análisis corporal, escáner de comida o nevera, tamizaje de salud ni el chat con tu coach |
+| **Sentry** | Detectar y diagnosticar errores de la app | Reportes de fallo: mensaje de error, versión de la app, modelo de dispositivo y tu identificador de usuario |
 | **Expo (EAS)** | Enviar notificaciones push | Token de notificaciones |
 | **Apple / Google** | Distribución de la app y cobro de suscripciones | Lo que ya compartes con ellos al usar sus tiendas |
 

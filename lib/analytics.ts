@@ -26,6 +26,7 @@ import * as Device from 'expo-device';
 import * as Linking from 'expo-linking';
 import { supabase } from './supabase';
 import { shouldRotateSession, makeId, pickAcquisitionParams } from './analyticsMath';
+import { initPostHog, phCapture, phIdentify } from './posthog';
 
 const ANON_KEY = 'gymup_anonymous_id';
 const QUEUE_KEY = 'gymup_analytics_queue_v1';
@@ -57,6 +58,9 @@ let currentScreen: string | null = null;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 let initialized = false;
 let flushing = false;
+// Último user_id ya identificado en PostHog: identify() en cada flush sería
+// una llamada por lote sin ganancia alguna.
+let identifiedUid: string | null = null;
 let inRotation = false; // evita recursión al emitir session_ended/session_start
 
 function rand(): string {
@@ -181,6 +185,15 @@ export function track(event: string, props?: Record<string, unknown>): void {
     if (queue.length > MAX_QUEUE) queue = queue.slice(-MAX_QUEUE);
     persistState();
     if (queue.length >= FLUSH_BATCH_AT) flush();
+    // Duplicado hacia PostHog. Va DESPUÉS de encolar y en su propio try: la
+    // fuente de verdad es `analytics_events`, y un fallo del tercero no puede
+    // costarnos un evento propio. Se le adjunta la pantalla y la sesión para
+    // que sus embudos coincidan con los nuestros.
+    phCapture(event, {
+      ...(props ?? {}),
+      screen: currentScreen,
+      gymup_session_id: sessionId,
+    });
   } catch {}
 }
 
@@ -207,6 +220,15 @@ export async function flush(): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
     const uid = session?.user?.id;
     if (!uid) return; // pre-registro: la cola espera (identidad se resuelve luego)
+
+    // Misma resolución de identidad en PostHog: hasta aquí sus eventos iban
+    // con el anonymous_id nuestro como distinct_id; al identificar, PostHog
+    // une ese historial anónimo al usuario. Sin esto, la misma persona
+    // aparecería como dos usuarios y las cohortes saldrían infladas.
+    if (uid !== identifiedUid) {
+      identifiedUid = uid;
+      phIdentify(uid);
+    }
 
     const batch = queue.slice(0, 50);
     const { error } = await supabase
@@ -251,6 +273,9 @@ export async function initAnalytics(): Promise<() => void> {
   initialized = true;
 
   await getAnonymousId();
+  // PostHog arranca con NUESTRO anonymous_id como distinct_id: así sus eventos
+  // pre-registro corresponden uno a uno con los de `analytics_events`.
+  initPostHog(anonymousId ?? undefined).catch(() => {});
   try {
     const raw = await AsyncStorage.getItem(QUEUE_KEY);
     if (raw) {

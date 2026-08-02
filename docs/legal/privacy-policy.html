@@ -232,7 +232,7 @@
 <main class="page">
   <article>
     <h1>Política de Privacidad de GymUp</h1>
-    <p class="meta"><strong>Última actualización:</strong> 1 de agosto de 2026 &middot; <strong>Versión:</strong> 1.1</p>
+    <p class="meta"><strong>Última actualización:</strong> 2 de agosto de 2026 &middot; <strong>Versión:</strong> 1.2</p>
 
     <div class="notice">
       <p>⚠️ <strong>Antes de publicar:</strong> este documento fue redactado como base sólida y específica para GymUp, pero <strong>no sustituye asesoría legal profesional</strong>. Dado que la app trata <strong>datos de salud</strong> (categoría sensible bajo la Ley 1581 de 2012 de Colombia), recomendamos que un abogado lo revise antes de publicarlo.</p>
@@ -272,6 +272,8 @@
     <h3>2.6 Datos de uso y técnicos</h3>
     <p>Eventos de uso de la app (pantallas visitadas, funciones usadas, duración de sesión), identificador anónimo de dispositivo, información técnica (modelo, sistema operativo, versión de la app, idioma, zona horaria), y — si nos das permiso — token de notificaciones push.</p>
 
+    <p><strong>Grabaciones de pantalla.</strong> Para entender dónde la app confunde o falla, grabamos cómo la usas. Estas grabaciones van <strong>enmascaradas</strong>: todo el texto y todas las imágenes se sustituyen por bloques de color, así que no vemos lo que escribes ni tus fotos, solo por dónde te mueves y qué tocas. Además <strong>desactivamos la grabación por completo</strong> en las pantallas de análisis corporal, escáner de comida y nevera, tamizaje de salud y chat con tu coach: ahí no se graba nada, ni siquiera enmascarado.</p>
+
     <h3>2.7 Información de pago</h3>
     <p>Si te suscribes a GymUp Premium, el pago lo procesa <strong>Apple App Store o Google Play</strong> directamente: <strong>no vemos ni almacenamos tu información de tarjeta</strong>. Recibimos, a través de RevenueCat, únicamente el estado de tu suscripción (activa/vencida) para activar los beneficios Premium.</p>
 
@@ -284,7 +286,7 @@
       <li>Gestionar tu suscripción Premium.</li>
       <li>Enviarte notificaciones (si las activas) sobre tu progreso y recordatorios.</li>
       <li>Prevenir abuso y fraude (límites de uso diario, protección de cuentas).</li>
-      <li>Mejorar la app mediante analítica de producto propia (nunca vendida ni compartida con redes publicitarias de terceros).</li>
+      <li>Mejorar la app mediante analítica de producto: la nuestra y la de PostHog, nuestro proveedor de analítica y grabación de pantalla. Estos datos <strong>nunca se venden ni se comparten con redes publicitarias</strong>.</li>
       <li>Cumplir obligaciones legales.</li>
     </ul>
 
@@ -315,6 +317,16 @@
             <td><strong>RevenueCat</strong></td>
             <td>Gestionar tu suscripción</td>
             <td>Estado de la suscripción, identificador de usuario</td>
+          </tr>
+          <tr>
+            <td><strong>PostHog</strong></td>
+            <td>Entender cómo se usa la app y mejorarla</td>
+            <td>Eventos de uso (qué pantallas ves, qué botones tocas, si terminas un entrenamiento), tu identificador de usuario y datos del dispositivo. <strong>Grabaciones de pantalla</strong> con todo el texto y las imágenes ocultos. <strong>Nunca grabamos</strong> las pantallas de análisis corporal, escáner de comida o nevera, tamizaje de salud ni el chat con tu coach</td>
+          </tr>
+          <tr>
+            <td><strong>Sentry</strong></td>
+            <td>Detectar y diagnosticar errores de la app</td>
+            <td>Reportes de fallo: mensaje de error, versión de la app, modelo de dispositivo y tu identificador de usuario</td>
           </tr>
           <tr>
             <td><strong>Expo (EAS)</strong></td>

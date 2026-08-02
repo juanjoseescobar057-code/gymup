@@ -3,6 +3,7 @@ import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import { initAnalytics, trackScreen, track } from '../lib/analytics';
+import { ajustarReplayPorRuta } from '../lib/posthog';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
 import {
@@ -55,7 +56,12 @@ export default function RootLayout() {
 
   // Capa de navegación: cada cambio de ruta es un evento screen_viewed.
   useEffect(() => {
-    if (pathname) trackScreen(pathname);
+    if (!pathname) return;
+    // La grabación se apaga ANTES de registrar la pantalla: en las rutas con
+    // datos sensibles (fotos corporales, tamizaje de salud, chat) no se graba
+    // nada, ni siquiera enmascarado. Ver RUTAS_SIN_GRABACION en lib/posthog.ts.
+    ajustarReplayPorRuta(pathname);
+    trackScreen(pathname);
   }, [pathname]);
 
   const [fontsLoaded, fontError] = useFonts({

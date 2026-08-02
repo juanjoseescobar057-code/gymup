@@ -61,6 +61,12 @@ alter table if exists public.user_profiles add column if not exists target_weigh
 alter table if exists public.user_profiles add column if not exists goal_why text;
 alter table if exists public.user_profiles add column if not exists goal_start_weight_kg numeric(5,1);
 alter table if exists public.user_profiles add column if not exists nickname text;
+-- is_premium está declarada en el CREATE de arriba, pero la tabla ya existía en
+-- producción cuando se agregó, así que ese CREATE fue un no-op y la columna
+-- NUNCA se creó. Consecuencia real: el select de ai-proxy fallaba, `profile`
+-- quedaba null y `profile?.is_premium === true` daba false PARA TODOS — es
+-- decir, un usuario que pagara seguía recibiendo 402 en las funciones premium.
+alter table if exists public.user_profiles add column if not exists is_premium boolean not null default false;
 alter table if exists public.user_profiles add column if not exists sex text not null default 'unspecified';
 -- El CHECK va aparte: "add constraint" no tiene "if not exists", así que
 -- atrapamos el duplicado para que el script siga siendo re-ejecutable.
@@ -171,6 +177,17 @@ create table if not exists public.user_stats (
   claimed_missions text[] not null default '{}',
   updated_at timestamptz default now()
 );
+
+-- ⚠️ Las dos columnas de abajo se agregaron DESPUÉS de que la tabla ya existía
+-- en producción. Declararlas arriba no basta: `create table if not exists` es
+-- un no-op sobre una tabla existente, así que en producción nunca aparecieron
+-- y apply_workout_stats reventaba en runtime con "column s.streak_freezes does
+-- not exist" — el usuario terminaba su entrenamiento y no recibía XP ni racha,
+-- en silencio, porque el cliente degrada sin romper.
+-- Toda columna nueva sobre una tabla que ya existe necesita su ALTER idempotente.
+alter table public.user_stats add column if not exists streak_freezes integer not null default 1;
+alter table public.user_stats add column if not exists claimed_missions text[] not null default '{}';
+
 select public._apply_owner_rls('user_stats');
 -- INTEGRIDAD DE LA GAMIFICACIÓN: el helper otorga INSERT/UPDATE de tabla
 -- completa, así que un cliente modificado podía escribirse XP, nivel, racha y
@@ -182,16 +199,107 @@ select public._apply_owner_rls('user_stats');
 -- delete-account) elimina esta fila con el JWT del propio usuario.
 revoke insert, update on public.user_stats from anon, authenticated;
 
+
+-- ─── CATÁLOGO DE INSIGNIAS (FUENTE DE VERDAD) ────────────
+-- Antes las condiciones de cada badge vivían SOLO en lib/streaks.ts y el
+-- servidor hacía unión ciega de lo que el cliente mandara en p_badges: un
+-- cliente modificado se auto-otorgaba cualquier insignia. Ahora la condición
+-- vive aquí y el servidor la comprueba contra las stats reales.
+--
+-- ⚠️ ESPEJO DE lib/streaks.ts → BADGES. Los textos (emoji/título/descripción)
+-- siguen en el cliente porque son de presentación; lo que NO puede divergir es
+-- (id, métrica, umbral, xp). Si agregas un badge, tócalo en los dos lados.
+create table if not exists public.badge_catalog (
+  id      text primary key,
+  metric  text not null check (metric in ('streak', 'meals', 'macro_days', 'body_scans', 'sessions')),
+  threshold integer not null check (threshold > 0),
+  xp      integer not null check (xp >= 0)
+);
+
+insert into public.badge_catalog (id, metric, threshold, xp) values
+  ('streak_3',    'streak',     3,   50),
+  ('streak_7',    'streak',     7,   150),
+  ('streak_14',   'streak',     14,  300),
+  ('streak_30',   'streak',     30,  750),
+  ('streak_100',  'streak',     100, 3000),
+  ('meals_1',     'meals',      1,   30),
+  ('meals_10',    'meals',      10,  100),
+  ('meals_50',    'meals',      50,  400),
+  ('macro_day_1', 'macro_days', 1,   80),
+  ('macro_day_7', 'macro_days', 7,   300),
+  ('body_scan_1', 'body_scans', 1,   60),
+  ('body_scan_4', 'body_scans', 4,   200),
+  ('sessions_1',  'sessions',   1,   30),
+  ('sessions_10', 'sessions',   10,  200),
+  ('sessions_50', 'sessions',   50,  800)
+on conflict (id) do update
+  set metric = excluded.metric, threshold = excluded.threshold, xp = excluded.xp;
+
+alter table public.badge_catalog enable row level security;
+drop policy if exists badge_catalog_read on public.badge_catalog;
+create policy badge_catalog_read on public.badge_catalog for select to authenticated using (true);
+revoke insert, update, delete on public.badge_catalog from anon, authenticated;
+
+-- ─── CATÁLOGO DE MISIONES SEMANALES ──────────────────────
+-- ⚠️ ESPEJO de WEEKLY_MISSIONS en lib/missions.ts (id, tipo, meta, xp).
+create table if not exists public.mission_catalog (
+  id     text primary key,
+  kind   text not null check (kind in ('workouts', 'meals', 'body_scans')),
+  target integer not null check (target > 0),
+  xp     integer not null check (xp >= 0)
+);
+
+insert into public.mission_catalog (id, kind, target, xp) values
+  ('w_workouts3', 'workouts',   3,  120),
+  ('w_meals10',   'meals',      10, 90),
+  ('w_scan1',     'body_scans', 1,  60)
+on conflict (id) do update
+  set kind = excluded.kind, target = excluded.target, xp = excluded.xp;
+
+alter table public.mission_catalog enable row level security;
+drop policy if exists mission_catalog_read on public.mission_catalog;
+create policy mission_catalog_read on public.mission_catalog for select to authenticated using (true);
+revoke insert, update, delete on public.mission_catalog from anon, authenticated;
+
+-- Devuelve TODAS las insignias que corresponden a unas stats dadas. Es pura:
+-- no lee ni escribe user_stats, así que se puede llamar con los valores YA
+-- actualizados antes de persistirlos.
+create or replace function public._derive_badges(
+  p_streak integer,
+  p_sessions integer,
+  p_meals integer,
+  p_macro_days integer,
+  p_body_scans integer
+) returns text[]
+language sql stable set search_path = public as $$
+  select coalesce(array_agg(c.id order by c.id), '{}'::text[])
+  from public.badge_catalog c
+  where case c.metric
+    when 'streak'     then coalesce(p_streak, 0)
+    when 'sessions'   then coalesce(p_sessions, 0)
+    when 'meals'      then coalesce(p_meals, 0)
+    when 'macro_days' then coalesce(p_macro_days, 0)
+    when 'body_scans' then coalesce(p_body_scans, 0)
+  end >= c.threshold;
+$$;
+
 -- Aplica un entrenamiento completado sobre las stats del usuario autenticado.
 -- El user_id NO es parámetro: se deriva de auth.uid(), así que nadie puede
 -- escribir sobre las stats de otro aunque llame la RPC directamente.
 -- La racha y el nivel replican EXACTAMENTE lib/streaksMath.ts (tolerancia de
 -- hasta 2 días por los descansos del plan, comodín hasta FREEZE_MAX_GAP = 8,
 -- nivel = floor(sqrt(xp/100)) + 1) para no alterar el progreso ya ganado.
+--
+-- COMPATIBILIDAD: se DROPea la firma de 3 argumentos y se recrea con
+-- p_base_xp opcional al final, así una llamada con los 3 nombres viejos sigue
+-- resolviendo (el default cubre el cuarto). Los builds ya distribuidos no se
+-- rompen mientras sale el build nuevo.
+drop function if exists public.apply_workout_stats(integer, date, text[]);
 create or replace function public.apply_workout_stats(
   p_xp_delta integer,
   p_workout_date date,
-  p_badges text[] default '{}'
+  p_badges text[] default '{}',
+  p_base_xp integer default null
 )
 returns table (
   current_streak integer,
@@ -214,26 +322,38 @@ declare
   v_new_streak integer;
   v_freeze_used boolean := false;
   v_same_day boolean := false;
+  v_new_sessions integer;
+  v_meals integer;
+  v_macro_days integer;
+  v_scans integer;
+  v_old_badges text[];
+  v_derived text[];
+  v_fresh text[];
+  v_badge_xp integer := 0;
 begin
   if v_uid is null then
     raise exception 'apply_workout_stats requiere un usuario autenticado';
   end if;
 
-  -- El cliente sigue decidiendo el monto (base + bono de racha + XP de badges),
-  -- pero no puede inflarlo. El tope NO puede ser 500: el badge streak_100 vale
-  -- 3000 XP por sí solo (ver BADGES en lib/streaks.ts), así que un tope menor
-  -- silenciaría el logro más grande del producto. 3200 cubre el peor caso
-  -- legítimo (streak_100 + XP base + bono de racha) sin dejar margen de abuso.
-  v_xp := least(greatest(coalesce(p_xp_delta, 0), 0), 3200);
+  -- p_badges se IGNORA a propósito: era el único vector que quedaba para
+  -- auto-otorgarse insignias. Se conserva en la firma solo para no romper a
+  -- los clientes ya distribuidos que todavía lo envían.
+  --
+  -- XP: si el cliente manda p_base_xp (build nuevo) es el XP de la ACTIVIDAD
+  -- sin insignias, y el servidor suma él mismo el XP de las que derive. Si
+  -- viene null (cliente viejo) se usa p_xp_delta tal cual, que YA incluye el
+  -- XP de badges calculado en el cliente — sumarlo otra vez pagaría doble.
+  v_xp := least(greatest(coalesce(p_base_xp, p_xp_delta, 0), 0), 3200);
 
-  -- El cliente ya no puede crear su fila, así que la asegura la propia RPC.
   insert into public.user_stats (user_id) values (v_uid)
   on conflict (user_id) do nothing;
 
   -- FOR UPDATE: dos entrenamientos cerrados casi a la vez (o un reintento de
   -- red) no deben leer la misma racha y contarla dos veces.
-  select s.last_workout_date, coalesce(s.current_streak, 0), coalesce(s.streak_freezes, 0)
-    into v_last, v_streak, v_freezes
+  select s.last_workout_date, coalesce(s.current_streak, 0), coalesce(s.streak_freezes, 0),
+         coalesce(s.total_meals_logged, 0), coalesce(s.total_macro_perfect_days, 0),
+         coalesce(s.total_body_scans, 0), coalesce(s.earned_badges, '{}'::text[])
+    into v_last, v_streak, v_freezes, v_meals, v_macro_days, v_scans, v_old_badges
   from public.user_stats s
   where s.user_id = v_uid
   for update;
@@ -256,17 +376,30 @@ begin
     end if;
   end if;
 
+  select coalesce(s.total_workouts, 0) + case when v_same_day then 0 else 1 end
+    into v_new_sessions
+  from public.user_stats s where s.user_id = v_uid;
+
+  -- Insignias derivadas de las stats YA actualizadas, no de lo que diga el
+  -- cliente. Solo se paga el XP de las que son nuevas de verdad.
+  v_derived := public._derive_badges(v_new_streak, v_new_sessions, v_meals, v_macro_days, v_scans);
+  select coalesce(array_agg(b), '{}'::text[]) into v_fresh
+  from unnest(v_derived) as b where not (b = any (v_old_badges));
+
+  -- El XP de insignias solo lo suma el servidor cuando el cliente declaró su
+  -- XP base por separado (ver arriba).
+  if p_base_xp is not null and array_length(v_fresh, 1) > 0 then
+    select coalesce(sum(c.xp), 0) into v_badge_xp
+    from public.badge_catalog c where c.id = any (v_fresh);
+  end if;
+
   update public.user_stats s set
     current_streak = v_new_streak,
     longest_streak = greatest(coalesce(s.longest_streak, 0), v_new_streak),
-    total_xp = coalesce(s.total_xp, 0) + v_xp,
-    level = floor(sqrt((coalesce(s.total_xp, 0) + v_xp) / 100.0))::integer + 1,
-    total_workouts = coalesce(s.total_workouts, 0) + case when v_same_day then 0 else 1 end,
-    earned_badges = coalesce(s.earned_badges, '{}'::text[]) || (
-      select coalesce(array_agg(distinct b), '{}'::text[])
-      from unnest(coalesce(p_badges, '{}'::text[])) as b
-      where not (b = any (coalesce(s.earned_badges, '{}'::text[])))
-    ),
+    total_xp = coalesce(s.total_xp, 0) + v_xp + v_badge_xp,
+    level = floor(sqrt((coalesce(s.total_xp, 0) + v_xp + v_badge_xp) / 100.0))::integer + 1,
+    total_workouts = v_new_sessions,
+    earned_badges = v_old_badges || v_fresh,
     last_workout_date = greatest(coalesce(s.last_workout_date, v_date), v_date),
     streak_freezes = greatest(coalesce(s.streak_freezes, 0) - case when v_freeze_used then 1 else 0 end, 0),
     updated_at = now()
@@ -278,19 +411,19 @@ begin
     from public.user_stats s
     where s.user_id = v_uid;
 end $$;
-grant execute on function public.apply_workout_stats(integer, date, text[]) to authenticated;
+grant execute on function public.apply_workout_stats(integer, date, text[], integer) to authenticated;
 
 -- Actividades que NO son entrenamiento (comida registrada, día perfecto de
 -- macros, escaneo corporal). Sin esta RPC, el revoke de arriba dejaría esas
 -- tres vías sin forma de escribir y el usuario perdería su XP en silencio.
--- p_kind decide QUÉ contador sube; el XP lo propone el cliente pero el
--- servidor lo acota (peor caso legítimo: comida 15 + día perfecto 50 +
--- badges meals_50 400 + macro_day_7 300 = 765).
+-- Mismo trato que arriba: p_badges se ignora, las insignias se derivan.
+drop function if exists public.apply_activity_stats(text, integer, text[], boolean);
 create or replace function public.apply_activity_stats(
   p_kind text,
   p_xp_delta integer,
   p_badges text[] default '{}',
-  p_macro_perfect boolean default false
+  p_macro_perfect boolean default false,
+  p_base_xp integer default null
 )
 returns table (
   total_xp integer,
@@ -304,6 +437,15 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid();
   v_xp integer;
+  v_streak integer;
+  v_sessions integer;
+  v_meals integer;
+  v_macro_days integer;
+  v_scans integer;
+  v_old_badges text[];
+  v_derived text[];
+  v_fresh text[];
+  v_badge_xp integer := 0;
 begin
   if v_uid is null then
     raise exception 'apply_activity_stats requiere un usuario autenticado';
@@ -312,25 +454,36 @@ begin
     raise exception 'apply_activity_stats: p_kind inválido (%)', p_kind;
   end if;
 
-  v_xp := least(greatest(coalesce(p_xp_delta, 0), 0), 1000);
+  v_xp := least(greatest(coalesce(p_base_xp, p_xp_delta, 0), 0), 1000);
 
   insert into public.user_stats (user_id) values (v_uid)
   on conflict (user_id) do nothing;
 
+  select coalesce(s.current_streak, 0), coalesce(s.total_workouts, 0),
+         coalesce(s.total_meals_logged, 0) + case when p_kind = 'meal' then 1 else 0 end,
+         coalesce(s.total_macro_perfect_days, 0) + case when p_kind = 'meal' and p_macro_perfect then 1 else 0 end,
+         coalesce(s.total_body_scans, 0) + case when p_kind = 'body_scan' then 1 else 0 end,
+         coalesce(s.earned_badges, '{}'::text[])
+    into v_streak, v_sessions, v_meals, v_macro_days, v_scans, v_old_badges
+  from public.user_stats s where s.user_id = v_uid
+  for update;
+
+  v_derived := public._derive_badges(v_streak, v_sessions, v_meals, v_macro_days, v_scans);
+  select coalesce(array_agg(b), '{}'::text[]) into v_fresh
+  from unnest(v_derived) as b where not (b = any (v_old_badges));
+
+  if p_base_xp is not null and array_length(v_fresh, 1) > 0 then
+    select coalesce(sum(c.xp), 0) into v_badge_xp
+    from public.badge_catalog c where c.id = any (v_fresh);
+  end if;
+
   update public.user_stats s set
-    total_xp = coalesce(s.total_xp, 0) + v_xp,
-    level = floor(sqrt((coalesce(s.total_xp, 0) + v_xp) / 100.0))::integer + 1,
-    total_meals_logged = coalesce(s.total_meals_logged, 0)
-      + case when p_kind = 'meal' then 1 else 0 end,
-    total_macro_perfect_days = coalesce(s.total_macro_perfect_days, 0)
-      + case when p_kind = 'meal' and p_macro_perfect then 1 else 0 end,
-    total_body_scans = coalesce(s.total_body_scans, 0)
-      + case when p_kind = 'body_scan' then 1 else 0 end,
-    earned_badges = coalesce(s.earned_badges, '{}'::text[]) || (
-      select coalesce(array_agg(distinct b), '{}'::text[])
-      from unnest(coalesce(p_badges, '{}'::text[])) as b
-      where not (b = any (coalesce(s.earned_badges, '{}'::text[])))
-    ),
+    total_xp = coalesce(s.total_xp, 0) + v_xp + v_badge_xp,
+    level = floor(sqrt((coalesce(s.total_xp, 0) + v_xp + v_badge_xp) / 100.0))::integer + 1,
+    total_meals_logged = v_meals,
+    total_macro_perfect_days = v_macro_days,
+    total_body_scans = v_scans,
+    earned_badges = v_old_badges || v_fresh,
     updated_at = now()
   where s.user_id = v_uid;
 
@@ -340,21 +493,47 @@ begin
     from public.user_stats s
     where s.user_id = v_uid;
 end $$;
-grant execute on function public.apply_activity_stats(text, integer, text[], boolean) to authenticated;
+grant execute on function public.apply_activity_stats(text, integer, text[], boolean, integer) to authenticated;
 
--- Cobro de una misión semanal. La protección real aquí NO es el tope de XP
--- sino la IDEMPOTENCIA: p_mission_id se guarda en claimed_missions y un
--- segundo cobro del mismo id no paga nada, así que la misión no se puede
--- farmear repitiendo la llamada.
+-- Cobro de una misión semanal. Ahora el servidor VERIFICA la meta contra los
+-- datos reales, no solo la idempotencia: antes, quien llamara la RPC con un id
+-- válido cobraba aunque no hubiera entrenado nunca.
+--
+-- p_mission_id viene como "<semana ISO>:<id>", p.ej. "2026-W31:w_workouts3".
+-- La semana se PARSEA del propio id y el conteo se hace en ESA semana, no en
+-- "la semana actual del servidor": así una diferencia de huso horario entre el
+-- teléfono y la base no invalida un cobro legítimo.
+--
+-- El XP ya no lo propone el cliente: sale de mission_catalog. p_xp se conserva
+-- en la firma por compatibilidad con los builds distribuidos, pero se ignora.
+--
+-- Se DROPea primero porque cambia el tipo de retorno (se agregan ok/reason).
+-- Agregar columnas es compatible: PostgREST devuelve JSON y un cliente viejo
+-- que solo lee already_claimed las ignora.
+drop function if exists public.claim_mission(text, integer);
 create or replace function public.claim_mission(
   p_mission_id text,
-  p_xp integer
+  p_xp integer default null
 )
-returns table (total_xp integer, level integer, claimed_missions text[], already_claimed boolean)
+returns table (
+  total_xp integer,
+  level integer,
+  claimed_missions text[],
+  already_claimed boolean,
+  ok boolean,
+  reason text
+)
 language plpgsql security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid();
+  v_week text;
+  v_slug text;
+  v_kind text;
+  v_target integer;
   v_xp integer;
+  v_start timestamptz;
+  v_end timestamptz;
+  v_count integer;
   v_already boolean;
 begin
   if v_uid is null then
@@ -364,7 +543,55 @@ begin
     raise exception 'claim_mission requiere un id de misión';
   end if;
 
-  v_xp := least(greatest(coalesce(p_xp, 0), 0), 500);
+  -- La fila se asegura ANTES de cualquier rama de salida: si no existiera, los
+  -- returns de error de abajo devolverían cero filas y el cliente lo leería
+  -- como "la RPC no respondió" en vez de como el rechazo que es.
+  insert into public.user_stats (user_id) values (v_uid)
+  on conflict (user_id) do nothing;
+
+  -- CERROJO DE DÍA, no una misión: "macroday:YYYY-MM-DD". lib/streaks.ts lo usa
+  -- para que el bonus de "día perfecto de macros" se pague UNA vez por día,
+  -- aprovechando que poner la clave en claimed_missions es atómico. No paga XP
+  -- ni verifica meta alguna; solo reserva la clave y dice si ya estaba.
+  -- Sin esta rama, el formato estricto de abajo lo rechazaría, la clave nunca
+  -- se guardaría y el cliente contaría el día perfecto en CADA comida.
+  if p_mission_id ~ '^macroday:\d{4}-\d{2}-\d{2}$' then
+    select p_mission_id = any (coalesce(s.claimed_missions, '{}'::text[]))
+      into v_already
+    from public.user_stats s where s.user_id = v_uid for update;
+
+    if not v_already then
+      update public.user_stats s set
+        claimed_missions = coalesce(s.claimed_missions, '{}'::text[]) || array[p_mission_id],
+        updated_at = now()
+      where s.user_id = v_uid;
+    end if;
+
+    return query select s.total_xp, s.level, s.claimed_missions,
+                        v_already, not v_already, 'day_lock'::text
+      from public.user_stats s where s.user_id = v_uid;
+    return;
+  end if;
+
+  -- Formato estricto: "YYYY-Www:slug". Sin esto no se puede saber qué semana
+  -- verificar, y aceptar cualquier cadena reabriría el agujero.
+  v_week := substring(p_mission_id from '^(\d{4}-W\d{2}):');
+  v_slug := substring(p_mission_id from '^\d{4}-W\d{2}:(.+)$');
+  if v_week is null or v_slug is null then
+    return query select coalesce(s.total_xp, 0), coalesce(s.level, 1),
+                        coalesce(s.claimed_missions, '{}'::text[]), false, false, 'bad_mission_id'::text
+      from public.user_stats s where s.user_id = v_uid;
+    return;
+  end if;
+
+  select c.kind, c.target, c.xp into v_kind, v_target, v_xp
+  from public.mission_catalog c where c.id = v_slug;
+  if v_kind is null then
+    return query select coalesce(s.total_xp, 0), coalesce(s.level, 1),
+                        coalesce(s.claimed_missions, '{}'::text[]), false, false, 'unknown_mission'::text
+      from public.user_stats s where s.user_id = v_uid;
+    return;
+  end if;
 
   insert into public.user_stats (user_id) values (v_uid)
   on conflict (user_id) do nothing;
@@ -373,17 +600,47 @@ begin
     into v_already
   from public.user_stats s where s.user_id = v_uid for update;
 
-  if not v_already then
-    update public.user_stats s set
-      total_xp = coalesce(s.total_xp, 0) + v_xp,
-      level = floor(sqrt((coalesce(s.total_xp, 0) + v_xp) / 100.0))::integer + 1,
-      claimed_missions = coalesce(s.claimed_missions, '{}'::text[]) || array[p_mission_id],
-      updated_at = now()
-    where s.user_id = v_uid;
+  if v_already then
+    return query select s.total_xp, s.level, s.claimed_missions, true, false, 'already_claimed'::text
+      from public.user_stats s where s.user_id = v_uid;
+    return;
   end if;
 
+  -- Lunes de esa semana ISO. Se ensancha un día por lado a propósito: el
+  -- cliente delimita la semana en hora LOCAL y aquí se hace en UTC, así que
+  -- sin ese margen una actividad de domingo por la noche (hora local) caería
+  -- fuera de la ventana del servidor y le negaríamos una misión ya ganada.
+  -- El margen no debilita nada: sigue exigiendo la actividad REAL.
+  v_start := to_date(v_week, 'IYYY-"W"IW')::timestamptz - interval '1 day';
+  v_end   := v_start + interval '9 days';
+
+  if v_kind = 'workouts' then
+    select count(*) into v_count from public.workout_sessions w
+    where w.user_id = v_uid and w.completed_at is not null
+      and w.started_at >= v_start and w.started_at < v_end;
+  elsif v_kind = 'meals' then
+    select count(*) into v_count from public.food_logs f
+    where f.user_id = v_uid and f.logged_at >= v_start and f.logged_at < v_end;
+  else
+    select count(*) into v_count from public.body_scans b
+    where b.user_id = v_uid and b.scanned_at >= v_start and b.scanned_at < v_end;
+  end if;
+
+  if coalesce(v_count, 0) < v_target then
+    return query select s.total_xp, s.level, s.claimed_missions, false, false, 'goal_not_met'::text
+      from public.user_stats s where s.user_id = v_uid;
+    return;
+  end if;
+
+  update public.user_stats s set
+    total_xp = coalesce(s.total_xp, 0) + v_xp,
+    level = floor(sqrt((coalesce(s.total_xp, 0) + v_xp) / 100.0))::integer + 1,
+    claimed_missions = coalesce(s.claimed_missions, '{}'::text[]) || array[p_mission_id],
+    updated_at = now()
+  where s.user_id = v_uid;
+
   return query
-    select s.total_xp, s.level, s.claimed_missions, v_already
+    select s.total_xp, s.level, s.claimed_missions, false, true, null::text
     from public.user_stats s where s.user_id = v_uid;
 end $$;
 grant execute on function public.claim_mission(text, integer) to authenticated;

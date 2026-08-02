@@ -117,14 +117,15 @@ export async function claimMission(userId: string, missionId: string): Promise<n
   const key = `${getWeekKey()}:${missionId}`;
 
   try {
-    // Puerta LOCAL de "meta cumplida". Es cortesía para la UI, no seguridad:
-    // la RPC no verifica el progreso, solo la idempotencia (ver PENDIENTE).
+    // Puerta local: evita un viaje a la red cuando es obvio que no aplica. Ya
+    // NO es la que protege — el servidor cuenta la actividad real y rechaza con
+    // reason='goal_not_met' si la meta no se cumplió.
     const counts = await fetchWeeklyCounts(userId);
     if ((counts[mission.type] ?? 0) < mission.target) return 0;
 
     const { data, error } = await supabase.rpc('claim_mission', {
       p_mission_id: key,
-      p_xp: mission.xp, // el servidor lo acota a [0,500]; ninguna misión pasa de 120
+      p_xp: mission.xp, // ignorado por el servidor: el XP sale de mission_catalog
     });
     if (error) throw error;
 
@@ -132,9 +133,23 @@ export async function claimMission(userId: string, missionId: string): Promise<n
     const fila = Array.isArray(data) ? data[0] : data;
     if (!fila) throw new Error('claim_mission no devolvió stats');
 
-    // Ya estaba reclamada (doble toque, reintento tras timeout): el servidor no
-    // pagó nada, así que no anunciamos un premio que no existe.
-    if (fila.already_claimed) return 0;
+    // El servidor manda. Si no pagó (ya reclamada, meta sin cumplir, id
+    // desconocido) no anunciamos un premio que no existe. `ok` puede venir
+    // undefined si por alguna razón respondiera una versión anterior de la RPC:
+    // en ese caso caemos al criterio viejo (no reclamada ⇒ pagó).
+    const pago = fila.ok ?? !fila.already_claimed;
+    if (!pago) {
+      // 'goal_not_met' aquí significa que la puerta local y el servidor no
+      // coinciden: vale la pena verlo, no silenciarlo.
+      if (fila.reason && fila.reason !== 'already_claimed') {
+        captureError(new Error(`claim_mission rechazó el cobro: ${fila.reason}`), {
+          scope: 'claim_mission.rechazado',
+          mission_key: key,
+          reason: fila.reason,
+        });
+      }
+      return 0;
+    }
 
     return mission.xp;
   } catch (e) {
@@ -145,9 +160,18 @@ export async function claimMission(userId: string, missionId: string): Promise<n
   }
 }
 
-// ─── PENDIENTE ───────────────────────────────────────────
-// claim_mission garantiza que una misión se paga UNA vez y acota el XP, pero
-// NO verifica que la meta esté cumplida: quien llame a la RPC con un id válido
-// cobra aunque no haya entrenado. Falta mover fetchWeeklyCounts al servidor
-// (contar workout_sessions/food_logs/body_scans con auth.uid() dentro de la
-// propia RPC) para que la puerta de "meta cumplida" deje de vivir en el cliente.
+// ─── ESTADO ──────────────────────────────────────────────
+// La verificación ya vive en el servidor: claim_mission parsea la semana del
+// propio id, busca la meta en public.mission_catalog y cuenta
+// workout_sessions / food_logs / body_scans de ESA semana con auth.uid(). Si no
+// alcanza, devuelve ok=false y reason='goal_not_met' sin pagar nada.
+//
+// WEEKLY_MISSIONS de arriba es un ESPEJO de public.mission_catalog: los textos
+// (label, emoji) son de presentación y viven aquí, pero (id, type, target, xp)
+// no pueden divergir. Si agregas una misión, tócala en los dos lados o el
+// servidor la rechazará con reason='unknown_mission'.
+//
+// Nota de husos horarios: aquí la semana se delimita en hora LOCAL y allá en
+// UTC, así que el servidor ensancha su ventana un día por lado. Es a propósito:
+// sin ese margen, una actividad de domingo por la noche caería fuera y le
+// negaríamos al usuario una misión que sí ganó.

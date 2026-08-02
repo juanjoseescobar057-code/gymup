@@ -268,10 +268,22 @@ de tipos, bundle exporta limpio con 1684 módulos.)
 - ✅ Despliegue del hardening completo (Paso 9.7): SQL + las tres Edge Functions.
 - 🔴 Bloqueantes que solo tú puedes resolver: confirmar `OPENAI_API_KEY` en el servidor
   (Paso 3), cuentas de tienda + RevenueCat (Paso 9).
-- 🟠 Huecos de servidor conocidos y ACEPTADOS por ahora (requieren SQL nuevo + build
-  nuevo, ver más abajo): los badges los sigue otorgando el cliente (`checkAndAwardBadges`)
-  y las RPC hacen unión de `p_badges` sin comprobar la condición; `claim_mission` es
-  idempotente (no se puede farmear repitiendo) pero no verifica que la meta esté cumplida.
-  El XP sí está acotado en servidor, así que el daño máximo es cosmético.
+- ✅ Insignias y misiones blindadas en servidor (2026-08-01): `badge_catalog` y
+  `mission_catalog` son la fuente de verdad; `_derive_badges` deriva las insignias de
+  las stats reales y las RPC ignoran `p_badges`; `claim_mission` cuenta la actividad
+  real de la semana y rechaza con `goal_not_met`. Verificado contra la base con una
+  batería de ataque dentro de una transacción revertida.
+- ✅ **Tres columnas que nunca existieron en producción** (`user_stats.streak_freezes`,
+  `user_stats.claimed_missions`, `user_profiles.is_premium`). Estaban declaradas dentro
+  de `create table if not exists`, que sobre una tabla existente es un no-op, y faltaba
+  el `ALTER`. Efecto real mientras duró: **ningún entrenamiento acreditaba XP ni racha**
+  (la RPC reventaba con 42703 y el cliente degradaba en silencio) y **premium no
+  funcionaba para nadie** (el `select is_premium` del proxy fallaba, así que todos
+  contaban como free). Corregido con `ALTER ... ADD COLUMN IF NOT EXISTS`.
+
+  ⚠️ **Lección para el futuro**: toda columna que se agregue a una tabla que YA existe
+  en producción necesita su `ALTER` idempotente; declararla en el `CREATE TABLE` no
+  basta. Y verificar un despliegue es EJECUTAR el camino real con un usuario, no
+  comprobar que la función exista.
 - 🟡 Recomendado no bloqueante: push FCM v1 (Paso 6), publicar los legales en GitHub
   Pages y confirmar visibilidad del repo (Paso 7), revisión de abogado.

@@ -10,6 +10,7 @@ import { useUserStore } from '../../store/userStore';
 import { FREE_LIMITS } from '../../lib/subscription';
 import { localDateKey } from '../../lib/foodLogs';
 import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
+import HelpButton from '../../Components/HelpButton';
 
 const SCAN_OPTIONS = [
   {
@@ -75,7 +76,13 @@ export default function CameraScreen() {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
-        <Text style={s.headerTitle} accessibilityRole="header">ESCANEAR</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={s.headerTitle} accessibilityRole="header">ESCANEAR</Text>
+          <HelpButton
+            pantalla="la pantalla de escanear"
+            pregunta="Explícame para qué sirve cada escáner de GymUp: escanear comida, escanear la nevera y el análisis corporal. ¿Qué hace cada uno, cuándo lo uso y cuántas veces al día puedo usarlos?"
+          />
+        </View>
         <Text style={s.headerSub}>Elige qué quieres analizar hoy</Text>
       </View>
 

@@ -20,6 +20,7 @@ import { router, useFocusEffect } from 'expo-router';
 import ReportContentButton from '../../Components/ReportContentButton';
 import { isPoseCameraMarkedUnsupported } from '../../lib/pose/cameraSupport';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
+import HelpButton from '../../Components/HelpButton';
 
 const EXERCISES = [
   { id: 'squat',    name: 'Sentadilla',      emoji: '🦵', muscles: 'Cuádriceps, Glúteos' },
@@ -276,7 +277,13 @@ export default function CoachScreen() {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.header}>
-          <Text style={s.headerTitle} accessibilityRole="header">COACH DE POSTURA</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={[s.headerTitle, { flex: 1 }]} accessibilityRole="header">COACH DE POSTURA</Text>
+            <HelpButton
+              pantalla="el coach de postura"
+              pregunta="Explícame el coach de postura de GymUp: cómo le tomo la foto, qué diferencia hay entre el análisis por foto y el coach en vivo que cuenta reps, y qué significa el puntaje de técnica que me da."
+            />
+          </View>
           <Text style={s.headerSub}>IA analiza tu técnica y te da correcciones específicas</Text>
         </View>
 

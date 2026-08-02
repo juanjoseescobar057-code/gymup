@@ -18,6 +18,7 @@ import { projectGoal } from '../../lib/goalMath';
 import { track } from '../../lib/analytics';
 import { captureError } from '../../lib/monitoring';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
+import HelpButton from '../../Components/HelpButton';
 
 const { width } = Dimensions.get('window');
 const CHART_W = width - 48;
@@ -390,7 +391,11 @@ export default function ProgressScreen() {
         {/* Header */}
         <View style={s.header}>
           <Text style={s.headerTitle} accessibilityRole="header">PROGRESO</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <HelpButton
+              pantalla="la pantalla de progreso"
+              pregunta="Explícame la pantalla de progreso de GymUp: qué es la racha, el XP y los niveles, para qué sirven los comodines de racha, cómo funcionan las misiones semanales y los logros, y cómo leo la gráfica de peso."
+            />
             <TouchableOpacity style={s.ghostBtn} onPress={() => router.push('/history' as any)}
               accessibilityRole="button" accessibilityLabel="Ver historial de entrenamientos">
               <Text style={s.ghostBtnTxt}>🏆 Historial</Text>

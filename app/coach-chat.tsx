@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useUserStore } from '../store/userStore';
@@ -58,6 +58,15 @@ export default function CoachChatScreen() {
   const listRef = useRef<FlatList>(null);
   // Nº de mensajes del usuario ya destilados a memoria (evita re-destilar).
   const distilledRef = useRef(0);
+
+  // Pregunta inicial opcional: cualquier pantalla puede abrir el chat ya
+  // preguntando algo concreto (`router.push('/coach-chat?q=...')`). Es lo que
+  // usan el botón de ayuda y las tarjetas de descanso, para que el usuario no
+  // tenga que redactar una pregunta sobre una pantalla que no entiende.
+  const { q } = useLocalSearchParams<{ q?: string }>();
+  // Se envía UNA sola vez: sin este cerrojo, cada re-render con el mismo
+  // parámetro en la URL volvería a mandar la misma pregunta.
+  const preguntaEnviadaRef = useRef(false);
   // Espejo de la memoria vigente (los closures de promesas en vuelo NO deben
   // usar estado stale) + versión para descartar destilados obsoletos si el
   // usuario borró un hecho mientras el destilado estaba en vuelo.
@@ -303,6 +312,15 @@ export default function CoachChatScreen() {
     setInput('');
     deliver(next);
   }
+
+  // Dispara la pregunta de la URL en cuanto la ficha esté lista: send() la
+  // rechaza mientras `snapshot` sea null, así que esperar aquí es obligatorio.
+  useEffect(() => {
+    if (!q || preguntaEnviadaRef.current) return;
+    if (!snapshot || sending) return;
+    preguntaEnviadaRef.current = true;
+    send(String(q));
+  }, [q, snapshot, sending]);
 
   function retry() {
     if (sending) return;

@@ -341,16 +341,25 @@ export function snapshotToPrompt(s: CoachSnapshot): string {
   L.push(`- Racha: ${s.streak} días · Nivel ${s.level} · ${s.totalWorkouts} entrenos totales · ${s.freezes} comodines`);
 
   if (s.todayPlan) {
+    // Al cerrar un entrenamiento el plan avanza al día siguiente, así que si
+    // hoy ya entrenó, este bloque describe lo que TOCA MAÑANA, no hoy.
+    // Rotularlo como "de hoy" le hacía decir al coach "hoy te toca pierna"
+    // justo después de que la persona terminó pierna.
+    const yaEntrenoHoy = s.daysSinceLastWorkout === 0;
+    const cuando = yaEntrenoHoy ? 'Mañana' : 'Hoy';
     if (s.todayPlan.type === 'workout') {
       const exs = s.todayPlan.exercises
         .slice(0, 8)
         .map((e) => `${e.name} ${e.sets}×${e.reps}`)
         .join(', ');
-      L.push(`- Entreno de hoy (${s.todayPlan.muscleGroups.join(' + ')}): ${exs}`);
+      L.push(`- ${cuando === 'Hoy' ? 'Entreno de hoy' : 'Entreno de mañana'} (${s.todayPlan.muscleGroups.join(' + ')}): ${exs}`);
     } else if (s.todayPlan.type === 'rest') {
-      L.push(`- Hoy es día de DESCANSO en su plan.`);
+      L.push(`- ${cuando} es día de DESCANSO en su plan.`);
     } else {
-      L.push(`- Hoy es RECUPERACIÓN ACTIVA en su plan.`);
+      L.push(`- ${cuando} es RECUPERACIÓN ACTIVA en su plan.`);
+    }
+    if (yaEntrenoHoy) {
+      L.push(`- OJO: ya cerró su sesión de hoy. No le digas que "hoy le toca" lo de arriba; eso es lo que viene después.`);
     }
   }
 

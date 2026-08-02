@@ -7,6 +7,7 @@ import {
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EXERCISE_LIBRARY, MUSCLE_GROUPS, type LibraryExercise } from '../constants/exercises';
+import { openExerciseVideo } from '../lib/exerciseVideo';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 export default function ExercisesScreen() {
@@ -67,6 +68,15 @@ export default function ExercisesScreen() {
                     <Text style={s.stepTxt}>{step}</Text>
                   </View>
                 ))}
+                {/* Los pasos escritos no bastan para alguien que nunca hizo el
+                    movimiento: hay que poder VERLO. */}
+                <TouchableOpacity style={s.videoBtn} activeOpacity={0.85}
+                  onPress={() => openExerciseVideo(selected.name)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ver un video de cómo hacer ${selected.name}`}
+                  accessibilityHint="Se abre YouTube fuera de la app">
+                  <Text style={s.videoBtnTxt}>▶  Ver cómo se hace</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={s.closeBtn} onPress={() => setSelected(null)}
                   accessibilityRole="button" accessibilityLabel="Cerrar las instrucciones">
                   <Text style={s.closeTxt}>Cerrar</Text>
@@ -111,6 +121,8 @@ const s = StyleSheet.create({
   stepRow: { flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'flex-start' },
   stepNum: { fontFamily: Fonts.heading, fontSize: 14, color: '#0a0a0b', backgroundColor: Colors.accent, width: 22, height: 22, borderRadius: 11, textAlign: 'center', lineHeight: 22, overflow: 'hidden' },
   stepTxt: { flex: 1, fontFamily: Fonts.body, fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  videoBtn: { backgroundColor: Colors.bgInput, borderWidth: 1, borderColor: Colors.borderStrong, borderRadius: Radii.lg, paddingVertical: 14, alignItems: 'center', marginTop: Spacing.lg },
+  videoBtnTxt: { fontFamily: Fonts.bodySemi, fontSize: 14, color: Colors.textPrimary },
   closeBtn: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 16, alignItems: 'center', marginTop: Spacing.md },
   closeTxt: { fontFamily: Fonts.heading, fontSize: 16, color: '#0a0a0b', letterSpacing: 0.8 },
 });

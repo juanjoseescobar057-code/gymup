@@ -14,6 +14,7 @@ import { fetchLastPerformance, saveSetLogs, type SetLogInput, type LastPerf } fr
 import { fetchExerciseBests } from '../lib/history';
 import { detectNewPRs } from '../lib/prs';
 import { platesPerSide, formatPlates } from '../lib/plates';
+import { openExerciseVideo } from '../lib/exerciseVideo';
 import { useSafeKeepAwake } from '../lib/useSafeKeepAwake';
 import { saveSession, loadSession, clearSession } from '../lib/workoutPersistence';
 import { track } from '../lib/analytics';
@@ -588,6 +589,15 @@ export default function WorkoutSessionScreen() {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={[s.exName, { flex: 1 }]}>{ex.name}</Text>
+                {/* Estás frente a la máquina y no sabes cómo va el movimiento:
+                    este es el momento donde el video hace falta de verdad. */}
+                <TouchableOpacity style={s.swapBtn} onPress={() => openExerciseVideo(ex.name)}
+                  hitSlop={A11y.hitSlop}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ver un video de cómo hacer ${ex.name}`}
+                  accessibilityHint="Se abre YouTube fuera de la app">
+                  <Text style={s.swapTxt}>▶️</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={s.swapBtn} onPress={() => setSwapModal(true)}
                   hitSlop={A11y.hitSlop}
                   accessibilityRole="button"

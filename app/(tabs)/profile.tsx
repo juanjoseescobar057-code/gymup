@@ -17,6 +17,7 @@ import { canUseFeature } from '../../lib/subscription';
 import { resetPurchasesIdentity } from '../../lib/purchases';
 import AuthSheet from '../../Components/AuthSheet';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
+import HelpButton from '../../Components/HelpButton';
 import { MIN_AGE, MAX_AGE } from '../../lib/safety';
 
 const GOAL_LABELS: Record<string, { label: string; emoji: string }> = {
@@ -266,21 +267,27 @@ export default function ProfileScreen() {
         {/* Header */}
         <View style={s.header}>
           <Text style={s.headerTitle} accessibilityRole="header">PERFIL</Text>
-          <TouchableOpacity style={s.editBtn}
-            accessibilityRole="button" accessibilityLabel="Editar mi perfil"
-            onPress={() => {
-            setName(profile.name);
-            setNickname(profile.nickname ?? '');
-            setAge(String(profile.age));
-            setWeight(String(profile.weight_kg));
-            setHeight(String(profile.height_cm));
-            setSex(profile.sex ?? 'unspecified');
-            setGoal(profile.goal);
-            setActivityLevel(profile.activity_level);
-            setEditModal(true);
-          }}>
-            <Text style={s.editBtnTxt}>✏️ Editar</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <HelpButton
+              pantalla="la pantalla de perfil"
+              pregunta="Explícame la pantalla de perfil de GymUp: de dónde salen mis macros diarios, qué pasa si edito mi peso o mi objetivo, qué hace 'Ajustar mi plan con IA' y para qué sirve la sección de salud."
+            />
+            <TouchableOpacity style={s.editBtn}
+              accessibilityRole="button" accessibilityLabel="Editar mi perfil"
+              onPress={() => {
+                setName(profile.name);
+                setNickname(profile.nickname ?? '');
+                setAge(String(profile.age));
+                setWeight(String(profile.weight_kg));
+                setHeight(String(profile.height_cm));
+                setSex(profile.sex ?? 'unspecified');
+                setGoal(profile.goal);
+                setActivityLevel(profile.activity_level);
+                setEditModal(true);
+              }}>
+              <Text style={s.editBtnTxt}>✏️ Editar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Avatar */}
@@ -396,15 +403,25 @@ export default function ProfileScreen() {
             </View>
             <Text style={[s.rowValue, { color: Colors.accent }]}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.row} onPress={() => router.push('/telemetry' as any)}
-            accessibilityRole="button" accessibilityLabel="Telemetría de la inteligencia artificial"
-            accessibilityHint="Costo, latencia, score y decisiones del coach">
-            <View style={{ flex: 1 }}>
-              <Text style={s.rowLabel}>🔬 Telemetría IA</Text>
-              <Text style={[s.actDesc, { marginTop: 2 }]}>Costo, latencia, score y decisiones del coach</Text>
-            </View>
-            <Text style={s.rowValue}>›</Text>
-          </TouchableOpacity>
+          {/* Telemetría es un panel de OBSERVABILIDAD para el desarrollador:
+              costo en USD por llamada, latencia, tokens y score de calidad del
+              coach. No es una función del producto y no tiene por qué estar en
+              el perfil de alguien que solo quiere entrenar — enseñarle a un
+              usuario cuánto cuesta cada mensaje de su coach no le aporta nada.
+              Se restringe a builds de desarrollo, igual que el atajo al coach
+              en vivo del onboarding. La pantalla sigue existiendo y sigue
+              siendo accesible por ruta directa cuando se necesite depurar. */}
+          {__DEV__ && (
+            <TouchableOpacity style={s.row} onPress={() => router.push('/telemetry' as any)}
+              accessibilityRole="button" accessibilityLabel="Telemetría de la inteligencia artificial"
+              accessibilityHint="Costo, latencia, score y decisiones del coach. Solo en desarrollo">
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowLabel}>🔬 [DEV] Telemetría IA</Text>
+                <Text style={[s.actDesc, { marginTop: 2 }]}>Costo, latencia, score y decisiones del coach</Text>
+              </View>
+              <Text style={s.rowValue}>›</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Cuenta */}

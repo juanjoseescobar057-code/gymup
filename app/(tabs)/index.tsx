@@ -15,6 +15,8 @@ import { loadCoachMemory } from '../../lib/coachMemory';
 import { checkPremium } from '../../lib/purchases';
 import { isPlanStaleForHealth } from '../../lib/health';
 import { fetchTodayFoodLogs, localDateKey } from '../../lib/foodLogs';
+import { loadUserStats } from '../../lib/streaks';
+import HelpButton from '../../Components/HelpButton';
 import { getWaterCount, addWater, WATER_GOAL } from '../../lib/water';
 import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
 
@@ -81,6 +83,10 @@ export default function DashboardScreen() {
   const [water, setWater] = useState(0);
   // Plan generado ANTES del último cambio de salud → recordatorio persistente.
   const [planStale, setPlanStale] = useState(false);
+  // ¿Ya entrenó HOY? Al cerrar un entrenamiento el plan avanza al día
+  // siguiente, así que sin este dato la pantalla presenta la sesión de mañana
+  // como si fuera la de hoy — que es exactamente lo que confundía al usuario.
+  const [entrenoHoy, setEntrenoHoy] = useState(false);
 
   useEffect(() => {
     getWaterCount().then(setWater).catch(() => {});
@@ -102,6 +108,17 @@ export default function DashboardScreen() {
   // Día actual del plan — basado en progreso real del usuario
   const todayIndex = Math.min(profile?.current_plan_day ?? 0, 6);
   const todayPlan = trainingPlan?.plan_data?.days?.[todayIndex];
+
+  // Qué es lo que realmente muestra la tarjeta de abajo. Antes la cabecera
+  // decía "DÍA 2 DE 7", un número de índice que no le dice nada a nadie: ni
+  // qué toca, ni por qué cambió de 1 a 2 sin que pasara la medianoche.
+  const etiquetaPlan =
+    todayPlan?.type === 'workout' ? (todayPlan.muscle_groups?.join(' + ') || 'Entrenamiento')
+    : todayPlan?.type === 'rest' ? 'Descanso'
+    : todayPlan?.type === 'active_recovery' ? 'Recuperación activa'
+    : null;
+  // Si ya entrenó, el plan avanzó y lo de abajo es lo de MAÑANA.
+  const cuandoLbl = entrenoHoy ? 'MAÑANA' : 'HOY';
 
   useEffect(() => {
     if (profile) loadAll();
@@ -150,7 +167,19 @@ export default function DashboardScreen() {
       if (updatedProfile) setProfile(updatedProfile);
     }
 
-    await Promise.all([loadMonthStats(), loadSuggestion(false)]);
+    // Se lee ANTES del insight: loadSuggestion mete "ya entrenó hoy" en su
+    // clave de caché, así que necesita el dato ya resuelto.
+    let yaEntreno = false;
+    try {
+      const stats = await loadUserStats(profile.user_id);
+      yaEntreno = stats.last_workout_date === localDateKey();
+      setEntrenoHoy(yaEntreno);
+    } catch {
+      // Sin stats se asume que no ha entrenado: presentar la sesión como "hoy"
+      // es el estado normal, y equivocarse hacia ahí no rompe nada.
+    }
+
+    await Promise.all([loadMonthStats(), loadSuggestion(false, yaEntreno)]);
   }
 
   async function loadMonthStats() {
@@ -189,10 +218,19 @@ export default function DashboardScreen() {
   // Mensaje PROACTIVO del coach: le pasamos la ficha completa (plan de hoy,
   // macros, racha, PRs, proyección de meta) y él te escribe primero. Cacheado
   // por franja (mañana/tarde-noche) para gastar máximo 2 llamadas de IA al día.
-  async function loadSuggestion(force: boolean) {
+  async function loadSuggestion(force: boolean, yaEntreno = entrenoHoy) {
     if (!profile) return;
     const slot = new Date().getHours() < 15 ? 'am' : 'pm';
-    const cacheKey = `gymup_coach_insight_${profile.user_id}_${localDateKey()}_${slot}`;
+    // El día del plan y el "ya entrenó" van en la CLAVE. Sin ellos, el mensaje
+    // se cacheaba por fecha+franja y seguía diciéndote que hoy te toca lo que
+    // acabas de terminar: al cerrar el entrenamiento el plan avanza, pero el
+    // texto cacheado se quedaba en el día anterior. Cambiar de día o terminar
+    // la sesión ahora invalida la entrada y el coach vuelve a hablar con la
+    // realidad. Cuesta una llamada de IA más por entrenamiento; que el coach
+    // mienta sobre lo que acabas de hacer cuesta más.
+    const dia = profile.current_plan_day ?? 0;
+    const cacheKey =
+      `gymup_coach_insight_${profile.user_id}_${localDateKey()}_${slot}_d${dia}_${yaEntreno ? 'post' : 'pre'}`;
 
     if (!force) {
       try {
@@ -259,9 +297,15 @@ export default function DashboardScreen() {
             {/* El apodo primero: la app te llama como TÚ quieres */}
             <Text style={s.userName}>{(profile.nickname || profile.name || '').toUpperCase()} 💪</Text>
           </View>
-          <View style={s.avatar} importantForAccessibility="no-hide-descendants"
-            accessibilityElementsHidden>
-            <Text style={s.avatarTxt}>{(profile.nickname || profile.name)?.[0]?.toUpperCase() ?? '?'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <HelpButton
+              pantalla="la pantalla de inicio"
+              pregunta="Explícame la pantalla de inicio de GymUp: qué significa cada cosa que veo (el anillo de calorías, las barras de macros, los vasos de agua, el día del plan) y cómo la uso día a día."
+            />
+            <View style={s.avatar} importantForAccessibility="no-hide-descendants"
+              accessibilityElementsHidden>
+              <Text style={s.avatarTxt}>{(profile.nickname || profile.name)?.[0]?.toUpperCase() ?? '?'}</Text>
+            </View>
           </View>
         </View>
 
@@ -335,10 +379,22 @@ export default function DashboardScreen() {
           })}
         </ScrollView>
 
+        {/* Ya entrenaste: el plan avanzó, así que hay que decirlo explícito
+            antes de mostrar la sesión siguiente o parece que se saltó un día. */}
+        {entrenoHoy && (
+          <View style={s.doneBanner} accessible
+            accessibilityLabel="Ya entrenaste hoy. Lo que sigue es tu sesión de mañana">
+            <Text style={{ fontSize: 18 }}>✅</Text>
+            <Text style={s.doneBannerTxt}>
+              Ya entrenaste hoy. Esto es lo que viene mañana.
+            </Text>
+          </View>
+        )}
+
         {/* Indicador de día del plan */}
         <View style={s.planDayRow}>
           <Text style={s.sectionLbl} accessibilityRole="header">
-             DÍA {todayIndex + 1} DE 7 · {new Date().toLocaleDateString('es-CO', { weekday: 'long' }).toUpperCase()}
+            {etiquetaPlan ? `${cuandoLbl} · ${etiquetaPlan.toUpperCase()}` : 'TU PLAN'}
           </Text>
           {/* Los puntos solo repiten visualmente el día que ya dice el título. */}
           <View style={s.planDots} importantForAccessibility="no-hide-descendants"
@@ -352,6 +408,10 @@ export default function DashboardScreen() {
             ))}
           </View>
         </View>
+        {/* El número de día queda como dato secundario, no como titular. */}
+        <Text style={s.planDaySub}>
+          Día {todayIndex + 1} de 7 de tu plan · {new Date().toLocaleDateString('es-CO', { weekday: 'long' })}
+        </Text>
 
         {/* Plan obsoleto respecto a la salud: recordatorio persistente */}
         {planStale && (
@@ -400,9 +460,16 @@ export default function DashboardScreen() {
             <TouchableOpacity style={s.startBtn}
               onPress={() => router.push('/workout-session' as any)} activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel={`Iniciar entrenamiento de ${todayPlan.muscle_groups?.join(' y ')}`}
+              accessibilityLabel={entrenoHoy
+                ? `Adelantar la sesión de mañana: ${todayPlan.muscle_groups?.join(' y ')}`
+                : `Iniciar entrenamiento de ${todayPlan.muscle_groups?.join(' y ')}`}
               accessibilityHint={`${todayPlan.exercises?.length} ejercicios, unos ${todayPlan.estimated_duration_min} minutos`}>
-              <Text style={s.startBtnTxt}>▶  INICIAR ENTRENAMIENTO</Text>
+              {/* Si ya entrenó, este botón arranca la sesión de MAÑANA. Decir
+                  "iniciar entrenamiento" a secas haría pensar que se repite la
+                  de hoy. */}
+              <Text style={s.startBtnTxt}>
+                {entrenoHoy ? '▶  ADELANTAR ESTA SESIÓN' : '▶  INICIAR ENTRENAMIENTO'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/exercises' as any)} activeOpacity={0.7}
               accessibilityRole="button" accessibilityLabel="Ver biblioteca de ejercicios">
@@ -415,20 +482,62 @@ export default function DashboardScreen() {
         {todayPlan?.type === 'rest' && (
           <View style={s.restCard}>
             <Text style={{ fontSize: 40, marginBottom: 12 }}>😴</Text>
-            <Text style={s.restTitle}>Día de descanso</Text>
-            <Text style={s.restDesc}>Tu cuerpo crece cuando descansa. Hoy es tan importante como entrenar.</Text>
+            <Text style={s.restTitle}>{cuandoLbl === 'HOY' ? 'Hoy descansas' : 'Mañana descansas'}</Text>
+            <Text style={s.restDesc}>
+              {todayPlan.notes ??
+                'El músculo no crece mientras entrenas: crece mientras te recuperas. ' +
+                'El entrenamiento da el estímulo, la adaptación ocurre después. ' +
+                'Saltarte el descanso no acelera nada, lo frena.'}
+            </Text>
+            <TouchableOpacity style={s.restBtn} activeOpacity={0.85}
+              onPress={() => router.push({
+                pathname: '/coach-chat',
+                params: { q: '¿Qué puedo hacer hoy que es día de descanso? ¿Puedo hacer algo ligero o es mejor no hacer nada?' },
+              } as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Preguntarle al coach qué hacer en tu día de descanso">
+              <Text style={s.restBtnTxt}>💬  Pregúntale a tu coach</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* Recuperación activa */}
+        {/* Recuperación activa. Antes era un View mudo con un texto de relleno
+            ("Día de movilidad y flexibilidad") cuando la IA no mandaba notes, y
+            no llevaba a ningún lado aunque invitara a tocarlo. */}
         {todayPlan?.type === 'active_recovery' && (
           <View style={s.restCard}>
             <Text style={{ fontSize: 40, marginBottom: 12 }}>🧘</Text>
-            <Text style={s.restTitle}>Recuperación activa</Text>
-            <Text style={s.restDesc}>
-              {todayPlan.notes ?? 'Día de movilidad y flexibilidad.'}
-              {todayPlan.activities?.length ? '\n\n' + todayPlan.activities.join(' · ') : ''}
+            <Text style={s.restTitle}>
+              {cuandoLbl === 'HOY' ? 'Hoy: recuperación activa' : 'Mañana: recuperación activa'}
             </Text>
+            <Text style={s.restDesc}>
+              {todayPlan.notes ??
+                'Movimiento suave para que llegue sangre al músculo y se recupere más rápido, ' +
+                'sin sumarte fatiga. No es un entrenamiento: si terminas cansado, te pasaste.'}
+            </Text>
+            {todayPlan.activities?.length ? (
+              <View style={s.actList}>
+                {todayPlan.activities.map((a: string, i: number) => (
+                  <View key={i} style={s.actItem} accessible accessibilityLabel={`Opción ${i + 1}: ${a}`}>
+                    <Text style={s.actBullet}>›</Text>
+                    <Text style={s.actTxt}>{a}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            <TouchableOpacity style={s.restBtn} activeOpacity={0.85}
+              onPress={() => router.push({
+                pathname: '/coach-chat',
+                params: {
+                  q: todayPlan.activities?.length
+                    ? `Hoy tengo recuperación activa (${todayPlan.activities.join(', ')}). Explícame cómo hacer cada una y cuánto tiempo.`
+                    : 'Hoy tengo un día de recuperación activa. ¿Qué hago exactamente, por cuánto tiempo y con qué intensidad?',
+                },
+              } as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Preguntarle al coach cómo hacer tu recuperación activa">
+              <Text style={s.restBtnTxt}>💬  ¿Cómo lo hago?</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -505,7 +614,16 @@ const s = StyleSheet.create({
   waterRow: { flexDirection: 'row', justifyContent: 'space-between' },
   waterCup: { padding: 4 },
   waterDone: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.accent, marginTop: 6, textAlign: 'center' },
-  planDayRow: { marginHorizontal: Spacing.lg, marginBottom: 12 },
+  planDayRow: { marginHorizontal: Spacing.lg, marginBottom: 4 },
+  planDaySub: { marginHorizontal: Spacing.lg, marginBottom: 12, fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textMuted },
+  doneBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: Spacing.lg, marginBottom: 12, backgroundColor: Colors.accentMuted, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.lg, padding: Spacing.md },
+  doneBannerTxt: { flex: 1, fontFamily: Fonts.bodySemi, fontSize: 13, color: Colors.accent, lineHeight: 18 },
+  restBtn: { marginTop: Spacing.md, backgroundColor: Colors.accentMuted, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.lg, paddingVertical: 12, paddingHorizontal: Spacing.lg },
+  restBtnTxt: { fontFamily: Fonts.bodySemi, fontSize: 13, color: Colors.accent },
+  actList: { alignSelf: 'stretch', marginTop: Spacing.md, gap: 6 },
+  actItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  actBullet: { fontFamily: Fonts.heading, fontSize: 15, color: Colors.accent, lineHeight: 20 },
+  actTxt: { flex: 1, fontFamily: Fonts.body, fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
   planDots: { flexDirection: 'row', gap: 6, marginTop: 8 },
   planDot: { width: 28, height: 4, borderRadius: 2, backgroundColor: Colors.border },
   planDotDone: { backgroundColor: Colors.accentDark },

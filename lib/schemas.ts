@@ -146,17 +146,63 @@ export const FridgeAnalysisSchema = z.object({
  * Parsea y valida una respuesta de IA. Lanza un error legible si el
  * JSON es inválido o no cumple el esquema, en vez de crashear la UI.
  */
+/**
+ * Error de validación con la FORMA de lo que llegó adjunta.
+ *
+ * Nace de un caso real: un plan falló y el único rastro fue "11 tokens de
+ * salida" en la telemetría. Hubo que deducir desde ahí que el modelo se había
+ * NEGADO (una negativa mide ~11 tokens; un plan mide ~1.500). Con estos campos
+ * se lee en el reporte en vez de deducirse.
+ *
+ * Lo que se adjunta es DELIBERADAMENTE estructural: claves, tipos y rutas del
+ * esquema — nunca el contenido. La respuesta puede citar lo que el usuario
+ * escribió en su tamizaje de salud, y Sentry no es sitio para datos de salud.
+ * Las claves de nivel superior bastan para distinguir los dos casos que
+ * importan: {"days":[...]} truncado vs {"error":"..."} de negativa.
+ */
+export class AIShapeError extends Error {
+  readonly forma: {
+    label: string;
+    esJson: boolean;
+    largo: number;
+    clavesRaiz: string[];
+    rutasFallidas: string[];
+  };
+
+  constructor(mensaje: string, forma: AIShapeError['forma']) {
+    super(mensaje);
+    this.name = 'AIShapeError';
+    this.forma = forma;
+  }
+}
+
+/** Claves de nivel superior, sin valores. Vacío si no es un objeto. */
+function clavesDe(json: unknown): string[] {
+  if (!json || typeof json !== 'object' || Array.isArray(json)) return [];
+  return Object.keys(json as Record<string, unknown>).slice(0, 12);
+}
+
 export function parseAI<T>(schema: z.ZodType<T>, raw: string, label: string): T {
+  const largo = raw?.length ?? 0;
   let json: unknown;
   try {
     json = JSON.parse(raw);
   } catch {
-    throw new Error(`La IA devolvió una respuesta no válida (${label}). Intenta de nuevo.`);
+    throw new AIShapeError(
+      `La IA devolvió una respuesta no válida (${label}). Intenta de nuevo.`,
+      { label, esJson: false, largo, clavesRaiz: [], rutasFallidas: [] }
+    );
   }
   const res = schema.safeParse(json);
   if (!res.success) {
-    console.log(`[parseAI] "${label}" no cumple el esquema:`, JSON.stringify(res.error.issues?.slice(0, 4)));
-    throw new Error(`La IA devolvió datos incompletos (${label}). Intenta de nuevo.`);
+    const rutasFallidas = (res.error.issues ?? [])
+      .slice(0, 6)
+      .map((i) => `${i.path.join('.') || '(raíz)'}: ${i.code}`);
+    console.log(`[parseAI] "${label}" no cumple el esquema:`, JSON.stringify(rutasFallidas));
+    throw new AIShapeError(
+      `La IA devolvió datos incompletos (${label}). Intenta de nuevo.`,
+      { label, esJson: true, largo, clavesRaiz: clavesDe(json), rutasFallidas }
+    );
   }
   return res.data;
 }

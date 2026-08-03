@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +17,9 @@ import { isPlanStaleForHealth } from '../../lib/health';
 import { fetchTodayFoodLogs, localDateKey } from '../../lib/foodLogs';
 import { loadUserStats } from '../../lib/streaks';
 import HelpButton from '../../Components/HelpButton';
+import { generateFirstPlan } from '../../lib/adaptivePlan';
+import { captureError } from '../../lib/monitoring';
+import { track } from '../../lib/analytics';
 import { getWaterCount, addWater, WATER_GOAL } from '../../lib/water';
 import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
 
@@ -87,6 +90,31 @@ export default function DashboardScreen() {
   // siguiente, así que sin este dato la pantalla presenta la sesión de mañana
   // como si fuera la de hoy — que es exactamente lo que confundía al usuario.
   const [entrenoHoy, setEntrenoHoy] = useState(false);
+  const [generandoPlan, setGenerandoPlan] = useState(false);
+
+  // Genera el primer plan de quien se quedó sin él porque la IA falló en el
+  // onboarding. Es la ruta de recuperación que faltaba.
+  async function generarPlan() {
+    if (!profile || generandoPlan) return;
+    setGenerandoPlan(true);
+    try {
+      const saved = await generateFirstPlan(profile);
+      setTrainingPlan(saved);
+      // El plan nuevo arranca en el día 1: el perfil en memoria tiene el
+      // current_plan_day viejo y la cabecera mostraría el día equivocado.
+      setProfile({ ...profile, current_plan_day: 0 });
+      track('plan_generated', { origen: 'recuperacion_home' });
+      Alert.alert('¡Listo!', 'Tu plan ya está armado. Puedes empezar cuando quieras.');
+    } catch (e: any) {
+      captureError(e, { screen: 'home', stage: 'generate_first_plan' });
+      Alert.alert(
+        'No pudimos generar tu plan',
+        (e?.message ?? 'Algo falló.') + '\n\nTus datos siguen guardados. Puedes intentarlo de nuevo.'
+      );
+    } finally {
+      setGenerandoPlan(false);
+    }
+  }
 
   useEffect(() => {
     getWaterCount().then(setWater).catch(() => {});
@@ -541,8 +569,32 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* Sin plan */}
-        {!todayPlan && (
+        {/* Sin NINGÚN plan: la IA falló durante el onboarding. Antes esto decía
+            "Cargando tu plan…" para siempre y no había forma de conseguir uno
+            —regenerateAdaptivePlan exige un plan previo que adaptar—, así que
+            la única salida real era rehacer el onboarding entero. */}
+        {!trainingPlan && (
+          <View style={s.restCard}>
+            <Text style={{ fontSize: 40, marginBottom: 12 }}>📋</Text>
+            <Text style={s.restTitle}>Todavía no tienes plan</Text>
+            <Text style={s.restDesc}>
+              No pudimos generarlo cuando te registraste. Tus datos y tu tamizaje de salud
+              están guardados: esto no te vuelve a preguntar nada.
+            </Text>
+            <TouchableOpacity style={[s.restBtn, generandoPlan && { opacity: 0.6 }]}
+              onPress={generarPlan} disabled={generandoPlan} activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={generandoPlan ? 'Generando tu plan, espera' : 'Generar mi plan con inteligencia artificial'}
+              accessibilityState={{ disabled: generandoPlan, busy: generandoPlan }}>
+              <Text style={s.restBtnTxt}>
+                {generandoPlan ? '⏳  Generando tu plan…' : '✦  Generar mi plan'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Hay plan pero el día no resuelve (índice fuera de rango). */}
+        {trainingPlan && !todayPlan && (
           <View style={s.restCard}>
             <Text style={{ fontSize: 40, marginBottom: 12 }}>📋</Text>
             <Text style={s.restTitle}>Cargando tu plan...</Text>

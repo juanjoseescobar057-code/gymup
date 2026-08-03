@@ -191,7 +191,14 @@ SOLO JSON sin texto adicional:
     }
   ]
 }
-Incluye los 7 días. type puede ser: workout, rest, active_recovery.`,
+Incluye los 7 días. type puede ser: workout, rest, active_recovery.
+
+OBLIGATORIO: responde ÚNICAMENTE con ese JSON, con los 7 días, SIEMPRE.
+Si algo del tamizaje de salud te preocupa (una molestia descrita, una condición, una
+lesión), NO te niegues ni respondas con texto: eso deja a la persona sin plan y sin tu
+advertencia. Devuelve el JSON con el plan MÁS conservador que se te ocurra —movilidad,
+caminata suave, nada que cargue la zona afectada— y escribe la recomendación de
+consultar a un profesional en el campo "notes" de los días correspondientes.`,
     }],
     response_format: { type: 'json_object' },
     temperature: 0.7,

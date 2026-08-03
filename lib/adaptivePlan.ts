@@ -103,6 +103,48 @@ Incluye los 7 días.`,
   return parseAI(WeeklyPlanSchema, content, 'plan adaptado') as WeeklyPlan;
 }
 
+/**
+ * Genera el PRIMER plan de alguien que no tiene ninguno y lo guarda.
+ *
+ * Existe porque faltaba: si la IA fallaba durante el onboarding, el usuario
+ * entraba a la app sin plan y sin ninguna forma de conseguir uno.
+ * regenerateAdaptivePlan no servía —exige un plan previo que adaptar— así que
+ * el mensaje que le prometía "puedes generar tu plan más tarde" era falso: la
+ * única salida real era rehacer el onboarding entero.
+ *
+ * LIMITACIÓN CONOCIDA: experiencia, días por semana y equipamiento se preguntan
+ * en el onboarding pero todavía no tienen columna en user_profiles, así que
+ * aquí no están disponibles y el generador cae a sus valores por defecto. El
+ * plan sale bien, pero menos afinado que el del onboarding. Se arregla cuando
+ * esos tres campos tengan columna propia.
+ */
+export async function generateFirstPlan(
+  profile: Pick<UserProfile, 'user_id' | 'age' | 'sex' | 'weight_kg' | 'height_cm' | 'goal' | 'activity_level'>
+): Promise<any> {
+  const { generateTrainingPlan } = await import('./openai');
+  // Import diferido: openai.ts y adaptivePlan.ts comparten schemas y safety, y
+  // un import estático cruzado entre ambos crea un ciclo en Metro.
+  const salud = await loadHealthSafe(profile.user_id);
+  // status 'unknown' = no se pudo LEER el tamizaje (no que no exista). Generar
+  // ahí trataría como sano a alguien que pudo declarar una lesión, así que se
+  // aborta y se le pide reintentar. 'ok' y 'cached' sí traen el perfil real.
+  if (salud.status === 'unknown') {
+    throw new Error('No pudimos leer tu perfil de salud. Revisa tu conexión e intenta de nuevo.');
+  }
+  const plan = await generateTrainingPlan(
+    {
+      age: profile.age,
+      sex: profile.sex,
+      weight_kg: profile.weight_kg,
+      height_cm: profile.height_cm,
+      goal: profile.goal,
+      activity_level: profile.activity_level,
+    },
+    salud.profile
+  );
+  return saveAdaptedPlan(profile.user_id, plan);
+}
+
 /** Guarda el nuevo plan como activo y reinicia el día del plan. */
 export async function saveAdaptedPlan(userId: string, plan: WeeklyPlan): Promise<any> {
   // Orden seguro: primero INSERTAR el plan nuevo; solo si eso funciona,

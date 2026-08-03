@@ -14,6 +14,7 @@ import { useUserStore } from '../../store/userStore';
 import AuthSheet from '../../Components/AuthSheet';
 import HealthForm from '../../Components/HealthForm';
 import { EMPTY_HEALTH, computeRisk, type HealthProfile } from '../../lib/healthMath';
+import { type AIShapeError } from '../../lib/schemas';
 import { saveHealthProfile } from '../../lib/health';
 import { track, flush } from '../../lib/analytics';
 import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
@@ -213,7 +214,14 @@ export default function OnboardingScreen() {
       try {
         weeklyPlan = await generateTrainingPlan(profileData, health);
       } catch (planErr) {
-        captureError(planErr, { screen: 'onboarding', stage: 'generate_training_plan' });
+        // La FORMA de lo que devolvió la IA se adjunta al reporte: sin ella,
+        // el único rastro de una negativa del modelo era "11 tokens de salida"
+        // en la telemetría, y hubo que deducir la causa desde ahí.
+        captureError(planErr, {
+          screen: 'onboarding',
+          stage: 'generate_training_plan',
+          ...((planErr as AIShapeError)?.forma ?? {}),
+        });
       }
 
       // upsert: si un intento anterior alcanzó a crear el perfil, el
@@ -286,11 +294,15 @@ export default function OnboardingScreen() {
       if (!savedPlan) {
         // Honestidad: entra a la app sin plan y tiene que saberlo, además de
         // saber que lo que respondió NO se perdió.
+        // "No respondió" era inexacto: el caso real fue que SÍ respondió y la
+        // respuesta no cumplía el formato. Y el "puedes generarlo más tarde"
+        // era una promesa vacía hasta que existió el botón de la pantalla de
+        // inicio: no había ninguna ruta para generar un primer plan.
         Alert.alert(
           'Tu perfil quedó listo',
-          'No pudimos generar tu plan en este momento (nuestro servicio de IA no respondió). ' +
-          'Tu perfil y tu tamizaje de salud ya están guardados: puedes generar tu plan más ' +
-          'tarde desde tu pantalla de entrenamiento, sin volver a responder nada.',
+          'No pudimos armar tu plan en este intento. Tu perfil y tu tamizaje de salud ya ' +
+          'están guardados, así que no tendrás que responder nada de nuevo: en la pantalla ' +
+          'de inicio te espera el botón "Generar mi plan".',
           [{ text: 'Entendido', onPress: () => router.replace('/(tabs)') }]
         );
         return;

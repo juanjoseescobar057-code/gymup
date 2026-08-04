@@ -18,6 +18,8 @@
 // ─────────────────────────────────────────────────────────
 
 import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
 // Identificadores propios: sin ellos había que llamar a
@@ -82,6 +84,31 @@ async function loadPrefs(userId: string): Promise<{ enabled: boolean; wake: numb
   }
 }
 
+/**
+ * Canal de Android. Rescatado del módulo `notifications.ts` que se eliminó:
+ * era lo único con valor real que tenía.
+ *
+ * Desde Android 8 toda notificación pertenece a un canal. Sin declararlo, las
+ * nuestras caían en el canal por defecto y el usuario no podía ajustarlas de
+ * forma granular desde los ajustes del sistema — solo apagarlas todas. Tener
+ * canal propio es también lo que permite, más adelante, separar "recordatorios
+ * diarios" de "logros" para que se puedan silenciar por separado.
+ */
+async function ensureAndroidChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync('gymup', {
+      name: 'Recordatorios de GymUp',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#C8FF3E',
+      sound: 'default',
+    });
+  } catch {
+    // Sin canal las notificaciones siguen funcionando en el canal por defecto.
+  }
+}
+
 /** Cancela solo LAS NUESTRAS, nunca las de otras partes de la app. */
 export async function cancelDailyNotifications(): Promise<void> {
   await Promise.all(
@@ -93,8 +120,18 @@ export async function cancelDailyNotifications(): Promise<void> {
 
 export async function setupDailyNotifications(userId?: string): Promise<void> {
   try {
-    const { status } = await Notifications.requestPermissionsAsync();
+    // En emulador no hay notificaciones: pedir el permiso ahí solo ensucia.
+    if (!Device.isDevice) return;
+
+    // El permiso solo se pide si no lo tenemos ya: volver a pedirlo en cada
+    // arranque no muestra nada nuevo y en Android puede contar como rechazo.
+    const actual = await Notifications.getPermissionsAsync();
+    const status = actual.granted
+      ? 'granted'
+      : (await Notifications.requestPermissionsAsync()).status;
     if (status !== 'granted') return;
+
+    await ensureAndroidChannel();
 
     // La tabla notification_preferences existía y NADIE la consultaba: se
     // programaban tres avisos fijos a las 8, 18 y 21 pasara lo que pasara.
@@ -103,8 +140,10 @@ export async function setupDailyNotifications(userId?: string): Promise<void> {
     await cancelDailyNotifications();
     if (!prefs.enabled) return;
 
+    // channelId va en el TRIGGER, no en el content (así lo define la API).
     const daily = (hour: number, minute: number): Notifications.DailyTriggerInput => ({
       type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      channelId: 'gymup',
       hour,
       minute,
     });
@@ -134,6 +173,24 @@ export async function setupDailyNotifications(userId?: string): Promise<void> {
     console.log('[Notifications] Error:', e?.message);
   }
 }
+
+// ─── DIRECCIÓN FUTURA (rescatada de notifications.ts, ya eliminado) ──
+// Aquel módulo, que nunca llegó a estar cableado, tenía una idea mejor que la
+// de este: notificar POR SITUACIÓN en vez de por reloj. Bancos de mensajes
+// para racha activa, logro desbloqueado, cerca de la meta del día. Eso vale y
+// vale la pena retomarlo — un aviso que llega porque acabas de encadenar 7
+// días dice algo; uno que llega porque son las 18:00 no.
+//
+// Lo que NO se rescató, y conviene que quede escrito para que no vuelva:
+//   • Todo su copy comparaba y culpaba ("tu competencia", "excusas 0").
+//   • Su generador con IA pedía explícitamente un tono "agresivo/desafiante"
+//     y daba como ejemplo a imitar "Tu ex acaba de publicar foto en el gym".
+//     Texto impredecible que nadie revisa antes de que le llegue a alguien,
+//     y una llamada de IA por notificación.
+//   • Su programador usaba `repeats: false` (se disparaba UNA vez, no a
+//     diario) y cancelaba TODAS las notificaciones del sistema.
+// Si se retoma lo situacional, que sea con este estándar de tono y con el
+// canal de Android que ya quedó arriba.
 
 // ─── PENDIENTE ───────────────────────────────────────────
 // Estas son notificaciones LOCALES con disparador diario fijo: se lanzan aunque

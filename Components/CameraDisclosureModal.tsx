@@ -13,10 +13,26 @@
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { Colors, Fonts, Radii, Spacing } from '../constants/theme';
 
+/**
+ * Qué le pasa REALMENTE a la foto. No es un detalle: de esto depende que el
+ * aviso sea cierto.
+ *
+ *  • `ia`            → sale del teléfono hacia OpenAI y no se guarda la imagen.
+ *  • `almacenamiento`→ NO va a ninguna IA, pero SÍ se guarda en la nube.
+ *  • `local`         → se procesa en el propio teléfono y no sale nada.
+ *
+ * Antes el texto estaba fijo en el caso `ia`, así que reutilizar este modal en
+ * las fotos de transformación —que sí se almacenan y no van a ninguna IA—
+ * habría dicho exactamente lo contrario de lo que ocurre.
+ */
+export type DestinoFoto = 'ia' | 'almacenamiento' | 'local';
+
 type Props = {
   visible: boolean;
-  /** Qué va a analizar la IA, ej: "tu plato" / "tu nevera". */
+  /** Qué se captura, ej: "tu plato" / "tu nevera" / "tu progreso". */
   subject: string;
+  /** Qué le pasa a la imagen. Por defecto el caso histórico: análisis con IA. */
+  destino?: DestinoFoto;
   /**
    * Título opcional. El default sirve para los dos orígenes de la imagen
    * (cámara y galería); solo se sobrescribe si una pantalla necesita otro.
@@ -26,9 +42,28 @@ type Props = {
   onCancel: () => void;
 };
 
+function textoDe(destino: DestinoFoto, subject: string): string {
+  switch (destino) {
+    case 'almacenamiento':
+      return `La foto de ${subject} se guarda en tu almacenamiento privado en la nube, ` +
+        `solo tú puedes verla y puedes borrarla cuando quieras. NO se envía a ningún ` +
+        `servicio de inteligencia artificial.`;
+    case 'local':
+      return `El análisis de ${subject} ocurre en tu propio teléfono: la imagen NO sale ` +
+        `del dispositivo, no se envía a ningún servidor y no se guarda. Solo se ` +
+        `conserva el conteo de repeticiones.`;
+    case 'ia':
+    default:
+      return `La foto de ${subject} se envía a un servicio de inteligencia artificial ` +
+        `(OpenAI) únicamente para generar el análisis. GymUp no almacena la foto — solo ` +
+        `guarda el resultado, que puedes eliminar cuando quieras desde tu perfil.`;
+  }
+}
+
 export default function CameraDisclosureModal({
   visible,
   subject,
+  destino = 'ia',
   title = 'Antes de analizar tu foto',
   onAccept,
   onCancel,
@@ -39,11 +74,7 @@ export default function CameraDisclosureModal({
         <View style={s.sheet} accessibilityViewIsModal>
           <Text style={{ fontSize: 40, marginBottom: 10 }} accessibilityElementsHidden importantForAccessibility="no">📸</Text>
           <Text style={s.title} accessibilityRole="header">{title}</Text>
-          <Text style={s.body}>
-            La foto de {subject} se envía a un servicio de inteligencia artificial (OpenAI)
-            únicamente para generar el análisis. GymUp no almacena la foto — solo guarda el
-            resultado, que puedes eliminar cuando quieras desde tu perfil.
-          </Text>
+          <Text style={s.body}>{textoDe(destino, subject)}</Text>
           <TouchableOpacity
             style={s.primaryBtn}
             onPress={onAccept}

@@ -18,9 +18,12 @@ import { healthToPrompt, HEALTH_UNKNOWN_DIRECTIVE } from '../../lib/healthMath';
 import type { BiologicalSex } from '../../lib/supabase';
 import { router, useFocusEffect } from 'expo-router';
 import ReportContentButton from '../../Components/ReportContentButton';
+import CameraDisclosureModal from '../../Components/CameraDisclosureModal';
+import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../../lib/cameraConsent';
 import { isPoseCameraMarkedUnsupported } from '../../lib/pose/cameraSupport';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
+import OfflineBanner from '../../Components/OfflineBanner';
 
 const EXERCISES = [
   { id: 'squat',    name: 'Sentadilla',      emoji: '🦵', muscles: 'Cuádriceps, Glúteos' },
@@ -192,6 +195,11 @@ export default function CoachScreen() {
   // busca el primer ejercicio de hoy que exista en el catálogo de postura y se
   // selecciona ese. Si hoy no hay sesión (descanso) no se toca la selección:
   // elegir por el usuario sin contexto es justo lo que estaba mal.
+  const [showDisclosure, setShowDisclosure] = useState(false);
+  // El modal resuelve esta promesa: así asegurarDisclosure() se espera como
+  // cualquier otro await al principio de los handlers.
+  const disclosureResolver = useRef<((aceptado: boolean) => void) | null>(null);
+
   const preseleccionadoRef = useRef(false);
   useEffect(() => {
     if (preseleccionadoRef.current || todayExercises.length === 0) return;
@@ -217,8 +225,35 @@ export default function CoachScreen() {
     return true;
   }
 
+  // La foto de postura SALE del teléfono hacia OpenAI, igual que la de comida
+  // o la de la nevera — pero esta pantalla pedía el permiso de cámara y
+  // enviaba la imagen sin haber mostrado nunca el aviso. El disclosure no es
+  // sobre el permiso: es sobre que la foto sale del dispositivo, así que
+  // también aplica a las imágenes elegidas de la galería.
+  async function asegurarDisclosure(): Promise<boolean> {
+    if (await hasSeenCameraDisclosure('posture')) return true;
+    return new Promise<boolean>((resolve) => {
+      disclosureResolver.current = resolve;
+      setShowDisclosure(true);
+    });
+  }
+
+  async function aceptarDisclosure() {
+    setShowDisclosure(false);
+    await markCameraDisclosureSeen('posture');
+    disclosureResolver.current?.(true);
+    disclosureResolver.current = null;
+  }
+
+  function cancelarDisclosure() {
+    setShowDisclosure(false);
+    disclosureResolver.current?.(false);
+    disclosureResolver.current = null;
+  }
+
   async function takePhoto() {
     if (!premiumGate()) return;
+    if (!(await asegurarDisclosure())) return;
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
@@ -240,6 +275,7 @@ export default function CoachScreen() {
 
   async function pickFromGallery() {
     if (!premiumGate()) return;
+    if (!(await asegurarDisclosure())) return;
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) return;
@@ -311,6 +347,10 @@ export default function CoachScreen() {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
+
+          {/* El coach en vivo SÍ funciona sin señal (todo es local); el análisis
+              por foto y el chat no, porque necesitan el servidor de IA. */}
+          <OfflineBanner disponible="El coach en vivo funciona sin señal. El análisis por foto y el chat necesitan conexión." />
 
           {/* Coach en vivo (tiempo real) — oculto si la cámara no funciona aquí */}
           {liveCoachAvailable && (
@@ -445,6 +485,13 @@ export default function CoachScreen() {
             </>
           )}
         </ScrollView>
+        <CameraDisclosureModal
+          visible={showDisclosure}
+          subject="tu técnica"
+          destino="ia"
+          onAccept={aceptarDisclosure}
+          onCancel={cancelarDisclosure}
+        />
       </SafeAreaView>
     );
   }

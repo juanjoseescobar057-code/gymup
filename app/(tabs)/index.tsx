@@ -17,6 +17,7 @@ import { isPlanStaleForHealth } from '../../lib/health';
 import { fetchTodayFoodLogs, localDateKey } from '../../lib/foodLogs';
 import { loadUserStats } from '../../lib/streaks';
 import HelpButton from '../../Components/HelpButton';
+import OfflineBanner from '../../Components/OfflineBanner';
 import { generateFirstPlan } from '../../lib/adaptivePlan';
 import { captureError } from '../../lib/monitoring';
 import { track } from '../../lib/analytics';
@@ -341,6 +342,9 @@ export default function DashboardScreen() {
             </View>
           </View>
         </View>
+
+        {/* Sin conexión: informar, no bloquear. Lo de abajo sigue usable. */}
+        <OfflineBanner disponible="Puedes entrenar y registrar tus series. El coach IA y la sincronización vuelven con la señal." />
 
         {/* Macros del día */}
         <View style={s.macroCard}>

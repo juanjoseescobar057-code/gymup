@@ -16,12 +16,17 @@ import { usePoseStream } from '../lib/pose/usePoseStream';
 import { getPoseExercise } from '../lib/pose/exercises';
 import { initRepState, updateReps, type RepState, type RepPhase } from '../lib/pose/repCounter';
 import { isPoseCameraMarkedUnsupported } from '../lib/pose/cameraSupport';
+import {
+  evaluarEncuadre, copyPreflight, FRAMES_ESTABLES, type EstadoPreflight,
+} from '../lib/pose/preflight';
 import type { FormCue, Pose } from '../lib/pose/types';
 import { speak, setVoiceEnabled } from '../lib/voice';
 import { saveSetLogs } from '../lib/setLogs';
 import { useSafeKeepAwake } from '../lib/useSafeKeepAwake';
 import { useUserStore } from '../store/userStore';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
+import CameraDisclosureModal from '../Components/CameraDisclosureModal';
+import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../lib/cameraConsent';
 
 const OPTIONS = [
   { id: 'squat', emoji: '🦵', label: 'Sentadilla' },
@@ -36,13 +41,21 @@ const SEV_COLOR: Record<string, string> = { good: Colors.accent, warn: Colors.wa
 export default function LiveCoachScreen() {
   useSafeKeepAwake('live-coach'); // que la pantalla no se apague en plena serie
   const [exId, setExId] = useState('squat');
-  const [active, setActive] = useState(false);
+  // 'preflight' es la fase nueva: la cámara ya está encendida pero NO se cuenta
+  // nada hasta que el encuadre sea válido. Antes se pasaba de "Empezar" a
+  // contar de una, así que un mal encuadre se traducía en reps mal contadas
+  // que además terminaban guardadas en el historial como reales.
+  const [fase, setFase] = useState<'setup' | 'preflight' | 'live'>('setup');
   const [reps, setReps] = useState(0);
   const [phase, setPhase] = useState<RepPhase>('up');
   const [cues, setCues] = useState<FormCue[]>([]);
   const [camUnavailable, setCamUnavailable] = useState(false);
   const [camPose, setCamPose] = useState<Pose | null>(null);
   const [voiceOn, setVoiceOn] = useState(true);
+  const [showDisclosure, setShowDisclosure] = useState(false);
+  const [encuadre, setEncuadre] = useState<EstadoPreflight>('no_person');
+  const [framesListos, setFramesListos] = useState(0);
+  const disclosureResolver = useRef<((aceptado: boolean) => void) | null>(null);
   const repRef = useRef<RepState>(initRepState());
   const lastCueRef = useRef<string>('');       // evita repetir el mismo cue de voz
   const minAngleRef = useRef<number>(999);     // ángulo mínimo alcanzado en la rep actual
@@ -50,10 +63,17 @@ export default function LiveCoachScreen() {
 
   const cfg = getPoseExercise(exId);
 
+  const active = fase === 'live';
+  // La cámara se enciende ya en el preflight: sin preview no hay nada que
+  // comprobar. Lo que el preflight NO hace es contar.
+  const usingCamera = (fase === 'preflight' || fase === 'live') && !camUnavailable;
+
   // Simulación SOLO si la cámara real no está disponible.
   const { pose: simPose } = usePoseStream(active && camUnavailable);
-  const usingCamera = active && !camUnavailable;
   const pose = camUnavailable ? simPose : camPose;
+
+  const listoParaEmpezar = encuadre === 'ready' && framesListos >= FRAMES_ESTABLES;
+  const copyEncuadre = copyPreflight(encuadre);
 
   // Motor: procesa cada pose (venga de la cámara o del simulador).
   useEffect(() => {
@@ -92,27 +112,85 @@ export default function LiveCoachScreen() {
     }
   }, [pose, active, exId]);
 
+  // Preflight: evalúa cada frame de la cámara y exige varios seguidos en
+  // 'ready' antes de habilitar el botón. Un solo frame bueno haría que el
+  // botón parpadeara mientras la persona se acomoda.
+  useEffect(() => {
+    if (fase !== 'preflight') return;
+    const e = evaluarEncuadre(camPose, exId);
+    setEncuadre(e);
+    setFramesListos((n) => (e === 'ready' ? n + 1 : 0));
+  }, [camPose, fase, exId]);
+
+  // Si la cámara truena en pleno preflight no tiene sentido dejar al usuario
+  // esperando un encuadre que nunca va a llegar: se pasa al modo simulado,
+  // que es lo que ya hacía la app cuando la cámara no estaba disponible.
+  useEffect(() => {
+    if (fase === 'preflight' && camUnavailable) iniciarConteo();
+  }, [fase, camUnavailable]);
+
+  // El coach en vivo era el único flujo de cámara sin ningún aviso, y encima
+  // es el que MENOS tiene que esconder: todo el análisis corre en el teléfono.
+  // Decirlo explícitamente ("no sale nada de aquí") no es solo cumplimiento,
+  // es la razón por la que alguien acepta apuntarse la cámara mientras entrena.
+  async function asegurarDisclosure(): Promise<boolean> {
+    if (await hasSeenCameraDisclosure('live_coach')) return true;
+    return new Promise<boolean>((resolve) => {
+      disclosureResolver.current = resolve;
+      setShowDisclosure(true);
+    });
+  }
+
+  async function aceptarDisclosure() {
+    setShowDisclosure(false);
+    await markCameraDisclosureSeen('live_coach');
+    disclosureResolver.current?.(true);
+    disclosureResolver.current = null;
+  }
+
+  function cancelarDisclosure() {
+    setShowDisclosure(false);
+    disclosureResolver.current?.(false);
+    disclosureResolver.current = null;
+  }
+
+  // "Empezar" ya no arranca el conteo: enciende la cámara y entra al preflight.
   async function start() {
+    if (!(await asegurarDisclosure())) return;
+    setEncuadre('no_person');
+    setFramesListos(0);
+    // Si este dispositivo ya demostró que su cámara truena (crash nativo en
+    // una sesión anterior), ir DIRECTO al modo simulado — sin reintento, sin
+    // error. Tras actualizar la app se reintenta una vez (ver cameraSupport).
+    const sinCamara = await isPoseCameraMarkedUnsupported();
+    setCamUnavailable(sinCamara);
+    if (sinCamara) { iniciarConteo(); return; } // sin cámara no hay nada que comprobar
+    setFase('preflight');
+  }
+
+  function iniciarConteo() {
     repRef.current = initRepState();
     lastCueRef.current = '';
     minAngleRef.current = 999;
     setReps(0);
     setCues([]);
-    // Si este dispositivo ya demostró que su cámara truena (crash nativo en
-    // una sesión anterior), ir DIRECTO al modo simulado — sin reintento, sin
-    // error. Tras actualizar la app se reintenta una vez (ver cameraSupport).
-    setCamUnavailable(await isPoseCameraMarkedUnsupported());
-    setActive(true);
+    setFase('live');
     setVoiceEnabled(voiceOn);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     speak('¡Empecemos! Cuando quieras.', { interrupt: true });
+  }
+
+  function cancelarPreflight() {
+    setFase('setup');
+    setCamPose(null);
+    setFramesListos(0);
   }
 
   // Termina la sesión y guarda las reps contadas por la IA en el historial.
   // SOLO con cámara real: las reps del modo simulado son de demo y
   // contaminarían el historial y los récords.
   async function stopSession() {
-    setActive(false);
+    setFase('setup');
     const total = repRef.current.reps;
     if (profile && total > 0 && !camUnavailable) {
       try {
@@ -144,7 +222,7 @@ export default function LiveCoachScreen() {
     return (
       <View style={s.container}>
         <PoseCamera
-          active={active}
+          active={usingCamera}
           onPose={setCamPose}
           onUnavailable={() => setCamUnavailable(true)}
         />
@@ -153,11 +231,50 @@ export default function LiveCoachScreen() {
           <View style={s.overlayHeader}>
             <TouchableOpacity style={s.overlayIconBtn} onPress={toggleVoice}
               accessibilityRole="switch"
-              accessibilityLabel="Voz del coach"
+              accessibilityLabel={voiceOn ? 'Indicaciones por voz activadas' : 'Silenciar indicaciones'}
               accessibilityState={{ checked: voiceOn }}>
               <Text style={{ fontSize: 20 }}>{voiceOn ? '🔊' : '🔇'}</Text>
             </TouchableOpacity>
           </View>
+
+          {fase === 'preflight' && (
+            <View style={s.preflightWrap} pointerEvents="box-none">
+              {/* Silueta orientativa: dónde debería quedar el cuerpo. */}
+              <View style={[s.silueta, listoParaEmpezar && { borderColor: Colors.accent }]} pointerEvents="none" />
+
+              <View style={s.preflightCard} accessible accessibilityLiveRegion="polite"
+                accessibilityLabel={`${copyEncuadre.titulo}. ${copyEncuadre.detalle}`}>
+                <Text style={[s.preflightTitle, { color: listoParaEmpezar ? Colors.accent : Colors.warning }]}>
+                  {listoParaEmpezar ? '✓ ' : ''}{copyEncuadre.titulo}
+                </Text>
+                <Text style={s.preflightMsg}>{copyEncuadre.detalle}</Text>
+                <Text style={s.preflightNota}>
+                  {cfg.label} · Todo se procesa en tu teléfono · Despeja el espacio a tu alrededor
+                </Text>
+
+                <TouchableOpacity
+                  style={[s.startBtn, !listoParaEmpezar && s.startBtnOff]}
+                  onPress={iniciarConteo}
+                  disabled={!listoParaEmpezar}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Empezar a contar repeticiones"
+                  accessibilityState={{ disabled: !listoParaEmpezar }}>
+                  <Text style={[s.startTxt, !listoParaEmpezar && { color: Colors.textMuted }]}>
+                    {listoParaEmpezar ? '▶  EMPEZAR' : 'AJUSTA EL ENCUADRE'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={s.preflightCancel} onPress={cancelarPreflight}
+                  accessibilityRole="button" accessibilityLabel="Cancelar y volver">
+                  <Text style={s.preflightCancelTxt}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {fase === 'live' && (
+          <>
           {/* Live region: el contador solo cambia al completar una rep, así que
               anunciarlo no satura — es la única forma de seguir la cuenta sin ver. */}
           <View style={s.overlayTop} accessible accessibilityLiveRegion="polite"
@@ -177,6 +294,8 @@ export default function LiveCoachScreen() {
             accessibilityRole="button" accessibilityLabel="Terminar la sesión en vivo">
             <Text style={s.overlayStopTxt}>Terminar</Text>
           </TouchableOpacity>
+          </>
+          )}
         </SafeAreaView>
       </View>
     );
@@ -262,6 +381,15 @@ export default function LiveCoachScreen() {
           Apoya el teléfono a 2-3 m, de frente o de lado, con tu cuerpo completo en cuadro.
         </Text>
       </ScrollView>
+
+      <CameraDisclosureModal
+        visible={showDisclosure}
+        subject="tu técnica en vivo"
+        destino="local"
+        title="Antes de encender la cámara"
+        onAccept={aceptarDisclosure}
+        onCancel={cancelarDisclosure}
+      />
     </SafeAreaView>
   );
 }
@@ -288,6 +416,27 @@ const s = StyleSheet.create({
   cueMsg: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 19 },
   startBtn: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 18, alignItems: 'center' },
   startTxt: { fontFamily: Fonts.heading, fontSize: 20, color: '#0a0a0b', letterSpacing: 1 },
+  startBtnOff: { backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.borderStrong },
+
+  // ── Preflight ──
+  preflightWrap: { flex: 1, justifyContent: 'flex-end' },
+  silueta: {
+    position: 'absolute', top: '10%', bottom: '28%', left: '22%', right: '22%',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)', borderRadius: 140, borderStyle: 'dashed',
+  },
+  preflightCard: {
+    backgroundColor: 'rgba(10,10,11,0.92)',
+    margin: Spacing.lg, padding: Spacing.lg, borderRadius: Radii.lg,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  preflightTitle: { fontFamily: Fonts.heading, fontSize: 18, marginBottom: 4 },
+  preflightMsg: { fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 20 },
+  preflightNota: {
+    fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textMuted,
+    marginTop: 8, marginBottom: Spacing.md, lineHeight: 17,
+  },
+  preflightCancel: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  preflightCancelTxt: { fontFamily: Fonts.bodyMedium, fontSize: Type.body, color: Colors.textMuted },
   stopBtn: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.lg, paddingVertical: 16, alignItems: 'center' },
   stopTxt: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textMuted },
   hint: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.lg, lineHeight: 18 },

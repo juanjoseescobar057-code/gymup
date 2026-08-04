@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Dimensions, ActivityIndicator, Alert, Image, TextInput,
@@ -19,6 +19,9 @@ import { track } from '../../lib/analytics';
 import { captureError } from '../../lib/monitoring';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
+import OfflineBanner from '../../Components/OfflineBanner';
+import CameraDisclosureModal from '../../Components/CameraDisclosureModal';
+import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../../lib/cameraConsent';
 
 const { width } = Dimensions.get('window');
 const CHART_W = width - 48;
@@ -128,6 +131,8 @@ export default function ProgressScreen() {
   const [goalModal, setGoalModal] = useState(false);
   const [goalTargetInput, setGoalTargetInput] = useState('');
   const [goalWhyInput, setGoalWhyInput] = useState('');
+  const [showDisclosure, setShowDisclosure] = useState(false);
+  const disclosureResolver = useRef<((aceptado: boolean) => void) | null>(null);
 
   useEffect(() => { if (profile) loadAll(); }, [profile]);
 
@@ -322,8 +327,35 @@ export default function ProgressScreen() {
     setGoalModal(false);
   }
 
+  // Aviso antes de la primera foto de transformación. A diferencia de las de
+  // comida o postura, esta NO va a ninguna IA — se guarda en el almacenamiento
+  // privado del usuario. Reutilizar el texto de "se envía a OpenAI" habría
+  // dicho justo lo contrario de lo que pasa, así que el modal recibe
+  // destino="almacenamiento".
+  async function asegurarDisclosure(): Promise<boolean> {
+    if (await hasSeenCameraDisclosure('transform_photo')) return true;
+    return new Promise<boolean>((resolve) => {
+      disclosureResolver.current = resolve;
+      setShowDisclosure(true);
+    });
+  }
+
+  async function aceptarDisclosure() {
+    setShowDisclosure(false);
+    await markCameraDisclosureSeen('transform_photo');
+    disclosureResolver.current?.(true);
+    disclosureResolver.current = null;
+  }
+
+  function cancelarDisclosure() {
+    setShowDisclosure(false);
+    disclosureResolver.current?.(false);
+    disclosureResolver.current = null;
+  }
+
   async function takeTransformPhoto() {
     if (!profile) return;
+    if (!(await asegurarDisclosure())) return;
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) return;
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
@@ -409,6 +441,8 @@ export default function ProgressScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        <OfflineBanner disponible="Ves tus datos guardados. Registrar peso, fotos y misiones se sincroniza al volver la señal." />
 
         {/* Racha + XP */}
         {/* Se agrupa con `accessible` para que el lector lea una frase completa
@@ -786,6 +820,15 @@ export default function ProgressScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <CameraDisclosureModal
+        visible={showDisclosure}
+        subject="tu progreso"
+        destino="almacenamiento"
+        title="Antes de tomar tu foto"
+        onAccept={aceptarDisclosure}
+        onCancel={cancelarDisclosure}
+      />
     </SafeAreaView>
   );
 }

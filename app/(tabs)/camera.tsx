@@ -11,6 +11,7 @@ import { FREE_LIMITS } from '../../lib/subscription';
 import { localDateKey } from '../../lib/foodLogs';
 import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
+import OfflineBanner from '../../Components/OfflineBanner';
 
 const SCAN_OPTIONS = [
   {
@@ -87,6 +88,11 @@ export default function CameraScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: Spacing.lg }}>
+
+        {/* Todo escaneo pasa por la IA: sin señal no hay ninguno. Decirlo
+            aquí evita que el usuario gaste una foto para recibir un error. */}
+        <OfflineBanner disponible="Los escaneos necesitan conexión. Puedes seguir registrando comida a mano." />
+
 
         {/* Resumen rápido del día */}
         {profile && (

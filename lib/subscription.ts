@@ -56,7 +56,9 @@ export const PREMIUM_BENEFITS = [
   `🥗 Escaneo de nevera: hasta ${PREMIUM_LIMITS.fridgeScansPerDay} al día (gratis: ${FREE_LIMITS.fridgeScansPerDay})`,
   `🔄 Regenera tu plan hasta ${PREMIUM_LIMITS.planRegensPerDay} veces al día`,
   '📈 Predicción de resultados',
-  '🚫 Sin anuncios',
+  // NO poner "sin anuncios": la app no tiene anuncios en ninguna versión, así
+  // que sería cobrar por quitar algo que no existe. Si algún día se meten
+  // anuncios en el plan gratis, vuelve esta línea — no antes.
 ];
 
 export type GateResult = { allowed: boolean; reason?: string };

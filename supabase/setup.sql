@@ -267,6 +267,72 @@ drop policy if exists mission_catalog_read on public.mission_catalog;
 create policy mission_catalog_read on public.mission_catalog for select to authenticated using (true);
 revoke insert, update, delete on public.mission_catalog from anon, authenticated;
 
+-- ─── MARGEN DE RACHA SEGÚN EL PLAN ───────────────────────
+-- Cuántos días seguidos SIN entrenar caben antes de romper la racha.
+--
+-- Estaba fijo en 2. Un plan de 3 días/semana tiene huecos programados de 3
+-- días, así que la app rompía la racha de alguien por descansar el día que
+-- ella misma le mandó descansar. Eso no mide constancia: mide suerte con el
+-- calendario, y castiga justo la conducta que el plan pide.
+--
+-- Se deriva del plan activo: la racha se juzga contra las sesiones
+-- PROGRAMADAS. El plan es cíclico (7 días), así que la racha de descansos se
+-- busca sobre el ciclo duplicado para que un hueco que cruza el domingo
+-- cuente igual que uno a mitad de semana.
+--
+-- Cotas: mínimo 2 (nunca más estricto que antes) y máximo 6 (un plan
+-- degenerado con 6 días de descanso no puede convertir la racha en algo que
+-- no se rompe nunca).
+-- Parte pura: recibe el array de días y devuelve el margen. Separada de la
+-- lectura del plan para poder probarla con planes reales sin inventar
+-- usuarios en auth.users.
+create or replace function public._max_rest_gap_days(p_dias jsonb)
+returns integer
+language plpgsql immutable set search_path = public as $$
+declare
+  v_n integer;
+  v_i integer;
+  v_run integer := 0;
+  v_max integer := 0;
+begin
+  if p_dias is null or jsonb_typeof(p_dias) <> 'array' then
+    return 2; -- sin plan que consultar, el comportamiento de siempre
+  end if;
+
+  v_n := jsonb_array_length(p_dias);
+  if v_n = 0 then
+    return 2;
+  end if;
+
+  -- Dos vueltas al ciclo para capturar huecos que cruzan el fin del plan.
+  for v_i in 0 .. (v_n * 2 - 1) loop
+    if coalesce(p_dias -> (v_i % v_n) ->> 'type', 'rest') = 'workout' then
+      v_run := 0;
+    else
+      v_run := v_run + 1;
+      if v_run > v_max then v_max := v_run; end if;
+    end if;
+  end loop;
+
+  -- Un plan sin ningún día de entrenamiento daría v_max = 2n: la cota lo corta.
+  return greatest(2, least(6, v_max + 1));
+end;
+$$;
+
+create or replace function public._max_rest_gap(p_uid uuid)
+returns integer
+language sql stable security definer set search_path = public as $$
+  select public._max_rest_gap_days((
+    select p.plan_data -> 'days'
+    from public.training_plans p
+    where p.user_id = p_uid and p.is_active
+    order by p.generated_at desc
+    limit 1
+  ));
+$$;
+revoke all on function public._max_rest_gap(uuid) from anon, authenticated;
+revoke all on function public._max_rest_gap_days(jsonb) from anon, authenticated;
+
 -- Devuelve TODAS las insignias que corresponden a unas stats dadas. Es pura:
 -- no lee ni escribe user_stats, así que se puede llamar con los valores YA
 -- actualizados antes de persistirlos.
@@ -335,6 +401,7 @@ declare
   v_streak integer;
   v_freezes integer;
   v_gap integer;
+  v_margen integer;        -- días de descanso tolerados según el plan activo
   v_new_streak integer;
   v_freeze_used boolean := false;
   v_same_day boolean := false;
@@ -365,6 +432,8 @@ begin
   where s.user_id = v_uid
   for update;
 
+  v_margen := public._max_rest_gap(v_uid);
+
   if v_last is null then
     v_new_streak := 1;
   else
@@ -373,7 +442,9 @@ begin
       -- Mismo día (o fecha anterior por reloj desfasado): idempotente.
       v_new_streak := v_streak;
       v_same_day := true;
-    elsif v_gap <= 2 then
+    elsif v_gap <= v_margen then
+      -- v_margen sale del plan del usuario, no de un número fijo: descansar
+      -- lo que el plan manda descansar NO rompe la racha (ver _max_rest_gap).
       v_new_streak := v_streak + 1;
     elsif v_freezes > 0 and v_gap <= 8 then
       v_new_streak := v_streak + 1;

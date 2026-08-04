@@ -54,6 +54,15 @@ export function localDayKey(d = new Date()): string {
 // Tolera 1 día de descanso de por medio (el plan incluye descansos),
 // por eso continúa si el gap es de 1 o 2 días. Con un gap mayor, un
 // streak-freeze (si hay) salva la racha y se consume uno.
+//
+// OJO — esto NO es la racha que se guarda. La autoritativa la calcula
+// apply_workout_stats en el servidor, y ALLÁ el margen ya no es fijo: sale
+// del plan activo del usuario (public._max_rest_gap), porque un plan de 3
+// días/semana tiene huecos programados de 3 días y este 2 los rompería.
+// Aquí se deja en 2 a propósito: el valor solo alimenta una estimación
+// optimista que la fila devuelta por la RPC sobrescribe de inmediato.
+// Si algún día esto pasa a persistirse, hay que traer el margen del plan —
+// no al revés.
 export function calculateNewStreak(
   stats: Pick<UserStats, 'current_streak' | 'last_workout_date'> & { streak_freezes?: number },
   todayStr: string = localDayKey()

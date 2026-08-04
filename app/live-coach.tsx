@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────
 
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -115,9 +115,19 @@ export default function LiveCoachScreen() {
     setActive(false);
     const total = repRef.current.reps;
     if (profile && total > 0 && !camUnavailable) {
-      await saveSetLogs(profile.user_id, null, [
-        { exercise_name: cfg.label, set_number: 1, weight_kg: null, reps: total },
-      ]).catch(() => {});
+      try {
+        await saveSetLogs(profile.user_id, null, [
+          { exercise_name: cfg.label, set_number: 1, weight_kg: null, reps: total },
+        ]);
+      } catch {
+        // saveSetLogs ya lo reportó. Aquí solo hace falta no mentirle al
+        // usuario: contó sus reps con la cámara y merecen no desaparecer sin
+        // aviso. Antes esto era un .catch(() => {}) mudo.
+        Alert.alert(
+          'No pudimos guardar tus reps',
+          `Contamos ${total} repeticiones de ${cfg.label}, pero no se pudieron guardar. Revisa tu conexión.`
+        );
+      }
     }
   }
 

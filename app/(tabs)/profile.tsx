@@ -16,6 +16,7 @@ import { regenerateAdaptivePlan, saveAdaptedPlan } from '../../lib/adaptivePlan'
 import { canUseFeature } from '../../lib/subscription';
 import { resetPurchasesIdentity } from '../../lib/purchases';
 import { phReset } from '../../lib/posthog';
+import { cancelDailyNotifications } from '../../lib/dailyNotifications';
 import AuthSheet from '../../Components/AuthSheet';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
@@ -203,6 +204,7 @@ export default function ProfileScreen() {
             }
             await resetPurchasesIdentity(); // desvincula RevenueCat de este uid antes de perder la sesión
             phReset(); // y PostHog: sin esto el próximo usuario hereda la identidad del anterior
+            await cancelDailyNotifications(); // el dispositivo seguía recordándole a quien ya se fue
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);
@@ -249,6 +251,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             await resetPurchasesIdentity(); // sin esto, el próximo usuario en este dispositivo hereda el RevenueCat de este
             phReset();
+            await cancelDailyNotifications();
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);

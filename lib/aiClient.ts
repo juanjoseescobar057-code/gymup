@@ -69,7 +69,13 @@ async function aiChatRaw(body: object, feature: AIFeature): Promise<any> {
   });
   if (!res.ok) {
     const msg = await res.text();
-    captureError(new Error(`ai-proxy ${res.status}`), { status: res.status, msg });
+    // Se trunca antes de reportar: el cuerpo de error de OpenAI puede citar el
+    // prompt, y el prompt puede citar lo que la persona escribió sobre su
+    // salud. 200 caracteres bastan para identificar el tipo de fallo.
+    captureError(new Error(`ai-proxy ${res.status}`), {
+      status: res.status,
+      msg: msg.slice(0, 200),
+    });
     if (res.status === 429) throw new Error('Alcanzaste el límite de IA de hoy. Vuelve mañana o pásate a Premium.');
     if (res.status === 402) throw new Error('Esta función es Premium. Suscríbete para usarla.');
     throw new Error(`IA no disponible (${res.status}): ${msg}`);

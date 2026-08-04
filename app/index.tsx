@@ -72,7 +72,9 @@ export default function Index() {
 
       // Programar las notificaciones diarias AHORA que el usuario ya tiene
       // perfil (pedir permiso en el primer arranque en frío dispara rechazos).
-      setupDailyNotifications().catch(() => {});
+      // Con el user_id para que respete notification_preferences (enabled y
+      // horas). Antes se programaban tres avisos fijos ignorando la tabla.
+      setupDailyNotifications(session.user.id).catch(() => {});
 
       setOnboardingComplete(true);
       router.replace('/(tabs)' as any);

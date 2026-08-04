@@ -90,7 +90,39 @@ export async function initPostHog(distinctId?: string): Promise<void> {
 }
 
 /**
- * Deja las props en algo que PostHog acepta (JSON plano).
+ * Propiedades que NUNCA salen del dispositivo hacia PostHog.
+ *
+ * El fanout hacia PostHog se montó reenviando lo que ya emitía track(), sin
+ * auditar qué llevaba cada uno de los 41 eventos. Resultado: eventos como
+ * `health_screening_completed` mandaban nivel de riesgo, número de condiciones,
+ * número de lesiones y si tenía visto bueno médico. Eso es dato de salud en un
+ * procesador externo, contradice el comentario de este módulo Y contradice la
+ * política de privacidad, que promete que la salud se usa exclusivamente para
+ * seguridad y personalización.
+ *
+ * Se filtran las PROPS, no los eventos: saber que alguien completó el tamizaje
+ * es un paso de embudo legítimo y no revela nada de su salud; saber que su
+ * riesgo era "alto" sí. Los eventos siguen llegando completos a nuestra propia
+ * tabla `analytics_events`, que es first-party y sí está cubierta por la
+ * política.
+ *
+ * Regla para el futuro: ante la duda, va en esta lista. Un embudo con una
+ * dimensión menos se arregla; un dato de salud enviado a un tercero, no.
+ */
+const PROPS_SENSIBLES = new Set([
+  // Salud
+  'risk_level', 'conditions', 'injuries', 'doctor_cleared', 'zone', 'zones',
+  'condition', 'injury', 'pain', 'medical',
+  // Atributos personales
+  'sex', 'age', 'weight', 'weight_kg', 'height_cm', 'target_weight_kg',
+  // Nutrición (ingesta calórica es dato de salud en la práctica)
+  'calories', 'protein_g', 'carbs_g', 'fat_g',
+  // Texto libre que pudiera colarse
+  'msg', 'note', 'other_note', 'content', 'goal_why',
+]);
+
+/**
+ * Deja las props en algo que PostHog acepta (JSON plano) y quita lo sensible.
  * Además de satisfacer al tipo, es una red de seguridad: si algún `track()`
  * mandara por error un objeto grande o una instancia rara, aquí se corta en
  * vez de viajar entero a un tercero.
@@ -99,6 +131,7 @@ function aJson(props?: Record<string, unknown>): Record<string, string | number 
   if (!props) return undefined;
   const out: Record<string, string | number | boolean | null> = {};
   for (const [k, v] of Object.entries(props)) {
+    if (PROPS_SENSIBLES.has(k)) continue; // no sale del dispositivo
     if (v == null) out[k] = null;
     else if (typeof v === 'string') out[k] = v.slice(0, 200);
     else if (typeof v === 'number' || typeof v === 'boolean') out[k] = v;

@@ -75,7 +75,22 @@ class LargeSecureStore {
     // Se guardó en modo de respaldo (build sin el módulo nativo aún): no
     // intentar desencriptar, es texto plano marcado.
     if (stored.startsWith(PLAIN_FALLBACK_PREFIX)) {
-      return stored.slice(PLAIN_FALLBACK_PREFIX.length);
+      const plano = stored.slice(PLAIN_FALLBACK_PREFIX.length);
+      // Sesión guardada sin cifrar por un build anterior. En producción no se
+      // deja así: se re-cifra en el sitio. Es mejor que cerrarle la sesión a
+      // quien no hizo nada malo, y mejor que seguir leyéndola en claro.
+      if (!__DEV__) {
+        try {
+          const cifrada = await this._encrypt(key, plano);
+          await AsyncStorage.setItem(key, cifrada);
+        } catch {
+          // Si tampoco se puede cifrar ahora, el token expuesto se descarta:
+          // el usuario vuelve a iniciar sesión y deja de estar en claro.
+          await this.removeItem(key);
+          return null;
+        }
+      }
+      return plano;
     }
     try {
       return await this._decrypt(key, stored);
@@ -105,11 +120,28 @@ class LargeSecureStore {
       const encrypted = await this._encrypt(key, value);
       await AsyncStorage.setItem(key, encrypted);
     } catch (e) {
-      // Dev client sin el rebuild nativo todavía (SecureStore o el polyfill
-      // de crypto.getRandomValues no están linkeados): degradar con gracia
-      // a texto plano marcado en vez de crashear el login. Automáticamente
-      // se cifra en cuanto el usuario tenga el build nuevo.
       this.warnFallback(e);
+      // EN PRODUCCIÓN SE FALLA CERRADO.
+      //
+      // Antes esto guardaba el token de sesión en texto plano en AsyncStorage
+      // (marcado con un prefijo) tanto en desarrollo COMO en producción — el
+      // `__DEV__` solo silenciaba el aviso, no protegía nada. Cualquiera con
+      // acceso al almacenamiento de la app leía la sesión completa. Y la
+      // política de privacidad afirma que la sesión se guarda cifrada en
+      // Keychain/Keystore, así que además era falso.
+      //
+      // El respaldo tenía sentido para un dev client sin el rebuild nativo:
+      // ahí evita que el login crashee mientras se trabaja. En un build de
+      // producción, que el cifrado no esté disponible es un fallo de build,
+      // no una condición a tolerar: se propaga el error y el usuario vuelve a
+      // iniciar sesión en vez de quedar con el token expuesto.
+      if (!__DEV__) {
+        await AsyncStorage.removeItem(key).catch(() => {});
+        throw new Error(
+          'No se pudo guardar tu sesión de forma segura en este dispositivo. ' +
+          'Vuelve a iniciar sesión; si sigue ocurriendo, reinstala la app.'
+        );
+      }
       await AsyncStorage.setItem(key, PLAIN_FALLBACK_PREFIX + value);
     }
   }

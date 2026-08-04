@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────
 
 import { supabase } from './supabase';
+import { captureError } from './monitoring';
 
 export type SetLogInput = {
   exercise_name: string;
@@ -59,5 +60,21 @@ export async function saveSetLogs(
   if (rows.length === 0) return;
 
   const { error } = await supabase.from('set_logs').insert(rows);
-  if (error) console.log('[setLogs] Error guardando series:', error.message);
+  if (error) {
+    // ANTES ESTO SOLO HACÍA console.log Y SEGUÍA.
+    // Las series son el dato con más valor de toda la app: es el trabajo real
+    // de la persona, lo que alimenta los récords, la progresión de cargas y la
+    // re-planificación adaptativa. Tragarse el error dejaba la sesión marcada
+    // como completada con el peso y las reps perdidos para siempre, sin que
+    // nadie —ni el usuario ni nosotros— se enterara. Y en producción los
+    // console.log se eliminan, así que el rastro tampoco existía.
+    // Ahora se lanza: quien llama decide si reintenta o avisa, pero no puede
+    // fingir que se guardó.
+    captureError(error, {
+      scope: 'saveSetLogs',
+      series: rows.length,
+      con_sesion: sessionId != null,
+    });
+    throw new Error('No se pudieron guardar tus series: ' + error.message);
+  }
 }

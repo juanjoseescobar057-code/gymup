@@ -131,6 +131,12 @@ create table if not exists public.workout_sessions (
   exercises_completed integer default 0,
   posture_score_avg numeric(4,1)
 );
+-- Marca de que esta sesión YA pagó su XP. Es la evidencia que convierte
+-- "el cliente dice que entrenó" en "existe una sesión completada, suya, que
+-- todavía no se ha cobrado". Sin esto, apply_workout_stats sumaba XP en CADA
+-- llamada: bastaba invocarla en bucle para subir de nivel sin entrenar.
+alter table public.workout_sessions add column if not exists xp_credited_at timestamptz;
+
 select public._apply_owner_rls('workout_sessions');
 
 -- ─── SERIES (peso × reps) ────────────────────────────────
@@ -290,16 +296,26 @@ $$;
 -- hasta 2 días por los descansos del plan, comodín hasta FREEZE_MAX_GAP = 8,
 -- nivel = floor(sqrt(xp/100)) + 1) para no alterar el progreso ya ganado.
 --
--- COMPATIBILIDAD: se DROPea la firma de 3 argumentos y se recrea con
--- p_base_xp opcional al final, así una llamada con los 3 nombres viejos sigue
--- resolviendo (el default cubre el cuarto). Los builds ya distribuidos no se
--- rompen mientras sale el build nuevo.
+-- EL XP LO CALCULA EL SERVIDOR, NO EL CLIENTE.
+-- Antes llegaba en p_base_xp/p_xp_delta y aquí solo se acotaba: un cliente
+-- modificado elegía el número dentro del tope. Y peor: el XP se sumaba en CADA
+-- llamada — solo total_workouts respetaba "mismo día" —, así que invocar la RPC
+-- en bucle subía de nivel sin entrenar. Los dos parámetros SIGUEN en la firma
+-- para no romper los builds ya distribuidos, pero se IGNORAN para el monto.
+--
+-- La acreditación se ancla en evidencia: p_session_id debe ser una fila de
+-- workout_sessions del propio usuario, con completed_at, y que no haya cobrado
+-- todavía (xp_credited_at null). Un segundo intento con la misma sesión no
+-- paga. Sin p_session_id (cliente viejo) se cae a idempotencia POR DÍA, que
+-- cierra el abuso aunque sea más basta.
 drop function if exists public.apply_workout_stats(integer, date, text[]);
+drop function if exists public.apply_workout_stats(integer, date, text[], integer);
 create or replace function public.apply_workout_stats(
-  p_xp_delta integer,
-  p_workout_date date,
+  p_xp_delta integer default null,
+  p_workout_date date default null,
   p_badges text[] default '{}',
-  p_base_xp integer default null
+  p_base_xp integer default null,
+  p_session_id uuid default null
 )
 returns table (
   current_streak integer,
@@ -314,7 +330,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid();
   v_date date := coalesce(p_workout_date, current_date);
-  v_xp integer;
+  v_xp integer := 0;
   v_last date;
   v_streak integer;
   v_freezes integer;
@@ -322,6 +338,7 @@ declare
   v_new_streak integer;
   v_freeze_used boolean := false;
   v_same_day boolean := false;
+  v_paga boolean := true;   -- ¿corresponde acreditar XP en esta llamada?
   v_new_sessions integer;
   v_meals integer;
   v_macro_days integer;
@@ -334,16 +351,6 @@ begin
   if v_uid is null then
     raise exception 'apply_workout_stats requiere un usuario autenticado';
   end if;
-
-  -- p_badges se IGNORA a propósito: era el único vector que quedaba para
-  -- auto-otorgarse insignias. Se conserva en la firma solo para no romper a
-  -- los clientes ya distribuidos que todavía lo envían.
-  --
-  -- XP: si el cliente manda p_base_xp (build nuevo) es el XP de la ACTIVIDAD
-  -- sin insignias, y el servidor suma él mismo el XP de las que derive. Si
-  -- viene null (cliente viejo) se usa p_xp_delta tal cual, que YA incluye el
-  -- XP de badges calculado en el cliente — sumarlo otra vez pagaría doble.
-  v_xp := least(greatest(coalesce(p_base_xp, p_xp_delta, 0), 0), 3200);
 
   insert into public.user_stats (user_id) values (v_uid)
   on conflict (user_id) do nothing;
@@ -376,6 +383,36 @@ begin
     end if;
   end if;
 
+  -- ── ¿Esta llamada tiene derecho a cobrar? ──
+  if p_session_id is not null then
+    -- Camino con evidencia: la sesión debe existir, ser suya, estar completada
+    -- y no haber cobrado. El update condicional es la operación atómica que
+    -- impide que dos llamadas concurrentes con el mismo id paguen dos veces.
+    update public.workout_sessions w
+      set xp_credited_at = now()
+    where w.id = p_session_id
+      and w.user_id = v_uid
+      and w.completed_at is not null
+      and w.xp_credited_at is null;
+    if not found then
+      v_paga := false;   -- inexistente, ajena, sin terminar o ya cobrada
+    end if;
+  else
+    -- Camino sin evidencia (builds anteriores al que envía la sesión): se paga
+    -- como mucho una vez por día.
+    v_paga := not v_same_day;
+  end if;
+
+  -- El monto sale de aquí, no del cliente. Debe reflejar XP_PER_WORKOUT y el
+  -- bono de racha de lib/streaks.ts; si cambia allá, cambia aquí.
+  if v_paga then
+    v_xp := 75 + case
+      when v_new_streak >= 7 then 50
+      when v_new_streak >= 3 then 25
+      else 0
+    end;
+  end if;
+
   select coalesce(s.total_workouts, 0) + case when v_same_day then 0 else 1 end
     into v_new_sessions
   from public.user_stats s where s.user_id = v_uid;
@@ -386,9 +423,9 @@ begin
   select coalesce(array_agg(b), '{}'::text[]) into v_fresh
   from unnest(v_derived) as b where not (b = any (v_old_badges));
 
-  -- El XP de insignias solo lo suma el servidor cuando el cliente declaró su
-  -- XP base por separado (ver arriba).
-  if p_base_xp is not null and array_length(v_fresh, 1) > 0 then
+  -- El XP de las insignias solo se paga si la llamada tenía derecho a cobrar:
+  -- si no, un bucle cobraría los badges una y otra vez.
+  if v_paga and array_length(v_fresh, 1) > 0 then
     select coalesce(sum(c.xp), 0) into v_badge_xp
     from public.badge_catalog c where c.id = any (v_fresh);
   end if;
@@ -411,7 +448,7 @@ begin
     from public.user_stats s
     where s.user_id = v_uid;
 end $$;
-grant execute on function public.apply_workout_stats(integer, date, text[], integer) to authenticated;
+grant execute on function public.apply_workout_stats(integer, date, text[], integer, uuid) to authenticated;
 
 -- Actividades que NO son entrenamiento (comida registrada, día perfecto de
 -- macros, escaneo corporal). Sin esta RPC, el revoke de arriba dejaría esas
@@ -648,22 +685,28 @@ grant execute on function public.claim_mission(text, integer) to authenticated;
 -- Compra de un comodín de racha pagando XP. Es la única RPC que RESTA XP, así
 -- que el saldo se verifica en el servidor: sin esto, un cliente modificado
 -- podía comprar comodines infinitos con XP que no tenía.
-create or replace function public.buy_streak_freeze(p_xp_cost integer)
+create or replace function public.buy_streak_freeze(p_xp_cost integer default null)
 returns table (total_xp integer, level integer, streak_freezes integer, ok boolean, reason text)
 language plpgsql security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid();
-  v_cost integer;
+  -- EL PRECIO ES DEL SERVIDOR. p_xp_cost se conserva en la firma solo para no
+  -- romper los builds ya distribuidos, y se IGNORA por completo.
+  --
+  -- Antes el cliente proponía el precio y aquí solo se acotaba a [1, 5000]:
+  -- un cliente modificado compraba por 1 XP algo que cuesta 300. Acotar un
+  -- valor que elige el atacante no es una defensa, solo limita el descuento.
+  --
+  -- ⚠️ ESPEJO de FREEZE_COST en app/(tabs)/progress.tsx. Si cambia allá, cambia
+  -- aquí — y la función devuelve el precio realmente cobrado para que la UI no
+  -- pueda mostrar un número distinto del que se descontó.
+  v_cost constant integer := 300;
   v_xp integer;
   v_freezes integer;
 begin
   if v_uid is null then
     raise exception 'buy_streak_freeze requiere un usuario autenticado';
   end if;
-
-  -- El precio lo propone el cliente pero se acota: nunca gratis (mínimo 1) ni
-  -- absurdo. El precio real vive en FREEZE_COST de app/(tabs)/progress.tsx.
-  v_cost := least(greatest(coalesce(p_xp_cost, 0), 1), 5000);
 
   insert into public.user_stats (user_id) values (v_uid)
   on conflict (user_id) do nothing;

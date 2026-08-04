@@ -25,6 +25,32 @@ Este documento define cómo debe terminarse el diseño de GymUp para que la apli
 
 No es una propuesta para rediseñar GymUp desde cero. La dirección visual actual tiene valor y debe conservarse. El trabajo consiste en corregir jerarquía, contraste, navegación, estados, copy, accesibilidad y comportamiento del sistema.
 
+## Cómo usar este documento
+
+Este archivo funciona como contrato de diseño, no como colección de sugerencias opcionales:
+
+1. **Producto y diseño** resuelven primero las decisiones P0 y cualquier contradicción de objetivo, promesa o modelo de negocio.
+2. **Ingeniería** implementa los componentes desde el sistema visual y los estados globales; no debe copiar cada captura como una pantalla aislada.
+3. **Contenido y revisión clínica** aprueban recomendaciones, mensajes de seguridad, límites y afirmaciones de resultado.
+4. **Privacidad/legal** valida mercados, edades, consentimiento, retención, terceros y clasificación regulatoria antes de publicar.
+5. **QA** verifica los criterios de la sección 4, la matriz de dispositivos y las tareas de usabilidad.
+6. **Analítica** instrumenta únicamente la taxonomía y propiedades aprobadas; un evento nuevo que incluya datos de salud requiere revisión.
+
+Cuando una captura contradiga este documento, prevalece este documento. Igualar píxeles sin resolver comportamiento, estados y seguridad no cuenta como terminado.
+
+## Índice de trabajo
+
+| Bloque | Secciones | Responsable principal |
+|---|---|---|
+| Fundamentos | 1–5 | Producto, diseño, contenido |
+| Sistema y navegación | 6–8 | Diseño e ingeniería |
+| Pantallas | 9–17 | Diseño, ingeniería y QA |
+| Estados y lenguaje | 18–21 | Ingeniería, contenido y producto |
+| Accesibilidad y privacidad | 22–24 | Diseño, ingeniería, privacidad/legal |
+| Medición y calidad | 25–30 | Analítica, ingeniería y QA |
+| Criterio de producto | 31 | Todo el equipo |
+| Trazabilidad visual | Apéndices A–B | Diseño y QA |
+
 ## 2. Material visual revisado
 
 La especificación se construyó a partir de 16 capturas del producto real:
@@ -1231,15 +1257,125 @@ No enviar:
 - nombres de ejercicios asociados con lesión;
 - texto de errores upstream.
 
-## 24. Behavioral analytics
+## 24. Puertas de cumplimiento normativo y tiendas
 
-### 24.1 North Star
+Esta sección traduce obligaciones de alto nivel a decisiones visibles de producto. No sustituye concepto jurídico ni clínico. Antes de cada mercado se debe documentar país, público objetivo, edad mínima, finalidad prevista, claims y flujo real de datos.
+
+### 24.1 Accesibilidad verificable
+
+- Adoptar [WCAG 2.2](https://www.w3.org/WAI/WCAG22/understanding/) nivel AA como línea base de contraste, uso de color, reflow, texto ampliado y controles.
+- En Android, garantizar targets de al menos 48 × 48 dp conforme a la [guía oficial de accesibilidad](https://developer.android.com/guide/topics/ui/accessibility/views/apps-views).
+- En iOS, usar como referencia los controles frecuentes de 44 × 44 pt y las recomendaciones de contraste, texto adaptable, movimiento y pistas multimodales de las [Human Interface Guidelines de accesibilidad](https://developer.apple.com/design/human-interface-guidelines/accessibility).
+- Guardar evidencia de pruebas con Accessibility Scanner, TalkBack, Accessibility Inspector y VoiceOver.
+- Una excepción visual no puede reducir el área táctil; ampliar `hitSlop` cuando el icono deba verse pequeño.
+
+### 24.2 Datos de salud en Colombia
+
+Peso, lesiones, condiciones, fotos corporales, inferencias posturales y ciertos resultados derivados pueden constituir datos sensibles. La [Superintendencia de Industria y Comercio](https://www.sic.gov.co/boletin-juridico-abril-2017/tratamiento-de-los-datos-sensibles-en-casos-relativos-a-la-salud) recuerda que el tratamiento de datos sensibles de salud normalmente requiere autorización explícita.
+
+Requisitos de diseño:
+
+- consentimiento separado, informado, demostrable y no premarcado;
+- explicar finalidad concreta antes de pedir el dato;
+- indicar si suministrarlo es opcional y qué función se pierde al negarse;
+- separar aceptación de términos, marketing, analítica y tratamiento sensible;
+- permitir revocar autorización y solicitar eliminación desde la app;
+- mostrar retención y terceros reales, no categorías vagas;
+- no reutilizar fotos, mensajes o inferencias para publicidad o entrenamiento de modelos sin una base y autorización específicas;
+- conservar comprobante versionado del texto aceptado, sin exponer el dato de salud en telemetría.
+
+La interfaz debe reflejar la operación real del backend. Un copy correcto no compensa una retención, transferencia o eliminación incorrecta.
+
+### 24.3 Frontera entre fitness y dispositivo médico
+
+El [INVIMA indica](https://www.invima.gov.co/node/184) que una aplicación puede considerarse dispositivo médico según su uso, aplicación y finalidad prevista. Antes de lanzar Coach de postura, detección de lesiones o recomendaciones asociadas con dolor, producto y asesoría regulatoria deben fijar por escrito la finalidad prevista.
+
+Hasta completar esa evaluación, la app:
+
+- no diagnostica lesiones, enfermedades o deficiencias;
+- no afirma prevenir, tratar, curar o rehabilitar una condición;
+- no promete que una corrección automática evita lesiones;
+- no presenta estimaciones visuales como mediciones clínicas;
+- no comunica porcentajes de precisión sin protocolo y evidencia;
+- distingue “señal no visible”, “estimación incierta” y “posible ajuste técnico”;
+- deriva a profesional cualificado ante dolor intenso, trauma, pérdida de fuerza, mareo u otra señal de alarma definida clínicamente;
+- aclara que no sirve para emergencias.
+
+Un disclaimer no neutraliza una funcionalidad que en la práctica diagnostique o trate. Si cambia la finalidad prevista, se reabre la evaluación regulatoria antes de diseñar el claim o publicar la función.
+
+### 24.4 Google Play
+
+GymUp entra en la categoría de salud y fitness. Antes del release se debe:
+
+- completar correctamente la declaración de Health Apps;
+- publicar una política de privacidad activa, pública, accesible dentro de la app y coherente con Data Safety;
+- mostrar disclosure prominente antes de permisos o recolección sensible;
+- pedir únicamente permisos necesarios para una función visible;
+- declarar con precisión actividad/fitness, nutrición/peso y cualquier otra categoría aplicable;
+- alinear descripción de tienda, onboarding y comportamiento real;
+- incluir la declaración de no ser dispositivo médico y la recomendación de consultar a un profesional cuando corresponda;
+- aportar evidencia regulatoria si finalmente se presenta como dispositivo médico.
+
+Fuente operativa: [Política de contenido y servicios de salud de Google Play](https://support.google.com/googleplay/android-developer/answer/16679511).
+
+### 24.5 App Store
+
+Las [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/) exigen especial cuidado en funcionalidades médicas, exactitud de mediciones, privacidad y datos de salud. El release de iOS debe verificar:
+
+- metodología y limitaciones visibles para cada medición o inferencia;
+- política de privacidad accesible dentro de la app;
+- datos recopilados, terceros, retención, revocación y eliminación claramente descritos;
+- no usar datos de salud/fitness para publicidad o minería de marketing;
+- coherencia entre permisos, App Privacy y comportamiento real;
+- derivación a profesional antes de decisiones médicas;
+- no almacenar información personal de salud en mecanismos incompatibles con la política de Apple.
+
+### 24.6 Edad, mercados y expansión
+
+- Definir si el producto es exclusivamente para mayores de edad. El diseño actual no resuelve uso por menores.
+- Si se admiten menores, detener el lanzamiento de fotos corporales, chat, personalización nutricional y analítica sensible hasta contar con evaluación específica, consentimiento aplicable y salvaguardas de edad.
+- Antes de operar en la Unión Europea, revisar GDPR y, según los claims, MDR; antes de Estados Unidos, revisar leyes estatales de privacidad y el marco aplicable a health apps.
+- No usar geolocalización inferida como sustituto del mercado contractual o residencia relevante.
+
+### 24.7 Expediente mínimo de evidencia
+
+Mantener versionado, por release:
+
+- inventario de claims en app, web y tiendas;
+- finalidad prevista y público objetivo;
+- fuentes clínicas y fecha de revisión;
+- validación de recomendaciones y límites;
+- métricas del modelo por ejercicio, dispositivo, iluminación y tipo corporal;
+- umbrales de incertidumbre y abstención;
+- matriz de datos: origen, finalidad, destino, retención y eliminación;
+- proveedores y transferencias;
+- textos de consentimiento/disclosure con versión;
+- pruebas de accesibilidad;
+- plan de incidentes y escalamiento de contenido dañino;
+- responsables que aprobaron producto, clínica, privacidad y seguridad.
+
+### 24.8 Gate de salida
+
+El release queda bloqueado si ocurre cualquiera de estos casos:
+
+- privacidad o consentimiento describen algo distinto a la implementación;
+- existe un claim médico sin evidencia/aprobación;
+- una inferencia insegura se presenta con certeza;
+- cámara, fotos o memoria funcionan antes del disclosure aplicable;
+- no es posible revocar consentimiento o borrar los datos prometidos;
+- las declaraciones de tiendas están incompletas;
+- no se decidió política de edad;
+- QA no puede demostrar contraste, targets, lector de pantalla y texto ampliado.
+
+## 25. Behavioral analytics
+
+### 25.1 North Star
 
 **Weekly Safe Progress Users:** usuarios que completan acciones programadas/adaptadas durante la semana, registran check-in y no reportan señales de deterioro atribuibles al plan.
 
 No usar tiempo en pantalla, cantidad de escaneos o mensajes como North Star.
 
-### 24.2 Métricas principales
+### 25.2 Métricas principales
 
 - tiempo hasta primera acción útil;
 - inicio de sesión programada;
@@ -1256,7 +1392,7 @@ No usar tiempo en pantalla, cantidad de escaneos o mensajes como North Star.
 - desactivación de notificaciones;
 - reporte de contenido incorrecto.
 
-### 24.3 Funnels
+### 25.3 Funnels
 
 #### Entrenamiento
 
@@ -1278,7 +1414,7 @@ No usar tiempo en pantalla, cantidad de escaneos o mensajes como North Star.
 
 `progress_view → weight_add_started → weight_saved → second_measurement_saved → trend_viewed`
 
-### 24.4 Propiedades permitidas
+### 25.4 Propiedades permitidas
 
 - pantalla;
 - feature;
@@ -1292,7 +1428,7 @@ No usar tiempo en pantalla, cantidad de escaneos o mensajes como North Star.
 
 No incluir valores de salud o contenido libre.
 
-### 24.5 Experimentos responsables
+### 25.5 Experimentos responsables
 
 1. Dashboard de ceros vs. siguiente acción.
 2. “Estancado” vs. “datos insuficientes/tendencia estable”.
@@ -1312,7 +1448,7 @@ Guardrails obligatorios:
 - reportes de respuesta dañina;
 - disminución de confianza/utilidad.
 
-## 25. Responsive y dispositivos
+## 26. Responsive y dispositivos
 
 Probar mínimo:
 
@@ -1330,7 +1466,7 @@ Probar mínimo:
 
 Aunque tablet esté deshabilitada, el layout no debe depender de un ancho fijo a nivel de módulo. Usar `useWindowDimensions` y límites máximos de contenido.
 
-## 26. Performance percibida
+## 27. Performance percibida
 
 - Interacción visual en menos de 100 ms.
 - Skeleton en operaciones >300 ms.
@@ -1342,9 +1478,9 @@ Aunque tablet esté deshabilitada, el layout no debe depender de un ancho fijo a
 - Listas virtualizadas.
 - Evitar recalcular toda la pantalla por temporizadores.
 
-## 27. QA de usabilidad
+## 28. QA de usabilidad
 
-### 27.1 Prueba de cinco segundos
+### 28.1 Prueba de cinco segundos
 
 Después de cinco segundos, al menos 80% debe responder:
 
@@ -1352,7 +1488,7 @@ Después de cinco segundos, al menos 80% debe responder:
 - cuál es la acción principal;
 - cuál es su estado de hoy.
 
-### 27.2 Tareas
+### 28.2 Tareas
 
 Objetivo de éxito sin asistencia: mínimo 90%.
 
@@ -1369,7 +1505,7 @@ Objetivo de éxito sin asistencia: mínimo 90%.
 11. Exportar datos.
 12. Eliminar cuenta.
 
-### 27.3 Preguntas de comprensión
+### 28.3 Preguntas de comprensión
 
 - ¿Los macros son exactos o estimados?
 - ¿La foto se guarda?
@@ -1380,7 +1516,7 @@ Objetivo de éxito sin asistencia: mínimo 90%.
 - ¿Qué ocurre si no hay conexión?
 - ¿Premium se renueva automáticamente?
 
-## 28. Priorización de implementación
+## 29. Priorización de implementación
 
 ### P0 — Antes de cualquier release visual
 
@@ -1421,7 +1557,7 @@ Objetivo de éxito sin asistencia: mínimo 90%.
 - Experimentos A/B con guardrails.
 - Optimización tablet si entra en roadmap.
 
-## 29. Checklist de entrega para pull request
+## 30. Checklist de entrega para pull request
 
 Cada PR de pantalla debe incluir:
 
@@ -1442,7 +1578,7 @@ Cada PR de pantalla debe incluir:
 - confirmación de modo reduce motion;
 - criterio de aceptación vinculado a este documento.
 
-## 30. Criterio final de producto
+## 31. Criterio final de producto
 
 GymUp estará bien diseñado cuando una persona pueda abrirla y sentir:
 
@@ -1581,4 +1717,3 @@ La app no debe buscar que la persona permanezca más tiempo dentro de ella. Debe
 - No permitir que la cámara central parezca la pestaña activa en todas las rutas.
 - No esconder privacidad únicamente en términos legales.
 - No usar engagement bruto como sustituto de progreso saludable.
-

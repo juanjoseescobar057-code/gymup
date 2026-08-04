@@ -251,6 +251,11 @@ export default function WorkoutSessionScreen() {
     const doneSets = Object.values(completedSets).reduce((a, b) => a + b, 0);
     const durationMin = Math.round(elapsed / 60);
     const prNames: string[] = []; // récords detectados en esta sesión
+    // Id de la sesión guardada. Viaja hasta recordWorkoutCompleted como
+    // EVIDENCIA: el servidor solo acredita XP si existe esa fila, es de este
+    // usuario, está completada y no ha cobrado antes. Sin él, un bucle de
+    // llamadas a la RPC subía de nivel sin entrenar.
+    let sessionId: string | null = null;
 
     try {
       // 1. Guardar la sesión en Supabase (con id para enlazar las series).
@@ -277,6 +282,7 @@ export default function WorkoutSessionScreen() {
         // Antes solo se logueaba: el entreno se perdía y el usuario veía la
         // pantalla de celebración igual. Ahora aborta y deja reintentar.
         if (error) throw new Error(`No se pudo guardar la sesión: ${error.message}`);
+        sessionId = session?.id ?? null;
 
         // 1b. Detectar PRs ANTES de guardar (comparar contra el histórico previo).
         // Cosmético: no detectar un récord no le cuesta el entreno a nadie.
@@ -296,7 +302,7 @@ export default function WorkoutSessionScreen() {
         }
 
         // 1c. Guardar las series registradas (peso × reps).
-        await saveSetLogs(profile.user_id, session?.id ?? null, loggedSetsRef.current);
+        await saveSetLogs(profile.user_id, sessionId, loggedSetsRef.current);
       }
 
       // 2. Datos a salvo en el servidor: RECIÉN AHORA se borra el snapshot
@@ -366,7 +372,7 @@ export default function WorkoutSessionScreen() {
       let badgeNames: string[] = [];
       if (profile) {
         try {
-          const r = await recordWorkoutCompleted(profile.user_id);
+          const r = await recordWorkoutCompleted(profile.user_id, sessionId);
           xpGained = r.xpGained;
           newStreak = r.newStreak;
           leveledUp = r.leveledUp;

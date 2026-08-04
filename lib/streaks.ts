@@ -188,7 +188,14 @@ export async function loadUserStats(userId: string): Promise<UserStats> {
 // auth.uid(), acota el XP, es idempotente por día y recalcula racha, nivel y
 // total_workouts. El cliente PROPONE (XP y badges), el servidor DISPONE.
 export async function recordWorkoutCompleted(
-  userId: string
+  userId: string,
+  /**
+   * Id de la fila de workout_sessions que se acaba de cerrar. Es la EVIDENCIA:
+   * el servidor comprueba que existe, que es de este usuario, que está
+   * completada y que no ha cobrado todavía, y solo entonces acredita. Sin él
+   * (builds anteriores) el servidor cae a acreditar una vez por día.
+   */
+  sessionId?: string | null
 ): Promise<{ newBadges: BadgeId[]; xpGained: number; streakBroken: boolean; newStreak: number; leveledUp: boolean; freezeUsed: boolean }> {
   const stats = await loadUserStats(userId);
   const hoy = localDayKey(); // día LOCAL, no UTC (ver streaksMath)
@@ -199,14 +206,17 @@ export async function recordWorkoutCompleted(
   const baseXp = XP_PER_WORKOUT + streakBonus;
   const prevLevel = xpToLevel(stats.total_xp);
 
-  // p_base_xp = XP de la ACTIVIDAD, sin insignias. El servidor deriva las
-  // insignias de las stats reales y suma él mismo su XP; el cliente ya no
-  // propone ninguna (p_badges se envía vacío y de todos modos se ignora allá).
+  // El MONTO ya no lo decide el cliente: el servidor calcula el XP base y el
+  // bono de racha, deriva las insignias de las stats reales y paga su XP.
+  // p_xp_delta y p_base_xp siguen viajando solo por compatibilidad de firma y
+  // allá se ignoran. Lo que sí importa es p_session_id: es la evidencia de que
+  // hubo un entrenamiento y lo que impide que se cobre dos veces.
   const { data, error } = await supabase.rpc('apply_workout_stats', {
     p_xp_delta: baseXp,
     p_base_xp: baseXp,
     p_workout_date: hoy,
     p_badges: [],
+    p_session_id: sessionId ?? null,
   });
 
   // La RPC devuelve `returns table`, o sea una fila dentro de un array.

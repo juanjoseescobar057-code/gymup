@@ -91,7 +91,9 @@ export default function CameraScreen() {
 
         {/* Todo escaneo pasa por la IA: sin señal no hay ninguno. Decirlo
             aquí evita que el usuario gaste una foto para recibir un error. */}
-        <OfflineBanner disponible="Los escaneos necesitan conexión. Puedes seguir registrando comida a mano." />
+        {/* No se promete el registro manual aquí: no usa IA, pero SÍ necesita
+            guardar en el servidor, así que sin señal tampoco funciona. */}
+        <OfflineBanner disponible="Tus registros de hoy siguen ahí. Escanear y guardar comida vuelven con la señal." />
 
 
         {/* Resumen rápido del día */}
@@ -165,6 +167,22 @@ export default function CameraScreen() {
           );
         })}
 
+        {/* Salida sin IA. Va DESPUÉS de los escáneres (no compite con ellos)
+            pero siempre visible: es lo único que funciona sin señal, sin
+            permiso de cámara y con el cupo del día agotado. */}
+        <TouchableOpacity style={s.manualCard} onPress={() => router.push('/food-manual' as any)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Registrar una comida a mano"
+          accessibilityHint="Escribes tú los macros, sin foto y sin usar cupo de escaneos">
+          <Text style={{ fontSize: 22 }}>✏️</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.manualTitle}>Registrar a mano</Text>
+            <Text style={s.manualDesc}>Sin foto y sin gastar escaneos. Tú pones los números.</Text>
+          </View>
+          <Text style={s.manualArrow}>›</Text>
+        </TouchableOpacity>
+
         {/* Tip del día */}
         <View style={s.tipCard}>
           <View style={s.aiDotRow}>
@@ -211,6 +229,15 @@ const s = StyleSheet.create({
   optionDesc: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
   optionArrow: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   optionArrowTxt: { fontFamily: Fonts.heading, fontSize: 22 },
+  manualCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.bgCard, borderRadius: Radii.lg,
+    borderWidth: 1, borderColor: Colors.border,
+    padding: Spacing.md, marginBottom: Spacing.md,
+  },
+  manualTitle: { fontFamily: Fonts.bodySemi, fontSize: Type.bodyLg, color: Colors.textPrimary },
+  manualDesc: { fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textSecondary, marginTop: 2, lineHeight: 17 },
+  manualArrow: { fontSize: 24, color: Colors.textMuted },
   tipCard: { backgroundColor: Colors.bgSelected, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md },
   aiDotRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },

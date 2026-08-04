@@ -100,6 +100,7 @@ export default function RootLayout() {
         <Stack.Screen name="body-scan" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="food-scan" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="fridge-scan" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="food-manual" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="workout-session" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="exercises" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="paywall" options={{ animation: 'slide_from_bottom' }} />

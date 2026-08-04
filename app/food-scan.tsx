@@ -7,11 +7,10 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { analyzeFoodPhoto } from '../lib/openai';
-import { recordMealLogged } from '../lib/streaks';
+import { registrarComida } from '../lib/logMeal';
 import { canUseFeature } from '../lib/subscription';
 import { localDateKey } from '../lib/foodLogs';
 import { useUserStore } from '../store/userStore';
@@ -104,7 +103,10 @@ export default function FoodScanScreen() {
         const gate = canUseFeature('food_scan', false, used);
         if (!gate.allowed) {
           track('quota_hit', { feature: 'food_scan' });
-          Alert.alert('Límite alcanzado', gate.reason ?? '', [
+          // Quedarse sin escaneos no puede significar quedarse sin registrar
+          // el día: la salida manual va PRIMERO, antes que el paywall.
+          Alert.alert('Sin escaneos por hoy', gate.reason ?? '', [
+            { text: 'Registrar a mano', onPress: () => router.replace('/food-manual' as any) },
             { text: 'Ver Premium', onPress: () => router.push('/paywall' as any) },
             { text: 'Cerrar', style: 'cancel' },
           ]);
@@ -117,7 +119,16 @@ export default function FoodScanScreen() {
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!perm.granted) {
-        Alert.alert('Permiso necesario', 'GymUp necesita acceso a la cámara o galería.');
+        // Negar el permiso no puede ser un callejón sin salida (§18.5): se
+        // explica para qué era y se ofrece la alternativa que no lo necesita.
+        Alert.alert(
+          'Sin acceso a la cámara',
+          'La usamos solo para analizar la foto de tu plato. Puedes activarla en los ajustes del teléfono, o registrar la comida a mano.',
+          [
+            { text: 'Registrar a mano', onPress: () => router.replace('/food-manual' as any) },
+            { text: 'Cerrar', style: 'cancel' },
+          ],
+        );
         return;
       }
 
@@ -178,107 +189,33 @@ export default function FoodScanScreen() {
     addingRef.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const log = {
-      id: Date.now().toString(),
-      user_id: profile.user_id,
-      logged_at: new Date().toISOString(),
-      photo_url: photoUri ?? undefined,
-      meal_name: portion !== 1 ? `${scaled.meal_name} (×${portion})` : scaled.meal_name,
-      food_description: scaled.food_description,
-      calories: scaled.calories,
-      protein_g: scaled.protein_g,
-      carbs_g: scaled.carbs_g,
-      fat_g: scaled.fat_g,
-      fiber_g: scaled.fiber_g,
-    };
-
-    // PRIMERO SE GUARDA, DESPUÉS SE CELEBRA.
-    // Antes esto iba al revés: se metía la comida en el estado local, se
-    // emitía el evento de analítica y se otorgaba XP, y el insert viajaba
-    // suelto con un console.log por toda gestión de error. Si fallaba, el
-    // usuario veía sus macros actualizados y su XP sumado por una comida que
-    // no existía en el servidor — y al recargar la app desaparecía sin
-    // explicación.
-    const { error: dbError } = await supabase.from('food_logs').insert({
-      user_id: profile.user_id,
-      logged_at: log.logged_at,
-      meal_name: log.meal_name,
-      food_description: log.food_description,
-      // photo_url NO se guarda: era el URI LOCAL del dispositivo guardado como
-      // si fuera una URL persistente. No sirve en otro teléfono, no se muestra
-      // en ninguna pantalla y expone la estructura de archivos del usuario.
-      calories: log.calories,
-      protein_g: log.protein_g,
-      carbs_g: log.carbs_g,
-      fat_g: log.fat_g,
-      fiber_g: log.fiber_g,
+    // La secuencia completa (guardar → analítica → XP → avisos) vive en
+    // lib/logMeal.ts para que el registro manual siga exactamente el mismo
+    // camino. Aquí solo queda lo propio del escaneo: la porción y la foto.
+    const res = await registrarComida({
+      userId: profile.user_id,
+      comida: {
+        meal_name: portion !== 1 ? `${scaled.meal_name} (×${portion})` : scaled.meal_name,
+        food_description: scaled.food_description,
+        calories: scaled.calories,
+        protein_g: scaled.protein_g,
+        carbs_g: scaled.carbs_g,
+        fat_g: scaled.fat_g,
+        fiber_g: scaled.fiber_g,
+      },
+      totalesPrevios: totals,
+      metas: profile,
+      origen: 'escaneo',
+      propsExtra: { portion },
     });
 
-    if (dbError) {
-      captureError(dbError, { scope: 'food_scan.insert', calories: log.calories });
+    if (!res.ok) {
       addingRef.current = false; // liberar el guard: tiene que poder reintentar
-      Alert.alert(
-        'No pudimos guardar tu comida',
-        'Revisa tu conexión e intenta de nuevo. No se registró nada, así que tus macros de hoy siguen correctos.'
-      );
+      Alert.alert('No pudimos guardar tu comida', res.mensaje);
       return;
     }
 
-    addFoodLog(log as any);
-    track('food_added', { calories: scaled.calories, protein_g: scaled.protein_g, portion });
-
-    // Gamificación: registrar la comida (XP + badges). Si con esta comida se
-    // alcanzaron TODAS las metas del día → cuenta como día de macros completo
-    // (el evento sigue llamándose macro_day_perfect: es contrato de analítica).
-    const macroPerfect =
-      totals.calories + scaled.calories >= profile.daily_calories &&
-      totals.protein_g + scaled.protein_g >= profile.daily_protein_g &&
-      totals.carbs_g + scaled.carbs_g >= profile.daily_carbs_g &&
-      totals.fat_g + scaled.fat_g >= profile.daily_fat_g;
-
-    recordMealLogged(profile.user_id, macroPerfect)
-      .then((r) => {
-        if (r.macroDayCounted) {
-          track('macro_day_perfect'); // adherencia nutricional total: 1 vez/día
-          // El aviso reporta el hecho y el XP; no premia ni juzga a la persona
-          // por lo que comió (ver nota de copy en la tarjeta de impacto).
-          Notifications.scheduleNotificationAsync({
-            content: {
-              title: '🎯 Metas de macros del día cubiertas',
-              body: 'Alcanzaste tus cuatro metas de hoy: calorías, proteína, carbos y grasa. +50 XP.',
-              sound: 'default',
-            },
-            trigger: null,
-          }).catch(() => {});
-        }
-      })
-      .catch((e) => console.log('[FoodScan] Error gamificación:', e?.message));
-
-    // Notificación según progreso de proteína
-    const newProtein = totals.protein_g + scaled.protein_g;
-    const pct = (newProtein / Math.max(profile.daily_protein_g, 1)) * 100;
-
-    if (pct >= 100) {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '🎯 Meta de proteína cubierta',
-          body: `Llevas ${Math.round(newProtein)}g de proteína de tus ${Math.round(profile.daily_protein_g)}g de hoy.`,
-          sound: 'default',
-        },
-        trigger: null,
-      });
-    } else if (pct >= 80) {
-      const remaining = Math.round(profile.daily_protein_g - newProtein);
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '💪 Cerca de tu meta de proteína',
-          body: `Te faltan ${remaining}g. Un batido o un par de huevos aportan una cantidad parecida.`,
-          sound: 'default',
-        },
-        trigger: null,
-      });
-    }
-
+    addFoodLog(res.log as any);
     setPhase('added');
   }
 

@@ -63,8 +63,8 @@ type PreviousScan = {
 
 const STATUS_CONFIG = {
   strength: { color: Colors.accent, bg: Colors.accentMuted,          icon: '✅', label: 'Fortaleza' },
-  focus:    { color: '#ff9d3a',     bg: 'rgba(255,157,58,0.10)',     icon: '⚠️', label: 'Trabajar'  },
-  priority: { color: '#ff4444',     bg: 'rgba(255,68,68,0.10)',      icon: '🔴', label: 'Prioridad' },
+  focus:    { color: Colors.warning,     bg: 'rgba(255,157,58,0.10)',     icon: '⚠️', label: 'Trabajar'  },
+  priority: { color: Colors.error,     bg: 'rgba(255,68,68,0.10)',      icon: '🔴', label: 'Prioridad' },
 };
 
 // Una foto de celular no está calibrada: no hay escala, ni pliegues, ni
@@ -727,7 +727,7 @@ export default function BodyScanScreen() {
   if (phase === 'result' && result) {
     const scoreColor =
       result.overall_score >= 80 ? Colors.accent :
-      result.overall_score >= 60 ? '#ff9d3a' : '#ff4444';
+      result.overall_score >= 60 ? Colors.warning : Colors.error;
     const scoreDelta = previousScan ? result.overall_score - previousScan.overall_score : 0;
 
     return (

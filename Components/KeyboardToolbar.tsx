@@ -35,7 +35,8 @@ const s = StyleSheet.create({
   hint: {
     fontFamily: Fonts.body,
     fontSize: 13,
-    color: '#555',
+    // Era '#555' incrustado: el mismo gris ilegible que se sacó del tema.
+    color: Colors.textMuted,
   },
   btn: {
     backgroundColor: '#c8ff3e',

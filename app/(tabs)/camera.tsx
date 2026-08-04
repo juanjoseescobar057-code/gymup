@@ -146,7 +146,7 @@ export default function CameraScreen() {
                   <Text style={s.optionTitle}>{opt.title}</Text>
                   {chip && (
                     <View style={[s.chip, chip.warn && s.chipWarn]}>
-                      <Text style={[s.chipTxt, chip.warn && { color: '#ff9d3a' }]}>{chip.txt}</Text>
+                      <Text style={[s.chipTxt, chip.warn && { color: Colors.warning }]}>{chip.txt}</Text>
                     </View>
                   )}
                 </View>

@@ -58,7 +58,7 @@ function WeightChart({ entries, gainIsGood }: { entries: WeightEntry[]; gainIsGo
         <Text style={{ fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase' }}>
           {entries.length} registros
         </Text>
-        <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 12, color: (gainIsGood ? trend >= 0 : trend <= 0) ? Colors.accent : '#ff7c3a' }}>
+        <Text style={{ fontFamily: Fonts.bodyMedium, fontSize: 12, color: (gainIsGood ? trend >= 0 : trend <= 0) ? Colors.accent : Colors.macroFat }}>
           {trend >= 0 ? '+' : ''}{trend.toFixed(1)} kg total
         </Text>
       </View>
@@ -77,7 +77,7 @@ function WeightChart({ entries, gainIsGood }: { entries: WeightEntry[]; gainIsGo
         ))}
         {[maxW, (maxW + minW) / 2, minW].map((w, i) => (
           <SvgText key={i} x={pl - 4} y={pt + (i * iH / 2) + 4}
-            fill={Colors.textMuted} fontSize={8} textAnchor="end" fontFamily={Fonts.body}>
+            fill={Colors.textMuted} fontSize={11} textAnchor="end" fontFamily={Fonts.body}>
             {w.toFixed(0)}
           </SvgText>
         ))}
@@ -89,7 +89,7 @@ function WeightChart({ entries, gainIsGood }: { entries: WeightEntry[]; gainIsGo
         ))}
         {[0, entries.length - 1].map((i) => (
           <SvgText key={i} x={tx(i)} y={CHART_H - 4}
-            fill={Colors.textMuted} fontSize={8} textAnchor="middle" fontFamily={Fonts.body}>
+            fill={Colors.textMuted} fontSize={11} textAnchor="middle" fontFamily={Fonts.body}>
             {entries[i].date.slice(5)}
           </SvgText>
         ))}
@@ -577,7 +577,7 @@ export default function ProgressScreen() {
             </View>
             {weights.length >= 2 && (
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[s.wChange, { color: (profile?.goal === 'muscle_gain' ? wChange >= 0 : wChange <= 0) ? Colors.accent : '#ff7c3a' }]}>
+                <Text style={[s.wChange, { color: (profile?.goal === 'muscle_gain' ? wChange >= 0 : wChange <= 0) ? Colors.accent : Colors.macroFat }]}>
                   {wChange >= 0 ? '+' : ''}{wChange.toFixed(1)} kg
                 </Text>
                 <Text style={s.miniLbl}>desde inicio</Text>

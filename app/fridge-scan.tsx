@@ -28,7 +28,7 @@ import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 import type { FridgeAnalysis, Recipe } from '../lib/openai-features';
 
 function QualityBar({ score }: { score: number }) {
-  const color = score >= 75 ? Colors.accent : score >= 50 ? '#ff9d3a' : '#ff4444';
+  const color = score >= 75 ? Colors.accent : score >= 50 ? Colors.warning : Colors.error;
   // El copy describe la COMPOSICIÓN de la nevera, no califica a quien la llenó:
   // "Nevera sana / Necesita atención" leía como una nota moral sobre la persona,
   // y ese tono es el que dispara culpa alimentaria en una app de nutrición.
@@ -56,7 +56,7 @@ function QualityBar({ score }: { score: number }) {
 
 function RecipeCard({ recipe, goal }: { recipe: Recipe; goal: string }) {
   const [expanded, setExpanded] = useState(false);
-  const alignColor = recipe.goal_alignment >= 80 ? Colors.accent : '#ff9d3a';
+  const alignColor = recipe.goal_alignment >= 80 ? Colors.accent : Colors.warning;
 
   return (
     <TouchableOpacity

@@ -31,7 +31,7 @@ const OPTIONS = [
   { id: 'shoulder_press', emoji: '⬆️', label: 'Press hombro' },
 ];
 
-const SEV_COLOR: Record<string, string> = { good: Colors.accent, warn: '#ff9d3a', error: '#ff4444' };
+const SEV_COLOR: Record<string, string> = { good: Colors.accent, warn: Colors.warning, error: Colors.error };
 
 export default function LiveCoachScreen() {
   useSafeKeepAwake('live-coach'); // que la pantalla no se apague en plena serie
@@ -229,8 +229,8 @@ export default function LiveCoachScreen() {
           accessibilityLabel={`${reps} repeticiones. ${phase === 'down' ? 'Bajando' : 'Arriba'}`}>
           <Text style={s.repNum}>{reps}</Text>
           <Text style={s.repLbl}>REPETICIONES</Text>
-          <View style={[s.phasePill, { borderColor: phase === 'down' ? '#ff9d3a' : Colors.accent }]}>
-            <Text style={[s.phaseTxt, { color: phase === 'down' ? '#ff9d3a' : Colors.accent }]}>
+          <View style={[s.phasePill, { borderColor: phase === 'down' ? Colors.warning : Colors.accent }]}>
+            <Text style={[s.phaseTxt, { color: phase === 'down' ? Colors.warning : Colors.accent }]}>
               {phase === 'down' ? '⬇ BAJANDO' : '⬆ ARRIBA'}
             </Text>
           </View>

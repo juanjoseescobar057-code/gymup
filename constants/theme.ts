@@ -1,7 +1,17 @@
 // constants/theme.ts
 // ─────────────────────────────────────────────────────────
-// Sistema de diseño de GymAI
+// Sistema de diseño de GymUp
 // Paleta oscura con acento verde eléctrico
+//
+// CONTRASTE: los valores de texto están elegidos para cumplir WCAG 2.2 AA
+// sobre `bg` y sobre `bgCard`, y eso se COMPRUEBA en __tests__/contrast.test.ts.
+// Si alguien vuelve a bajar un token de texto, la suite falla.
+//
+// El pecado anterior era `textMuted: '#555555'`, que da ~2.6:1 sobre el fondo
+// —muy por debajo del 4.5:1 exigido— y se usaba en toda la app para
+// instrucciones, unidades y descripciones que el usuario TIENE que leer. Gris
+// sobre casi negro se ve elegante en una captura y es ilegible al sol o para
+// alguien con visión reducida.
 // ─────────────────────────────────────────────────────────
 
 export const Colors = {
@@ -17,24 +27,37 @@ export const Colors = {
   accentMuted: 'rgba(200,255,62,0.12)', // Acento suave (fondos badges)
   accentBorder: 'rgba(200,255,62,0.25)', // Borde acento
 
-  // Textos
-  textPrimary: '#ffffff',
-  textSecondary: '#888888',
-  textMuted: '#555555',
+  // Textos — los tres primeros son LEGIBLES y cumplen AA.
+  textPrimary: '#f7f7f8',   // Títulos y valores
+  textSecondary: '#b3b3ba', // Descripciones e instrucciones (9.2:1)
+  textMuted: '#96969f',     // Metadata secundaria, aún legible (6.5:1)
+  /**
+   * SOLO para controles realmente deshabilitados. No cumple AA a propósito:
+   * su trabajo es comunicar "esto no se puede tocar". Nunca para instrucciones
+   * ni para texto que haga falta leer — ese fue justamente el error anterior.
+   */
+  textDisabled: '#686870',
 
   // Bordes
-  border: '#2a2a2e',
-  borderStrong: '#3a3a3e',
+  border: '#34343b',
+  borderStrong: '#4a4a52',
 
   // Semánticos
-  warning: '#ff9d3a',
-  error: '#ff4444',
-  info: '#3a9fff',
+  warning: '#ffb454',
+  error: '#ff6262',
+  info: '#55b6ff',
+  success: '#7fe36a',
+  /**
+   * Premium tiene color propio. Antes se pintaba con el verde de acento, que
+   * es el color de ACCIÓN y de SELECCIÓN: el mismo verde significaba "toca
+   * aquí", "esto está elegido" y "esto hay que pagarlo".
+   */
+  premium: '#b88cff',
 
   // Macros
   macroProtein: '#c8ff3e',
-  macroCarbs: '#3a9fff',
-  macroFat: '#ff7c3a',
+  macroCarbs: '#55b6ff',
+  macroFat: '#ff9d6b',
 };
 
 export const Fonts = {

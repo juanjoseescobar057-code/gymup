@@ -409,7 +409,7 @@ export default function DashboardScreen() {
                 <Text style={s.compareLabel}>{item.label}</Text>
                 <Text style={s.compareVal}>{item.val}<Text style={s.compareUnit}> {item.unit}</Text></Text>
                 <View style={[s.compareBadge, { backgroundColor: good ? Colors.accentMuted : 'rgba(255,124,58,0.1)' }]}>
-                  <Text style={[s.compareDiff, { color: good ? Colors.accent : '#ff7c3a' }]}>
+                  <Text style={[s.compareDiff, { color: good ? Colors.accent : Colors.macroFat }]}>
                     {diff >= 0 ? '↑' : '↓'} {pct}%
                   </Text>
                 </View>

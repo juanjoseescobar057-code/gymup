@@ -57,15 +57,15 @@ type PostureResult = {
 
 const SEVERITY_CONFIG = {
   good:  { color: Colors.accent, bg: Colors.accentMuted,      icon: '✅', label: 'Correcto' },
-  warn:  { color: '#ff9d3a',     bg: 'rgba(255,157,58,0.10)', icon: '⚠️', label: 'Mejorar'  },
-  error: { color: '#ff4444',     bg: 'rgba(255,68,68,0.10)',  icon: '🔴', label: 'Urgente'  },
+  warn:  { color: Colors.warning,     bg: 'rgba(255,157,58,0.10)', icon: '⚠️', label: 'Mejorar'  },
+  error: { color: Colors.error,     bg: 'rgba(255,68,68,0.10)',  icon: '🔴', label: 'Urgente'  },
 };
 
 const TECHNIQUE_RISK_COLORS = {
   none:   Colors.accent,
   low:    '#a8e063',
-  medium: '#ff9d3a',
-  high:   '#ff4444',
+  medium: Colors.warning,
+  high:   Colors.error,
 };
 
 async function analyzePosture(imageUri: string, exerciseName: string, healthBlock = ''): Promise<PostureResult> {
@@ -436,7 +436,7 @@ export default function CoachScreen() {
                       backgroundColor: h.score >= 80 ? Colors.accentMuted : 'rgba(255,157,58,0.1)',
                     }]}>
                       <Text style={[s.historyScoreTxt, {
-                        color: h.score >= 80 ? Colors.accent : '#ff9d3a',
+                        color: h.score >= 80 ? Colors.accent : Colors.warning,
                       }]}>{h.score}</Text>
                     </View>
                   </View>
@@ -490,7 +490,7 @@ export default function CoachScreen() {
   if (phase === 'result' && result) {
     const scoreColor =
       result.score >= 85 ? Colors.accent :
-      result.score >= 65 ? '#ff9d3a' : '#ff4444';
+      result.score >= 65 ? Colors.warning : Colors.error;
 
     const goodCount = result.corrections.filter((c) => c.severity === 'good').length;
     const issueCount = result.corrections.filter((c) => c.severity !== 'good').length;
@@ -535,7 +535,7 @@ export default function CoachScreen() {
                       <Text style={{ fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent }}>
                         ✅ {goodCount} correctos
                       </Text>
-                      <Text style={{ fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: '#ff9d3a' }}>
+                      <Text style={{ fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.warning }}>
                         ⚠️ {issueCount} a corregir
                       </Text>
                     </View>

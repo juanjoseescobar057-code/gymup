@@ -464,7 +464,7 @@ export default function FoodScanScreen() {
             <Text style={s.impactTitle}>📊 Impacto en tu día</Text>
             <View style={s.impactRow}>
               <Text style={s.impactLbl}>Total calorías:</Text>
-              <Text style={[s.impactVal, { color: remainingCal < 0 ? '#ff7c3a' : Colors.accent }]}>
+              <Text style={[s.impactVal, { color: remainingCal < 0 ? Colors.macroFat : Colors.accent }]}>
                 {Math.round(newCalories)}/{profile?.daily_calories} kcal
               </Text>
             </View>

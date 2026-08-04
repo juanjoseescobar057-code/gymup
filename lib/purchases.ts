@@ -51,6 +51,33 @@ function rc(): any | null {
   }
 }
 
+/**
+ * Pide al servidor que reconcilie el estado Premium contra RevenueCat y lo
+ * escriba en user_profiles.is_premium.
+ *
+ * Es lo que cierra el hueco entre "el SDK dice que compraste" y "el proxy de
+ * IA te deja pasar": esa compuerta lee la columna de Supabase, que solo
+ * escribe el webhook. Si el webhook tarda o se pierde, sin esto el usuario
+ * acaba de pagar y recibe 402 al usar la función que compró.
+ *
+ * Devuelve el estado resuelto por el servidor, o null si no se pudo
+ * reconciliar. **null NO significa "no premium"**: significa "no lo sabemos".
+ * Quien llame no debe degradar a false por un null.
+ */
+export async function syncPremiumWithServer(): Promise<boolean | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('sync-premium', { body: {} });
+    if (error) return null;
+    if (typeof data?.is_premium !== 'boolean') return null;
+    // El servidor manda: se refleja en el store para que la UI coincida con lo
+    // que el proxy va a responder.
+    await syncLocalPremium(data.is_premium);
+    return data.is_premium;
+  } catch {
+    return null;
+  }
+}
+
 /** Configura RevenueCat con la identidad del usuario (idempotente por uid). */
 async function ensureConfigured(): Promise<any | null> {
   const P = rc();
@@ -126,6 +153,12 @@ export async function purchasePlan(planId: string): Promise<{ ok: boolean; error
       return { ok: false, error: 'La compra no activó Premium. Intenta restaurar.' };
     }
     await syncLocalPremium(true);
+    // Reconciliar con el servidor ANTES de dar la compra por buena: sin esto
+    // la app decía "ya eres Premium" mientras el proxy seguía respondiendo 402
+    // hasta que llegara el webhook. Si la reconciliación no se puede hacer
+    // (RevenueCat sin configurar, red caída) no se bloquea la compra: el
+    // webhook sigue siendo la vía normal y esto es solo el atajo.
+    await syncPremiumWithServer();
     return { ok: true };
   } catch (e: any) {
     if (e?.userCancelled) {
@@ -144,6 +177,9 @@ export async function restorePurchases(): Promise<{ ok: boolean; error?: string 
     const customerInfo = await P.restorePurchases();
     const active = hasPremium(customerInfo);
     await syncLocalPremium(active);
+    // Restaurar en un dispositivo nuevo también tiene que llegar al servidor:
+    // si no, la app desbloquea la UI y el proxy sigue diciendo 402.
+    if (active) await syncPremiumWithServer();
     return active
       ? { ok: true }
       : { ok: false, error: 'No encontramos compras activas para restaurar.' };

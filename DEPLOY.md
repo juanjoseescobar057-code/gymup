@@ -96,9 +96,22 @@ import de nivel superior del paquete y necesita el build nativo para funcionar d
 todo; hasta el próximo build queda en modo logger local sin romper nada).
 
 ## Paso 9 · 🔴 Monetización — RevenueCat (👤 cuentas externas, código ya listo)
-El código (`lib/purchases.ts` + `supabase/functions/rc-webhook`) ya está implementado
-y endurecido (idempotencia, orden de eventos, TRANSFER). Sigue el orden exacto — la app
-y el webhook ya están escritos para estos nombres literales, no los cambies:
+El código (`lib/purchases.ts` + `supabase/functions/rc-webhook` + `sync-premium`) ya
+está implementado y endurecido (idempotencia, orden de eventos, TRANSFER). Sigue el
+orden exacto — la app y el webhook ya están escritos para estos nombres literales, no
+los cambies:
+
+⚠️ **Además del webhook, hace falta un secreto**: `REVENUECAT_SECRET_KEY` (la *secret
+API key* del proyecto en RevenueCat, no la pública del SDK) como variable de la Edge
+Function. La usa `sync-premium`, que es lo que impide el peor escenario de pago: que
+alguien compre, la app le diga "ya eres Premium" y el proxy de IA le responda 402
+porque el webhook todavía no llegó. Sin esa variable, `sync-premium` responde 503 con
+`rc_not_configured` — la app lo interpreta como "no lo sabemos" y NO le quita Premium
+a nadie, pero el hueco de la ventana del webhook sigue abierto hasta que la configures.
+
+```bash
+supabase secrets set REVENUECAT_SECRET_KEY=sk_XXXXXXXXXXXX
+```
 
 1. **Cuenta y proyecto**: [revenuecat.com](https://www.revenuecat.com) → crear cuenta
    → **+ Create new project** → `GymUp`. RevenueCat usa el modelo de **Projects**
@@ -196,6 +209,7 @@ la app rota para todos los usuarios. Secuencia obligatoria, en una sola ventana:
    supabase functions deploy ai-proxy
    supabase functions deploy delete-account
    supabase functions deploy send-reactivation
+   supabase functions deploy sync-premium
    ```
 3. **AL FINAL el build de la app** (Paso 10).
 

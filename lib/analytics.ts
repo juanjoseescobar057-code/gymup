@@ -44,6 +44,22 @@ type QueuedEvent = {
   props: Record<string, unknown> | null;
   context: Record<string, unknown>;
   client_ts: string;
+  /**
+   * Dueño del evento en el momento de encolarlo, si ya había sesión.
+   *
+   * Antes no existía: al hacer flush se le adjuntaba a TODA la cola el user_id
+   * de la sesión vigente en ese instante. Si alguien cerraba sesión con
+   * eventos pendientes y entraba otra cuenta en el mismo teléfono, los eventos
+   * del primero se guardaban a nombre del segundo — mezcla de actividad entre
+   * personas, cohortes contaminadas y un problema de privacidad, no solo de
+   * métricas.
+   *
+   * null = evento anterior al registro. Esos SÍ deben unirse a quien se
+   * registre (esa es la resolución de identidad que queremos), pero solo
+   * mientras no haya habido un cambio de cuenta: resetAnalyticsIdentity()
+   * limpia la cola al cerrar sesión justamente por eso.
+   */
+  owner_uid?: string | null;
 };
 
 let anonymousId: string | null = null;
@@ -181,6 +197,9 @@ export function track(event: string, props?: Record<string, unknown>): void {
       props: props ?? null,
       context: deviceContext(),
       client_ts: new Date().toISOString(),
+      // Se sella el dueño AL ENCOLAR, no al enviar. `identifiedUid` lo mantiene
+      // el flush y lo limpia resetAnalyticsIdentity().
+      owner_uid: identifiedUid,
     });
     if (queue.length > MAX_QUEUE) queue = queue.slice(-MAX_QUEUE);
     persistState();
@@ -231,9 +250,31 @@ export async function flush(): Promise<void> {
     }
 
     const batch = queue.slice(0, 50);
+    // Un evento sellado con OTRO dueño no se envía a nombre de este usuario.
+    // No debería ocurrir (la cola se limpia al cerrar sesión), pero si ocurre
+    // se descarta: perder un evento es infinitamente preferible a atribuirle a
+    // alguien la actividad de otra persona.
+    const propios = batch.filter((e) => e.owner_uid == null || e.owner_uid === uid);
+    const ajenos = batch.length - propios.length;
+    if (ajenos > 0) {
+      // require diferido: monitoring.ts importa track() de este módulo, así que
+      // un import estático cruzado sería un ciclo.
+      try {
+        const { captureError } = require('./monitoring');
+        captureError(new Error('Cola de analítica con eventos de otra cuenta'), {
+          scope: 'analytics.flush.ajenos',
+          descartados: ajenos,
+        });
+      } catch {}
+    }
+    if (propios.length === 0) {
+      queue = queue.slice(batch.length);
+      persistState();
+      return;
+    }
     const { error } = await supabase
       .from('analytics_events')
-      .insert(batch.map((e) => ({ user_id: uid, ...e })));
+      .insert(propios.map(({ owner_uid: _o, ...e }) => ({ user_id: uid, ...e })));
     if (!error) {
       queue = queue.slice(batch.length);
       persistState();
@@ -268,6 +309,31 @@ async function captureAcquisitionOnce(): Promise<void> {
  * Restaura la cola pendiente, abre sesión, captura adquisición y arranca
  * el ciclo de envío. Devuelve el unsubscribe del AppState.
  */
+/**
+ * Corta el vínculo entre este dispositivo y la cuenta que se va.
+ *
+ * Se llama al cerrar sesión y al borrar la cuenta. Intenta enviar lo que haya
+ * pendiente MIENTRAS la sesión sigue viva y después vacía la cola: cualquier
+ * evento que sobreviva al cambio de cuenta acabaría atribuido a quien entre
+ * después. También reinicia la sesión de analítica, para que la actividad de
+ * la persona siguiente no continúe la sesión de la anterior.
+ */
+export async function resetAnalyticsIdentity(): Promise<void> {
+  try {
+    await flush();
+  } catch {
+    // Sin red no se pueden enviar: se descartan igual. Es el sesgo correcto.
+  }
+  queue = [];
+  identifiedUid = null;
+  seq = 0;
+  screensViewed = 0;
+  sessionId = makeId('s', Date.now(), rand());
+  sessionStartedAt = Date.now();
+  lastActiveAt = null;
+  persistState();
+}
+
 export async function initAnalytics(): Promise<() => void> {
   if (initialized) return () => {};
   initialized = true;

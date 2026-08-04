@@ -11,16 +11,59 @@
 import { z } from 'zod';
 
 // Número tolerante: acepta "12" o 12, y cae a 0 si viene basura.
+// Se usa solo donde un 0 es un valor ACEPTABLE (contadores, campos de adorno).
+// Para lo que el usuario ve como un hecho —calorías, series, score— está
+// `exigido()` más abajo: ahí un 0 inventado es peor que un error honesto.
 const num = z.coerce.number().catch(0);
 const str = z.string().catch('');
 const strArr = z.array(z.string()).catch([]);
 
+/**
+ * Número que NO admite respaldo: si no viene o viene fuera de rango, el
+ * esquema falla y parseAI lanza.
+ *
+ * El porqué: con `.catch(0)`, una respuesta mala se convertía en una comida de
+ * 0 kcal registrada en el historial del usuario, o un ejercicio de 0 series
+ * dentro de su plan. Datos falsos que parecen buenos son peores que un fallo:
+ * el fallo se reintenta, el dato falso se arrastra y contamina macros,
+ * progresión y las decisiones que la persona toma con eso.
+ */
+const exigido = (min: number, max: number) =>
+  z.coerce.number().refine((n) => Number.isFinite(n) && n >= min && n <= max, {
+    message: `debe estar entre ${min} y ${max}`,
+  });
+
+/**
+ * Booleano de verdad.
+ *
+ * `z.coerce.boolean()` aplica la coerción de JavaScript: `Boolean("false")` es
+ * TRUE porque la cadena no está vacía. Los modelos devuelven `"false"` como
+ * texto con frecuencia, así que un "no" explícito del modelo se leía como "sí".
+ * En `is_exercise_visible` eso significaba dar consejo de técnica sobre una
+ * foto en la que el modelo acababa de decir que no veía el ejercicio.
+ */
+const bool = (respaldo: boolean) =>
+  z.preprocess((v) => {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v !== 0;
+    if (typeof v === 'string') {
+      const s = v.trim().toLowerCase();
+      if (['true', '1', 'yes', 'si', 'sí'].includes(s)) return true;
+      if (['false', '0', 'no'].includes(s)) return false;
+    }
+    return undefined; // irreconocible → cae al respaldo
+  }, z.boolean()).catch(respaldo);
+
 // ── Plan de entrenamiento ────────────────────────────────
 export const ExerciseSchema = z.object({
-  name: str,
-  sets: num,
-  reps: z.coerce.string().catch(''),
-  rest_seconds: num,
+  // El nombre no puede venir vacío: un ejercicio sin nombre es una fila que el
+  // usuario no puede ejecutar ni buscar en video.
+  name: z.string().min(1),
+  // Rangos fisiológicos. 12 series de un ejercicio ya es absurdo; 0 series
+  // significa que el ejercicio no existe. Antes ambos pasaban como válidos.
+  sets: exigido(1, 12),
+  reps: z.coerce.string().refine((s) => s.trim().length > 0, { message: 'reps vacío' }),
+  rest_seconds: exigido(0, 600),
   notes: str,
   muscle_group: str,
 });
@@ -30,26 +73,40 @@ export const TrainingDaySchema = z.object({
   day_name: str,
   type: z.enum(['workout', 'rest', 'active_recovery']).catch('workout'),
   muscle_groups: strArr,
-  estimated_duration_min: num,
+  estimated_duration_min: exigido(0, 240),
   exercises: z.array(ExerciseSchema).catch([]),
   notes: str.optional(),
   activities: strArr.optional(),
-});
+})
+  // Coherencia entre el TIPO del día y su contenido. Un día de descanso con
+  // ejercicios dentro es una contradicción que la app mostraba tal cual: la
+  // tarjeta decía "hoy descansas" y el plan traía sentadillas.
+  .transform((d) => (d.type === 'rest' ? { ...d, exercises: [] } : d))
+  .refine((d) => d.type !== 'workout' || d.exercises.length > 0, {
+    message: 'un día de entrenamiento no puede venir sin ejercicios',
+  });
 
 export const WeeklyPlanSchema = z.object({
   overview: str,
-  days: z.array(TrainingDaySchema).min(1),
+  // EXACTAMENTE 7. El día del plan avanza con `% 7`, así que un plan de 6 días
+  // deja un índice apuntando a un día que no existe: la home se queda en
+  // "Cargando tu plan…" para siempre sin decir por qué. Antes bastaba `.min(1)`.
+  days: z.array(TrainingDaySchema).length(7),
 });
 
 // ── Análisis de comida ───────────────────────────────────
 export const FoodResultSchema = z.object({
-  meal_name: str,
+  meal_name: z.string().min(1),
   food_description: str,
-  calories: num,
-  protein_g: num,
-  carbs_g: num,
-  fat_g: num,
-  fiber_g: num,
+  // Estos cuatro se ESCRIBEN en el historial nutricional y alimentan los
+  // macros del día. Con `.catch(0)` una respuesta mala se registraba como una
+  // comida de 0 kcal: el usuario creía haber logueado y sus macros mentían.
+  // Mejor fallar y que reintente. Los topes son por COMIDA, no por día.
+  calories: exigido(0, 5000),
+  protein_g: exigido(0, 500),
+  carbs_g: exigido(0, 800),
+  fat_g: exigido(0, 400),
+  fiber_g: exigido(0, 200),
 });
 
 // ── Análisis corporal (pantalla body-scan) ───────────────
@@ -62,8 +119,10 @@ export const BodyZoneSchema = z.object({
 });
 
 export const BodyAnalysisSchema = z.object({
-  overall_score: num,
-  estimated_fat_pct: num,
+  // Se muestran como números duros y se comparan en el tiempo: un 0 de
+  // respaldo se leería como "tu score bajó a cero".
+  overall_score: exigido(0, 100),
+  estimated_fat_pct: exigido(3, 70),
   estimated_muscle_level: str,
   zones: z.array(BodyZoneSchema).catch([]),
   strengths: strArr,
@@ -77,7 +136,8 @@ export const BodyAnalysisSchema = z.object({
 
 // ── Validación de foto (body-scan) ───────────────────────
 export const PhotoValidationSchema = z.object({
-  valid: z.coerce.boolean().catch(false),
+  // Respaldo `false`: si no se entiende la respuesta, NO se analiza la foto.
+  valid: bool(false),
   reason: str,
 });
 
@@ -97,9 +157,13 @@ export const StretchSchema = z.object({
 });
 
 export const PostureResultSchema = z.object({
-  score: num,
+  score: exigido(0, 100),
   overall: str,
-  is_exercise_visible: z.coerce.boolean().catch(true),
+  // Respaldo `true` a propósito: un campo AUSENTE no es lo mismo que un "no"
+  // del modelo. Con `bool()`, un "false" explícito ya se respeta — que era el
+  // fallo real; asumir "no visible" cuando el modelo simplemente omitió el
+  // campo bloquearía análisis legítimos.
+  is_exercise_visible: bool(true),
   corrections: z.array(PostureCorrectionSchema).catch([]),
   encouragement: str,
   next_cue: str,

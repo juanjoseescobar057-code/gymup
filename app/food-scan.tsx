@@ -16,6 +16,7 @@ import { canUseFeature } from '../lib/subscription';
 import { localDateKey } from '../lib/foodLogs';
 import { useUserStore } from '../store/userStore';
 import { track } from '../lib/analytics';
+import { captureError } from '../lib/monitoring';
 import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../lib/cameraConsent';
 import CameraDisclosureModal from '../Components/CameraDisclosureModal';
 import ReportContentButton from '../Components/ReportContentButton';
@@ -191,23 +192,40 @@ export default function FoodScanScreen() {
       fiber_g: scaled.fiber_g,
     };
 
-    addFoodLog(log as any);
-    track('food_added', { calories: scaled.calories, protein_g: scaled.protein_g, portion });
-
-    supabase.from('food_logs').insert({
+    // PRIMERO SE GUARDA, DESPUÉS SE CELEBRA.
+    // Antes esto iba al revés: se metía la comida en el estado local, se
+    // emitía el evento de analítica y se otorgaba XP, y el insert viajaba
+    // suelto con un console.log por toda gestión de error. Si fallaba, el
+    // usuario veía sus macros actualizados y su XP sumado por una comida que
+    // no existía en el servidor — y al recargar la app desaparecía sin
+    // explicación.
+    const { error: dbError } = await supabase.from('food_logs').insert({
       user_id: profile.user_id,
       logged_at: log.logged_at,
       meal_name: log.meal_name,
       food_description: log.food_description,
-      photo_url: log.photo_url,
+      // photo_url NO se guarda: era el URI LOCAL del dispositivo guardado como
+      // si fuera una URL persistente. No sirve en otro teléfono, no se muestra
+      // en ninguna pantalla y expone la estructura de archivos del usuario.
       calories: log.calories,
       protein_g: log.protein_g,
       carbs_g: log.carbs_g,
       fat_g: log.fat_g,
       fiber_g: log.fiber_g,
-    }).then(({ error }) => {
-      if (error) console.log('[FoodScan] DB error:', error.message);
     });
+
+    if (dbError) {
+      captureError(dbError, { scope: 'food_scan.insert', calories: log.calories });
+      addingRef.current = false; // liberar el guard: tiene que poder reintentar
+      Alert.alert(
+        'No pudimos guardar tu comida',
+        'Revisa tu conexión e intenta de nuevo. No se registró nada, así que tus macros de hoy siguen correctos.'
+      );
+      return;
+    }
+
+    addFoodLog(log as any);
+    track('food_added', { calories: scaled.calories, protein_g: scaled.protein_g, portion });
 
     // Gamificación: registrar la comida (XP + badges). Si con esta comida se
     // alcanzaron TODAS las metas del día → cuenta como día de macros completo

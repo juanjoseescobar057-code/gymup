@@ -23,6 +23,7 @@ import { parseAI, BodyAnalysisSchema, PhotoValidationSchema } from '../lib/schem
 import { aiChat } from '../lib/aiClient';
 import { canUseFeature } from '../lib/subscription';
 import { track } from '../lib/analytics';
+import { captureError } from '../lib/monitoring';
 import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 import { AI_SAFETY_RULES, clampFatPct, MEDICAL_DISCLAIMER, BODY_SCAN_CONSENT, MIN_AGE, MIN_FAT_PCT, MAX_FAT_PCT } from '../lib/safety';
@@ -353,8 +354,19 @@ export default function BodyScanScreen() {
           notes: analysis.refined_plan_notes,
           photos_count: photos.length,
         });
-        if (error) console.log('[BodyScan] Error guardando:', error.message);
-        else {
+        if (error) {
+          // Antes esto solo hacía console.log —que en producción se elimina— y
+          // seguía mostrando el resultado. El usuario veía su análisis, creía
+          // que quedaba en su historial, y al volver no había nada: no puede
+          // comparar su progreso ni entender por qué desapareció.
+          // El análisis SÍ se muestra (ya se pagó la llamada de IA y es útil
+          // ahora mismo), pero se dice la verdad sobre lo que no se guardó.
+          captureError(error, { scope: 'body_scan.insert', fotos: photos.length });
+          Alert.alert(
+            'Tu análisis no se guardó',
+            'Puedes verlo ahora, pero no quedará en tu historial y no podrás compararlo más adelante. Revisa tu conexión e inténtalo de nuevo.'
+          );
+        } else {
           // Gamificación: registrar el escaneo (XP + badges). Silencioso.
           recordBodyScan(profile.user_id).catch((e) =>
             console.log('[BodyScan] Error gamificación:', e?.message)

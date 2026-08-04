@@ -148,6 +148,11 @@ export default function DashboardScreen() {
   // Si ya entrenó, el plan avanzó y lo de abajo es lo de MAÑANA.
   const cuandoLbl = entrenoHoy ? 'MAÑANA' : 'HOY';
 
+  // Comparar contra un mes en el que no hubo nada no es comparar. Sin actividad
+  // previa la sección entera se oculta: un "↑ 0%" verde sobre cero minutos
+  // parece un logro y no lo es.
+  const hayComparativa = monthStats.lastMonth > 0 || monthStats.lastDays > 0;
+
   useEffect(() => {
     if (profile) loadAll();
     // Re-sincronizar el entitlement Premium con la tienda (no-op sin rebuild).
@@ -373,8 +378,15 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        {/* Comparativas del mes */}
+        {/* Comparativas del mes.
+            Solo se muestran si hay con QUÉ comparar. Antes aparecían siempre:
+            en una cuenta nueva la pantalla se llenaba de "↑ 0%" en verde, que
+            presenta la ausencia de datos como una mejora, y ocupaba el sitio
+            de lo único que importa el primer día — empezar a entrenar. */}
+        {hayComparativa && (
         <Text style={s.sectionLbl} accessibilityRole="header">ESTE MES VS MES ANTERIOR</Text>
+        )}
+        {hayComparativa && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: 10, marginBottom: 8 }}>
           {[
@@ -406,6 +418,7 @@ export default function DashboardScreen() {
             );
           })}
         </ScrollView>
+        )}
 
         {/* Ya entrenaste: el plan avanzó, así que hay que decirlo explícito
             antes de mostrar la sesión siguiente o parece que se saltó un día. */}

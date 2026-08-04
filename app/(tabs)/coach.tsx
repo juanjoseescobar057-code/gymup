@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, Alert, Image,
@@ -187,6 +187,26 @@ export default function CoachScreen() {
   const todayPlan = trainingPlan?.plan_data?.days?.[todayIndex];
   const todayExercises: string[] = todayPlan?.exercises?.map((e: any) => e.name) ?? [];
 
+  // Preselección CONTEXTUAL: si hoy toca pecho, la pantalla no puede abrir
+  // preseleccionando sentadilla solo porque es la primera del catálogo. Se
+  // busca el primer ejercicio de hoy que exista en el catálogo de postura y se
+  // selecciona ese. Si hoy no hay sesión (descanso) no se toca la selección:
+  // elegir por el usuario sin contexto es justo lo que estaba mal.
+  const preseleccionadoRef = useRef(false);
+  useEffect(() => {
+    if (preseleccionadoRef.current || todayExercises.length === 0) return;
+    const coincide = EXERCISES.find((e) =>
+      todayExercises.some((n) => {
+        const nl = n.toLowerCase();
+        return nl.includes(e.id) || e.name.toLowerCase().split(' ').some((w) => w.length > 3 && nl.includes(w));
+      })
+    );
+    if (coincide) {
+      preseleccionadoRef.current = true;
+      setSelectedEx(coincide);
+    }
+  }, [todayExercises.join('|')]);
+
   function premiumGate(): boolean {
     const gate = canUseFeature('coach', !!profile?.is_premium);
     if (!gate.allowed) {
@@ -278,13 +298,16 @@ export default function CoachScreen() {
       <SafeAreaView style={s.container}>
         <View style={s.header}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={[s.headerTitle, { flex: 1 }]} accessibilityRole="header">COACH DE POSTURA</Text>
+            <Text style={[s.headerTitle, { flex: 1 }]} accessibilityRole="header">COACH</Text>
             <HelpButton
               pantalla="el coach de postura"
               pregunta="Explícame el coach de postura de GymUp: cómo le tomo la foto, qué diferencia hay entre el análisis por foto y el coach en vivo que cuenta reps, y qué significa el puntaje de técnica que me da."
             />
           </View>
-          <Text style={s.headerSub}>IA analiza tu técnica y te da correcciones específicas</Text>
+          {/* La pestaña no es solo postura: contiene coach en vivo, chat,
+              análisis por foto, los ejercicios de hoy y el catálogo. Titularla
+              "COACH DE POSTURA" escondía la mitad de lo que hay aquí. */}
+          <Text style={s.headerSub}>Habla, revisa tu técnica o entrena en vivo</Text>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false}>

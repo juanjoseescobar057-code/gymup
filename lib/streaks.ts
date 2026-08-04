@@ -23,22 +23,30 @@ import { xpToLevel, calculateNewStreak, localDayKey } from './streaksMath';
 export { xpToLevel, xpForNextLevel, xpProgress, calculateNewStreak, localDayKey } from './streaksMath';
 
 // ─── BADGES DISPONIBLES ──────────────────────────────────
+// ⚠️ Los `id`, `xp` y `requirement` son ESPEJO de public.badge_catalog y son
+// contrato de analítica (viajan en el evento badge_earned). Solo `title`,
+// `desc` y `emoji` son presentación y se pueden reescribir sin tocar nada más.
+//
+// El copy anterior premiaba con marcos que no queremos: "perfecta" y "sin
+// fallar" convierten un día de descanso —que el propio plan prescribe— en un
+// fracaso, y "solo el 5% llega aquí" / "menos del 0.1%" son estadísticas
+// inventadas que además compiten al usuario contra desconocidos.
 export const BADGES = [
   // Rachas de entrenamiento
-  { id: 'streak_3',     emoji: '🔥',  title: '3 días seguidos',      desc: 'Primera racha real',          xp: 50,   requirement: { type: 'streak', value: 3 } },
-  { id: 'streak_7',     emoji: '⚡',  title: 'Semana perfecta',       desc: '7 días sin fallar',           xp: 150,  requirement: { type: 'streak', value: 7 } },
-  { id: 'streak_14',    emoji: '💎',  title: '2 semanas imparable',   desc: 'Solo el 5% llega aquí',      xp: 300,  requirement: { type: 'streak', value: 14 } },
-  { id: 'streak_30',    emoji: '👑',  title: 'Mes de élite',          desc: 'Eres oficialmente un hábito', xp: 750,  requirement: { type: 'streak', value: 30 } },
-  { id: 'streak_100',   emoji: '🦾',  title: '100 días — Leyenda',    desc: 'Menos del 0.1% lo logra',    xp: 3000, requirement: { type: 'streak', value: 100 } },
+  { id: 'streak_3',     emoji: '🔥',  title: '3 días seguidos',      desc: 'Arrancaste una racha',        xp: 50,   requirement: { type: 'streak', value: 3 } },
+  { id: 'streak_7',     emoji: '⚡',  title: 'Semana consistente',    desc: 'Cumpliste lo que te propusiste', xp: 150,  requirement: { type: 'streak', value: 7 } },
+  { id: 'streak_14',    emoji: '💎',  title: 'Dos semanas seguidas',  desc: 'La constancia ya es tuya',   xp: 300,  requirement: { type: 'streak', value: 14 } },
+  { id: 'streak_30',    emoji: '👑',  title: 'Un mes de constancia',  desc: 'Esto ya es un hábito',        xp: 750,  requirement: { type: 'streak', value: 30 } },
+  { id: 'streak_100',   emoji: '🦾',  title: '100 días',              desc: 'Cien días sosteniéndolo',    xp: 3000, requirement: { type: 'streak', value: 100 } },
 
   // Comidas registradas
   { id: 'meals_1',      emoji: '📸',  title: 'Primera foto de comida', desc: 'El tracking empieza hoy',   xp: 30,   requirement: { type: 'meals', value: 1 } },
   { id: 'meals_10',     emoji: '🍽️', title: '10 comidas registradas', desc: 'El hábito de trackear',     xp: 100,  requirement: { type: 'meals', value: 10 } },
-  { id: 'meals_50',     emoji: '📊',  title: '50 comidas analizadas',  desc: 'Eres lo que mides',          xp: 400,  requirement: { type: 'meals', value: 50 } },
+  { id: 'meals_50',     emoji: '📊',  title: '50 comidas analizadas',  desc: 'Registrar te da contexto',   xp: 400,  requirement: { type: 'meals', value: 50 } },
 
   // Macros diarios cumplidos
-  { id: 'macro_day_1',  emoji: '✅',  title: 'Día perfecto de macros', desc: 'Todas las metas cumplidas',  xp: 80,   requirement: { type: 'macro_days', value: 1 } },
-  { id: 'macro_day_7',  emoji: '🎯',  title: '7 días en macro',        desc: 'La disciplina nutricional',  xp: 300,  requirement: { type: 'macro_days', value: 7 } },
+  { id: 'macro_day_1',  emoji: '✅',  title: 'Metas del día cubiertas', desc: 'Cubriste tus cuatro metas', xp: 80,   requirement: { type: 'macro_days', value: 1 } },
+  { id: 'macro_day_7',  emoji: '🎯',  title: '7 días en tu rango',     desc: 'Adherencia sostenida',       xp: 300,  requirement: { type: 'macro_days', value: 7 } },
 
   // Escaneos corporales
   { id: 'body_scan_1',  emoji: '📷',  title: 'Primer análisis corporal', desc: 'La IA ya te conoce',      xp: 60,   requirement: { type: 'body_scans', value: 1 } },

@@ -599,10 +599,17 @@ export default function ProgressScreen() {
         {photos.length === 0 ? (
           <TouchableOpacity style={s.emptyPhotos} onPress={takeTransformPhoto} activeOpacity={0.85}
             accessibilityRole="button" accessibilityLabel="Toma tu foto de hoy"
-            accessibilityHint="En 30 días verás la diferencia">
+            accessibilityHint="Podrás compararla más adelante en condiciones similares">
             <Text style={{ fontSize: 32, marginBottom: 8 }}>📷</Text>
             <Text style={s.emptyTitle}>Toma tu foto de hoy</Text>
-            <Text style={s.emptySub}>En 30 días verás la diferencia. Empieza ahora.</Text>
+            {/* "En 30 días verás la diferencia" prometía un resultado con
+                fecha. Los cambios visibles dependen de la persona, del punto
+                de partida y de qué tanto cambie realmente el cuerpo — y una
+                foto los muestra u oculta según luz, hora y postura. */}
+            <Text style={s.emptySub}>
+              Compárala más adelante con luz, distancia y postura parecidas. Lo que se
+              alcanza a ver cambia de una persona a otra.
+            </Text>
           </TouchableOpacity>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}

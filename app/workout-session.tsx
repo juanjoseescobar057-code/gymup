@@ -20,7 +20,8 @@ import { saveSession, loadSession, clearSession } from '../lib/workoutPersistenc
 import { track } from '../lib/analytics';
 import { captureError } from '../lib/monitoring';
 import { loadHealthSafe } from '../lib/health';
-import { exerciseConflicts, INJURY_ZONES, type InjuryZone } from '../lib/healthMath';
+import { exerciseConflicts, INJURY_ZONES, type InjuryZone, type Condition } from '../lib/healthMath';
+import { calentamientoPara, seriesDeAproximacion } from '../lib/warmupMath';
 import { exercisesForGroup, EXERCISE_LIBRARY, type LibraryExercise } from '../constants/exercises';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../constants/theme';
 
@@ -58,6 +59,10 @@ export default function WorkoutSessionScreen() {
   // "sin lesiones" — se advierte genéricamente en cada swap.
   const [injuries, setInjuries] = useState<InjuryZone[]>([]);
   const [injuriesStatus, setInjuriesStatus] = useState<'loading' | 'ok' | 'unknown'>('loading');
+  // Las condiciones (embarazo, hernia, cardiopatía…) filtran el calentamiento
+  // y los estiramientos. Sin ellas, el catálogo propondría movimientos
+  // contraindicados a quien menos se lo puede permitir.
+  const [conditions, setConditions] = useState<Condition[]>([]);
   useEffect(() => {
     if (!profile) return;
     loadHealthSafe(profile.user_id)
@@ -66,11 +71,22 @@ export default function WorkoutSessionScreen() {
           setInjuriesStatus('unknown');
         } else {
           setInjuries(load.profile?.injuries ?? []);
+          setConditions(load.profile?.conditions ?? []);
           setInjuriesStatus('ok');
         }
       })
       .catch(() => setInjuriesStatus('unknown'));
   }, [profile?.user_id]);
+
+  // Calentamiento: primera pantalla de la sesión. Se salta al retomar una
+  // sesión interrumpida (ya calentó) y es saltable siempre — recomendarlo sí,
+  // imponerlo no.
+  const [faseCalentamiento, setFaseCalentamiento] = useState(true);
+  const ctxSalud = {
+    injuries,
+    conditions,
+    desconocido: injuriesStatus !== 'ok', // fail-closed, igual que los swaps
+  };
 
   useEffect(() => {
     // Derivar de Date.now(): un setInterval que solo suma +1 se congela
@@ -109,6 +125,7 @@ export default function WorkoutSessionScreen() {
           {
             text: 'Retomar',
             onPress: () => {
+              setFaseCalentamiento(false); // ya calentó antes de la interrupción
               sessionStartRef.current = new Date(snap.startedAt);
               setCurrentEx(Math.min(snap.currentEx, exercises.length - 1));
               setCompletedSets(snap.completedSets);
@@ -408,6 +425,10 @@ export default function WorkoutSessionScreen() {
           freezeUsed: freezeUsed ? '1' : '0',
           badges: badgeNames.join('|'),
           prs: prNames.join('|'),
+          // Para los estiramientos de vuelta a la calma: la pantalla de
+          // cierre no puede deducir qué se entrenó del plan, porque al
+          // terminar el día del plan ya avanzó.
+          grupos: (todayPlan?.muscle_groups ?? []).join('|'),
         },
       });
     } catch (e: any) {
@@ -511,6 +532,76 @@ export default function WorkoutSessionScreen() {
   const totalSets = exercises.reduce((acc: number, e: any) => acc + (e.sets ?? 0), 0);
   const doneSets = Object.values(completedSets).reduce((a: number, b: number) => a + b, 0);
   const overallProgress = totalSets > 0 ? doneSets / totalSets : 0;
+
+  // ── CALENTAMIENTO ──
+  if (faseCalentamiento && exercises.length > 0) {
+    const items = calentamientoPara(todayPlan?.muscle_groups ?? [], ctxSalud);
+    const aproximacion = seriesDeAproximacion(exercises[0]?.name ?? null);
+
+    // El cronómetro arranca AQUÍ, no al montar: el calentamiento no debería
+    // inflar la duración de la sesión si alguien deja la pantalla abierta.
+    function empezar(saltado: boolean) {
+      sessionStartRef.current = new Date();
+      track(saltado ? 'warmup_skipped' : 'warmup_done', { day_index: todayIndex });
+      setFaseCalentamiento(false);
+    }
+
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.closeBtn} onPress={() => router.back()} hitSlop={A11y.hitSlopLg}
+            accessibilityRole="button" accessibilityLabel="Salir sin entrenar">
+            <Text style={s.closeTxt}>✕</Text>
+          </TouchableOpacity>
+          <Text style={s.calTitulo} accessibilityRole="header">CALENTAMIENTO</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40 }}>
+          <Text style={s.calIntro}>
+            Cinco minutos ahora hacen que levantes mejor y con menos riesgo. Si algo te duele, sáltalo.
+          </Text>
+
+          {injuriesStatus !== 'ok' && (
+            <Text style={s.calAviso}>
+              No pudimos leer tu tamizaje de salud, así que esta lista es la más conservadora.
+            </Text>
+          )}
+
+          {items.map((it, i) => (
+            <View key={it.nombre} style={s.calItem} accessible
+              accessibilityLabel={`${i + 1}. ${it.nombre}, ${it.duracion}. ${it.como}`}>
+              <View style={s.calNum}><Text style={s.calNumTxt}>{i + 1}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.calNombre}>{it.nombre}</Text>
+                <Text style={s.calDur}>{it.duracion}</Text>
+                <Text style={s.calComo}>{it.como}</Text>
+              </View>
+            </View>
+          ))}
+
+          {aproximacion && (
+            <View style={s.calAprox}>
+              <Text style={s.calAproxTitulo}>Y lo más importante</Text>
+              <Text style={s.calAproxTxt}>{aproximacion}</Text>
+            </View>
+          )}
+
+          <TouchableOpacity style={s.calBtn} onPress={() => empezar(false)} activeOpacity={0.85}
+            accessibilityRole="button" accessibilityLabel="Ya calenté, empezar el entrenamiento">
+            <Text style={s.calBtnTxt}>YA CALENTÉ · EMPEZAR</Text>
+          </TouchableOpacity>
+
+          {/* Saltarlo es decisión suya. Un calentamiento obligatorio se
+              convierte en un botón que se pulsa sin leer. */}
+          <TouchableOpacity style={s.calSaltar} onPress={() => empezar(true)}
+            accessibilityRole="button" accessibilityLabel="Saltar el calentamiento">
+            <Text style={s.calSaltarTxt}>Saltar por hoy</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.container}>
@@ -776,6 +867,38 @@ export default function WorkoutSessionScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
+
+  // ── Calentamiento ──
+  calTitulo: { fontFamily: Fonts.heading, fontSize: 15, color: Colors.textPrimary, letterSpacing: 1 },
+  calIntro: { fontFamily: Fonts.body, fontSize: Type.bodyLg, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.md },
+  calAviso: {
+    fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.warning, lineHeight: 18,
+    backgroundColor: 'rgba(255,180,84,0.10)', borderRadius: Radii.md, padding: Spacing.sm, marginBottom: Spacing.md,
+  },
+  calItem: {
+    flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start',
+    backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border,
+    padding: Spacing.md, marginBottom: Spacing.sm,
+  },
+  calNum: {
+    width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.accentMuted,
+    alignItems: 'center', justifyContent: 'center', marginTop: 2,
+  },
+  calNumTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.caption, color: Colors.accent },
+  calNombre: { fontFamily: Fonts.bodySemi, fontSize: Type.bodyLg, color: Colors.textPrimary },
+  calDur: { fontFamily: Fonts.bodyMedium, fontSize: Type.caption, color: Colors.accent, marginTop: 1 },
+  calComo: { fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 19, marginTop: 4 },
+  calAprox: {
+    backgroundColor: Colors.bgSelected, borderRadius: Radii.lg,
+    borderWidth: 1, borderColor: Colors.accentBorder, padding: Spacing.md,
+    marginTop: Spacing.sm, marginBottom: Spacing.lg,
+  },
+  calAproxTitulo: { fontFamily: Fonts.heading, fontSize: Type.bodyLg, color: Colors.accent, marginBottom: 4 },
+  calAproxTxt: { fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 20 },
+  calBtn: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 17, alignItems: 'center' },
+  calBtnTxt: { fontFamily: Fonts.heading, fontSize: 16, color: '#0a0a0b', letterSpacing: 0.8 },
+  calSaltar: { paddingVertical: 14, alignItems: 'center' },
+  calSaltarTxt: { fontFamily: Fonts.bodyMedium, fontSize: Type.body, color: Colors.textMuted },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
   closeBtn: { width: 40, height: 40, backgroundColor: Colors.bgCard, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   closeTxt: { fontFamily: Fonts.headingBold, fontSize: 16, color: Colors.textMuted },

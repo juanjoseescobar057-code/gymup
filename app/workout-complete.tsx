@@ -4,7 +4,7 @@
 // pantalla real (duración, XP, racha, PRs, badges) + compartir.
 // ─────────────────────────────────────────────────────────
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Share, Animated,
 } from 'react-native';
@@ -12,12 +12,15 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { track } from '../lib/analytics';
+import { loadHealthSafe } from '../lib/health';
+import { estiramientoPara, type ContextoSalud } from '../lib/warmupMath';
+import { useUserStore } from '../store/userStore';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 export default function WorkoutCompleteScreen() {
   const p = useLocalSearchParams<{
     duration?: string; exercises?: string; xp?: string; streak?: string;
-    leveledUp?: string; badges?: string; prs?: string; freezeUsed?: string;
+    leveledUp?: string; badges?: string; prs?: string; freezeUsed?: string; grupos?: string;
   }>();
 
   const duration = String(p.duration ?? '0:00');
@@ -28,6 +31,28 @@ export default function WorkoutCompleteScreen() {
   const freezeUsed = p.freezeUsed === '1';
   const badges = p.badges ? String(p.badges).split('|').filter(Boolean) : [];
   const prs = p.prs ? String(p.prs).split('|').filter(Boolean) : [];
+
+  // Estiramientos de lo que se acaba de entrenar, filtrados por las lesiones y
+  // condiciones declaradas. Fail-closed: si el tamizaje no se puede leer, se
+  // cae a la lista conservadora y se dice por qué.
+  const grupos = p.grupos ? String(p.grupos).split('|').filter(Boolean) : [];
+  const profile = useUserStore((s: any) => s.profile);
+  const [salud, setSalud] = useState<ContextoSalud>({ injuries: [], conditions: [], desconocido: true });
+  useEffect(() => {
+    if (!profile) return;
+    loadHealthSafe(profile.user_id)
+      .then((load) => {
+        if (load.status === 'unknown') return; // se queda en desconocido
+        setSalud({
+          injuries: load.profile?.injuries ?? [],
+          conditions: load.profile?.conditions ?? [],
+        });
+      })
+      .catch(() => {});
+  }, [profile?.user_id]);
+
+  const estiramientos = estiramientoPara(grupos, salud);
+  const saludDesconocida = salud.desconocido === true;
 
   const scale = useRef(new Animated.Value(0.3)).current;
 
@@ -114,6 +139,31 @@ export default function WorkoutCompleteScreen() {
           </View>
         ))}
 
+        {/* Vuelta a la calma. Va ANTES de compartir y de salir: si se pone al
+            final, nadie baja hasta ahí. Estiramiento ESTÁTICO — el momento de
+            mantener la posición es ahora, no antes de levantar. */}
+        {estiramientos.length > 0 && (
+          <View style={s.estWrap}>
+            <Text style={s.estTitulo} accessibilityRole="header">🧘 ANTES DE IRTE</Text>
+            <Text style={s.estIntro}>
+              Dos minutos de estiramiento de lo que acabas de trabajar. Hasta notar tensión, nunca dolor.
+            </Text>
+            {saludDesconocida && (
+              <Text style={s.estAviso}>
+                No pudimos leer tu tamizaje de salud, así que esta lista es la más conservadora.
+              </Text>
+            )}
+            {estiramientos.map((e) => (
+              <View key={e.nombre} style={s.estItem} accessible
+                accessibilityLabel={`${e.nombre}, ${e.duracion}. ${e.como}`}>
+                <Text style={s.estNombre}>{e.nombre}</Text>
+                <Text style={s.estDur}>{e.duracion}</Text>
+                <Text style={s.estComo}>{e.como}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         <TouchableOpacity style={s.shareBtn} onPress={share} activeOpacity={0.85}
           accessibilityRole="button" accessibilityLabel="Compartir mi entrenamiento">
           <Text style={s.shareTxt}>📤  COMPARTIR</Text>
@@ -134,6 +184,20 @@ export default function WorkoutCompleteScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
+
+  // ── Vuelta a la calma ──
+  estWrap: {
+    backgroundColor: Colors.bgCard, borderRadius: Radii.lg,
+    borderWidth: 1, borderColor: Colors.border,
+    padding: Spacing.md, marginTop: Spacing.md, marginBottom: Spacing.sm, width: '100%',
+  },
+  estTitulo: { fontFamily: Fonts.heading, fontSize: Type.bodyLg, color: Colors.textPrimary, letterSpacing: 0.6 },
+  estIntro: { fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 19, marginTop: 4, marginBottom: Spacing.sm },
+  estAviso: { fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.warning, lineHeight: 17, marginBottom: Spacing.sm },
+  estItem: { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: Spacing.sm },
+  estNombre: { fontFamily: Fonts.bodySemi, fontSize: Type.body, color: Colors.textPrimary },
+  estDur: { fontFamily: Fonts.bodyMedium, fontSize: Type.caption, color: Colors.accent, marginTop: 1 },
+  estComo: { fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textSecondary, lineHeight: 17, marginTop: 3 },
   scroll: { padding: Spacing.xl, alignItems: 'center', paddingTop: 40 },
   trophy: { fontSize: 80, marginBottom: 8 },
   title: { fontFamily: Fonts.heading, fontSize: 40, color: Colors.textPrimary, textAlign: 'center', lineHeight: 42, marginBottom: Spacing.xl },

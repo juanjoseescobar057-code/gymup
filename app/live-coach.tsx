@@ -17,11 +17,12 @@ import { getPoseExercise } from '../lib/pose/exercises';
 import { initRepState, updateReps, type RepState, type RepPhase } from '../lib/pose/repCounter';
 import { isPoseCameraMarkedUnsupported } from '../lib/pose/cameraSupport';
 import {
-  evaluarEncuadre, copyPreflight, FRAMES_ESTABLES, type EstadoPreflight,
+  evaluarEncuadre, copyPreflight, resumirSesion, FRAMES_ESTABLES, type EstadoPreflight,
 } from '../lib/pose/preflight';
 import type { FormCue, Pose } from '../lib/pose/types';
 import { speak, setVoiceEnabled } from '../lib/voice';
 import { saveSetLogs } from '../lib/setLogs';
+import { track } from '../lib/analytics';
 import { useSafeKeepAwake } from '../lib/useSafeKeepAwake';
 import { useUserStore } from '../store/userStore';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
@@ -45,7 +46,7 @@ export default function LiveCoachScreen() {
   // nada hasta que el encuadre sea válido. Antes se pasaba de "Empezar" a
   // contar de una, así que un mal encuadre se traducía en reps mal contadas
   // que además terminaban guardadas en el historial como reales.
-  const [fase, setFase] = useState<'setup' | 'preflight' | 'live'>('setup');
+  const [fase, setFase] = useState<'setup' | 'preflight' | 'live' | 'resumen'>('setup');
   const [reps, setReps] = useState(0);
   const [phase, setPhase] = useState<RepPhase>('up');
   const [cues, setCues] = useState<FormCue[]>([]);
@@ -56,6 +57,10 @@ export default function LiveCoachScreen() {
   const [encuadre, setEncuadre] = useState<EstadoPreflight>('no_person');
   const [framesListos, setFramesListos] = useState(0);
   const disclosureResolver = useRef<((aceptado: boolean) => void) | null>(null);
+  const [valoracion, setValoracion] = useState<boolean | null>(null);
+  const framesTotalRef = useRef(0);      // frames procesados en la sesión
+  const framesConPoseRef = useRef(0);    // …de los cuales había alguien en cuadro
+  const cuesVistosRef = useRef<Map<string, number>>(new Map());
   const repRef = useRef<RepState>(initRepState());
   const lastCueRef = useRef<string>('');       // evita repetir el mismo cue de voz
   const minAngleRef = useRef<number>(999);     // ángulo mínimo alcanzado en la rep actual
@@ -78,6 +83,13 @@ export default function LiveCoachScreen() {
   // Motor: procesa cada pose (venga de la cámara o del simulador).
   useEffect(() => {
     if (!active || !pose) return;
+
+    // Calidad de detección: qué fracción de los frames trajo a una persona
+    // reconocible. Se mide ANTES de los early-return, o solo contaríamos los
+    // frames buenos y la calidad daría siempre 100%.
+    framesTotalRef.current += 1;
+    if (evaluarEncuadre(pose, exId) !== 'no_person') framesConPoseRef.current += 1;
+
     const angle = cfg.primaryAngle(pose);
     if (angle == null) return;
     const res = updateReps(repRef.current, angle, cfg.rep);
@@ -106,6 +118,9 @@ export default function LiveCoachScreen() {
     const bad = newCues.find((c) => c.severity === 'error') ?? newCues.find((c) => c.severity === 'warn');
     if (bad && bad.cue !== lastCueRef.current) {
       lastCueRef.current = bad.cue;
+      // Frecuencia por corrección, para el resumen: lo que más se repitió es
+      // lo que de verdad hay que trabajar, no lo último que salió.
+      cuesVistosRef.current.set(bad.message, (cuesVistosRef.current.get(bad.message) ?? 0) + 1);
       speak(bad.cue, { interrupt: true });
     } else if (!bad) {
       lastCueRef.current = ''; // resetea para que el próximo fallo se vuelva a decir
@@ -172,6 +187,9 @@ export default function LiveCoachScreen() {
     repRef.current = initRepState();
     lastCueRef.current = '';
     minAngleRef.current = 999;
+    framesTotalRef.current = 0;
+    framesConPoseRef.current = 0;
+    cuesVistosRef.current = new Map();
     setReps(0);
     setCues([]);
     setFase('live');
@@ -186,12 +204,29 @@ export default function LiveCoachScreen() {
     setFramesListos(0);
   }
 
-  // Termina la sesión y guarda las reps contadas por la IA en el historial.
-  // SOLO con cámara real: las reps del modo simulado son de demo y
-  // contaminarían el historial y los récords.
-  async function stopSession() {
-    setFase('setup');
+  // Termina la sesión y pasa al RESUMEN. Antes guardaba de inmediato: un
+  // conteo malo (encuadre flojo, detección intermitente) entraba al historial
+  // y a los récords sin que el usuario pudiera decir nada. Ahora se guarda al
+  // confirmar — y salir de la pantalla también guarda, para que irse sin
+  // tocar nada no le borre las reps a nadie.
+  function stopSession() {
+    setFase('resumen');
+    setValoracion(null);
+  }
+
+  const totalReps = repRef.current.reps;
+
+  // Qué fracción de los frames trajo una pose usable y qué correcciones se
+  // repitieron. Es lo único honesto que podemos decir sobre la fiabilidad del
+  // conteo: si la cámara perdió a la persona la mitad del tiempo, el número
+  // de abajo no es de fiar y hay que decirlo ANTES de que lo dé por bueno.
+  const { calidad: calidadDeteccion, deteccionIncompleta, topCues } =
+    resumirSesion(framesTotalRef.current, framesConPoseRef.current, cuesVistosRef.current);
+
+  async function guardarYSalir() {
     const total = repRef.current.reps;
+    // SOLO con cámara real: las reps del modo simulado son de demo y
+    // contaminarían el historial y los récords.
     if (profile && total > 0 && !camUnavailable) {
       try {
         await saveSetLogs(profile.user_id, null, [
@@ -207,6 +242,41 @@ export default function LiveCoachScreen() {
         );
       }
     }
+    volverAlInicio();
+  }
+
+  function descartarConteo() {
+    // Que alguien diga "esto contó mal" es la señal más valiosa que puede dar
+    // el coach en vivo, y hasta ahora no tenía dónde decirlo.
+    track('live_coach_conteo_incorrecto', {
+      ejercicio: exId,
+      reps_contadas: repRef.current.reps,
+      calidad_deteccion: Math.round(calidadDeteccion * 100),
+      simulado: camUnavailable,
+    });
+    Alert.alert('Gracias', 'No lo guardamos en tu historial. Nos ayuda a mejorar el conteo.');
+    volverAlInicio();
+  }
+
+  function volverAlInicio() {
+    repRef.current = initRepState();
+    setReps(0);
+    setCues([]);
+    setCamPose(null);
+    framesConPoseRef.current = 0;
+    framesTotalRef.current = 0;
+    cuesVistosRef.current = new Map();
+    setFase('setup');
+  }
+
+  function valorar(util: boolean) {
+    setValoracion(util);
+    track('live_coach_valoracion', {
+      util,
+      ejercicio: exId,
+      reps_contadas: repRef.current.reps,
+      calidad_deteccion: Math.round(calidadDeteccion * 100),
+    });
   }
 
   function toggleVoice() {
@@ -298,6 +368,91 @@ export default function LiveCoachScreen() {
           )}
         </SafeAreaView>
       </View>
+    );
+  }
+
+  // ── RESUMEN ──
+  if (fase === 'resumen') {
+    return (
+      <SafeAreaView style={s.container}>
+        <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40 }}>
+          <Text style={s.resTitulo} accessibilityRole="header">SESIÓN TERMINADA</Text>
+
+          <View style={s.resNumWrap} accessible
+            accessibilityLabel={`${totalReps} repeticiones observadas de ${cfg.label}`}>
+            {/* "Observadas", no "hechas": es lo que la cámara pudo contar, y
+                esa distinción es justo lo que el usuario necesita para saber
+                si fiarse del número. */}
+            <Text style={s.resNum}>{totalReps}</Text>
+            <Text style={s.resNumLbl}>repeticiones observadas de {cfg.label}</Text>
+          </View>
+
+          {camUnavailable && (
+            <Text style={s.resAviso}>
+              Fue una demostración sin cámara, así que estas reps no se guardan en tu historial.
+            </Text>
+          )}
+
+          {!camUnavailable && deteccionIncompleta && (
+            <Text style={s.resAviso}>
+              La cámara te perdió de vista buena parte del tiempo ({Math.round(calidadDeteccion * 100)}%
+              de detección), así que este conteo puede no ser exacto. Si no cuadra, dínoslo abajo.
+            </Text>
+          )}
+
+          {topCues.length > 0 && (
+            <View style={s.resCues}>
+              <Text style={s.resCuesTitulo}>Lo que más se repitió</Text>
+              {topCues.map((c) => (
+                <Text key={c} style={s.resCue}>· {c}</Text>
+              ))}
+              {/* §15.4: esto es observación de TÉCNICA, no un diagnóstico.
+                  Decirlo evita que alguien lea "rodilla" y entienda "lesión". */}
+              <Text style={s.resCuesNota}>
+                Son observaciones de tu técnica en cámara, no un diagnóstico. Si algo te duele,
+                consulta a un profesional.
+              </Text>
+            </View>
+          )}
+
+          <View style={s.resValoracion}>
+            <Text style={s.resValTitulo}>¿Te sirvió el coach en vivo?</Text>
+            <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+              <TouchableOpacity
+                style={[s.resValBtn, valoracion === true && s.resValBtnSel]}
+                onPress={() => valorar(true)}
+                accessibilityRole="button" accessibilityLabel="Sí, me sirvió"
+                accessibilityState={{ selected: valoracion === true }}>
+                <Text style={s.resValTxt}>👍  Sí</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.resValBtn, valoracion === false && s.resValBtnSel]}
+                onPress={() => valorar(false)}
+                accessibilityRole="button" accessibilityLabel="No, no me sirvió"
+                accessibilityState={{ selected: valoracion === false }}>
+                <Text style={s.resValTxt}>👎  No</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <TouchableOpacity style={s.startBtn} onPress={guardarYSalir} activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={camUnavailable ? 'Terminar' : `Guardar ${totalReps} repeticiones en mi historial`}>
+            <Text style={s.startTxt}>
+              {camUnavailable || totalReps === 0 ? 'TERMINAR' : `GUARDAR ${totalReps} REPS`}
+            </Text>
+          </TouchableOpacity>
+
+          {/* La salida que faltaba: poder decir que contó mal. Sin esto, un
+              conteo erróneo entraba al historial y a los récords en silencio. */}
+          {!camUnavailable && totalReps > 0 && (
+            <TouchableOpacity style={s.resDescartar} onPress={descartarConteo}
+              accessibilityRole="button" accessibilityLabel="El conteo estuvo mal, no guardarlo">
+              <Text style={s.resDescartarTxt}>El conteo estuvo mal · no guardar</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -435,6 +590,33 @@ const s = StyleSheet.create({
     fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textMuted,
     marginTop: 8, marginBottom: Spacing.md, lineHeight: 17,
   },
+  // ── Resumen ──
+  resTitulo: { fontFamily: Fonts.heading, fontSize: 15, color: Colors.textMuted, letterSpacing: 1, marginBottom: Spacing.md },
+  resNumWrap: { alignItems: 'center', marginBottom: Spacing.lg },
+  resNum: { fontFamily: Fonts.heading, fontSize: 72, color: Colors.accent },
+  resNumLbl: { fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, textAlign: 'center', marginTop: -4 },
+  resAviso: {
+    fontFamily: Fonts.body, fontSize: Type.body, color: Colors.warning, lineHeight: 20,
+    backgroundColor: 'rgba(255,180,84,0.10)', borderRadius: Radii.md, padding: Spacing.md, marginBottom: Spacing.md,
+  },
+  resCues: {
+    backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border,
+    padding: Spacing.md, marginBottom: Spacing.md,
+  },
+  resCuesTitulo: { fontFamily: Fonts.bodySemi, fontSize: Type.bodyLg, color: Colors.textPrimary, marginBottom: 6 },
+  resCue: { fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 20 },
+  resCuesNota: { fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textMuted, lineHeight: 17, marginTop: Spacing.sm },
+  resValoracion: { marginBottom: Spacing.lg },
+  resValTitulo: { fontFamily: Fonts.bodySemi, fontSize: Type.body, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  resValBtn: {
+    flex: 1, alignItems: 'center', paddingVertical: 12,
+    borderRadius: Radii.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bgCard,
+  },
+  resValBtnSel: { borderColor: Colors.accent, backgroundColor: Colors.bgSelected },
+  resValTxt: { fontFamily: Fonts.bodyMedium, fontSize: Type.bodyLg, color: Colors.textPrimary },
+  resDescartar: { paddingVertical: 14, alignItems: 'center' },
+  resDescartarTxt: { fontFamily: Fonts.bodyMedium, fontSize: Type.body, color: Colors.textMuted },
+
   preflightCancel: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
   preflightCancelTxt: { fontFamily: Fonts.bodyMedium, fontSize: Type.body, color: Colors.textMuted },
   stopBtn: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.lg, paddingVertical: 16, alignItems: 'center' },

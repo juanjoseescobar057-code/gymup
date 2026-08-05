@@ -12,6 +12,7 @@ import {
   articulacionesRequeridas,
   SPAN_MIN,
   SPAN_MAX,
+  resumirSesion,
 } from '../lib/pose/preflight';
 import type { Joint, Pose } from '../lib/pose/types';
 
@@ -101,4 +102,41 @@ test('cada estado explica qué hacer, no solo qué falla', () => {
     assert.ok(c.titulo.length > 0, `${e} sin título`);
     assert.ok(c.detalle.length > 10, `${e} sin detalle accionable`);
   }
+});
+
+// ── Resumen de la sesión ──
+// Decide si le avisamos al usuario de que su conteo puede estar mal. Callarlo
+// cuando la cámara lo perdió la mitad del tiempo es dejarle creer un número
+// inventado; avisar siempre es ruido que enseña a ignorar el aviso.
+
+test('detección limpia no dispara el aviso', () => {
+  const r = resumirSesion(100, 95, new Map());
+  assert.equal(r.deteccionIncompleta, false);
+});
+
+test('la cámara perdiendo a la persona la mitad del tiempo sí avisa', () => {
+  const r = resumirSesion(100, 50, new Map());
+  assert.equal(r.deteccionIncompleta, true);
+});
+
+test('sin frames procesados se avisa: no medir no es medir bien', () => {
+  const r = resumirSesion(0, 0, new Map());
+  assert.equal(r.calidad, 0);
+  assert.equal(r.deteccionIncompleta, true);
+});
+
+test('se lleva las tres correcciones MÁS REPETIDAS, no las últimas', () => {
+  const cues = new Map([
+    ['rodillas adentro', 12],
+    ['espalda redondeada', 3],
+    ['poca profundidad', 8],
+    ['talones levantados', 1],
+    ['codos abiertos', 5],
+  ]);
+  const r = resumirSesion(100, 90, cues);
+  assert.deepEqual(r.topCues, ['rodillas adentro', 'poca profundidad', 'codos abiertos']);
+});
+
+test('sin correcciones no se inventa ninguna', () => {
+  assert.deepEqual(resumirSesion(100, 90, new Map()).topCues, []);
 });

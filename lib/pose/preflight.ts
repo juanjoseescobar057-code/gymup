@@ -148,3 +148,38 @@ export function copyPreflight(estado: EstadoPreflight): CopyPreflight {
       };
   }
 }
+
+// ─── RESUMEN DE LA SESIÓN ────────────────────────────────
+
+/** Por debajo de esto, el conteo no es de fiar y hay que decirlo. */
+export const CALIDAD_MINIMA = 0.7;
+
+/** Más de tres correcciones no se recuerdan; se queda con las más repetidas. */
+export const MAX_CUES_RESUMEN = 3;
+
+export type ResumenSesion = {
+  calidad: number;          // 0..1
+  deteccionIncompleta: boolean;
+  topCues: string[];
+};
+
+/**
+ * Qué contar al terminar. Separado del componente porque decide dos cosas que
+ * el usuario ve y sobre las que actúa: si avisamos de que el conteo puede
+ * estar mal, y qué tres correcciones se lleva a casa.
+ *
+ * Sin frames procesados la calidad es 0 y se avisa: no haber podido medir
+ * nada NO es lo mismo que haber medido bien.
+ */
+export function resumirSesion(
+  framesTotal: number,
+  framesConPose: number,
+  cues: Map<string, number>,
+): ResumenSesion {
+  const calidad = framesTotal > 0 ? framesConPose / framesTotal : 0;
+  const topCues = [...cues.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_CUES_RESUMEN)
+    .map(([texto]) => texto);
+  return { calidad, deteccionIncompleta: calidad < CALIDAD_MINIMA, topCues };
+}

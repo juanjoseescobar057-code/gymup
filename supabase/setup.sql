@@ -250,15 +250,37 @@ revoke insert, update, delete on public.badge_catalog from anon, authenticated;
 -- ⚠️ ESPEJO de WEEKLY_MISSIONS en lib/missions.ts (id, tipo, meta, xp).
 create table if not exists public.mission_catalog (
   id     text primary key,
-  kind   text not null check (kind in ('workouts', 'meals', 'body_scans')),
+  kind   text not null,
   target integer not null check (target > 0),
   xp     integer not null check (xp >= 0)
 );
 
+-- El CHECK va aparte del create table porque `create table if not exists` NO
+-- toca una tabla que ya existe: al añadir los tipos nuevos, la restricción
+-- vieja seguía en producción y rechazaba las misiones nuevas con un 23514.
+-- Los tres primeros tipos son los de las apps ya instaladas (ver abajo).
+alter table public.mission_catalog drop constraint if exists mission_catalog_kind_check;
+alter table public.mission_catalog add constraint mission_catalog_kind_check
+  check (kind in ('workouts', 'meals', 'body_scans',
+                  'planned_workouts', 'protein_days', 'rest_day'));
+
+-- Las tres primeras son las VIEJAS. Se quedan a propósito: las apps ya
+-- instaladas las siguen pidiendo, y borrarlas del catálogo les respondería
+-- 'unknown_mission' — es decir, les quitaría una misión que ya se estaban
+-- ganando. Desaparecen solas cuando esos builds se actualicen.
+--
+-- Las nuevas dejan de premiar el USO de la app (registra 10 comidas, hazte un
+-- análisis corporal — este último además empujaba a una función de pago
+-- disfrazada de meta) y premian entrenar, comer y descansar.
 insert into public.mission_catalog (id, kind, target, xp) values
-  ('w_workouts3', 'workouts',   3,  120),
-  ('w_meals10',   'meals',      10, 90),
-  ('w_scan1',     'body_scans', 1,  60)
+  ('w_workouts3', 'workouts',         3,  120),
+  ('w_meals10',   'meals',            10, 90),
+  ('w_scan1',     'body_scans',       1,  60),
+  -- El target de 'planned_workouts' lo sobrescribe el servidor con el plan
+  -- real del usuario; el 3 de aquí es solo un respaldo legible.
+  ('w_planned',   'planned_workouts', 3,  120),
+  ('w_protein3',  'protein_days',     3,  90),
+  ('w_rest',      'rest_day',         1,  60)
 on conflict (id) do update
   set kind = excluded.kind, target = excluded.target, xp = excluded.xp;
 
@@ -283,6 +305,31 @@ revoke insert, update, delete on public.mission_catalog from anon, authenticated
 -- Cotas: mínimo 2 (nunca más estricto que antes) y máximo 6 (un plan
 -- degenerado con 6 días de descanso no puede convertir la racha en algo que
 -- no se rompe nunca).
+-- ¿Cuántos días de ENTRENO programa el plan activo? Es el objetivo de la
+-- misión de adherencia: "completa lo que TU plan programó" no puede ser un
+-- número fijo, porque a quien entrena 2 días le pediría el doble de lo suyo y
+-- a quien entrena 6 le regalaría la misión a mitad de semana.
+create or replace function public._planned_workout_days(p_uid uuid)
+returns integer
+language sql stable security definer set search_path = public as $$
+  -- nullif es imprescindible: count(*) sobre un plan inexistente devuelve 0,
+  -- NO null, así que sin esto el coalesce nunca entraba y el objetivo caía a
+  -- 1 entrenamiento — la misión de adherencia quedaba regalada para todo el
+  -- que no tuviera plan.
+  select greatest(2, least(7, coalesce(nullif((
+    select count(*)
+    from jsonb_array_elements((
+      select p.plan_data -> 'days'
+      from public.training_plans p
+      where p.user_id = p_uid and p.is_active
+      order by p.generated_at desc
+      limit 1
+    )) d
+    where d ->> 'type' = 'workout'
+  ), 0), 3)::integer));
+$$;
+revoke all on function public._planned_workout_days(uuid) from anon, authenticated;
+
 -- Parte pura: recibe el array de días y devuelve el margen. Separada de la
 -- lectura del plan para poder probarla con planes reales sin inventar
 -- usuarios en auth.users.
@@ -722,13 +769,61 @@ begin
   v_start := to_date(v_week, 'IYYY-"W"IW')::timestamptz - interval '1 day';
   v_end   := v_start + interval '9 days';
 
+  -- OJO con 'workouts' y 'meals': cuentan FILAS, no días. Se conservan porque
+  -- las apps ya instaladas siguen pidiendo esas misiones y borrarlas del
+  -- catálogo les devolvería 'unknown_mission' — pero las misiones nuevas no
+  -- las usan. Ver los tipos por DÍAS de abajo.
   if v_kind = 'workouts' then
     select count(*) into v_count from public.workout_sessions w
     where w.user_id = v_uid and w.completed_at is not null
       and w.started_at >= v_start and w.started_at < v_end;
+
   elsif v_kind = 'meals' then
     select count(*) into v_count from public.food_logs f
     where f.user_id = v_uid and f.logged_at >= v_start and f.logged_at < v_end;
+
+  -- Adherencia: días DISTINTOS con al menos una sesión terminada. Contar
+  -- sesiones dejaba pasar tres entrenos del mismo día como si fueran tres
+  -- días de constancia, que es justo lo contrario de lo que mide la misión.
+  -- El objetivo sale del plan del usuario, no del catálogo.
+  elsif v_kind = 'planned_workouts' then
+    v_target := public._planned_workout_days(v_uid);
+    select count(distinct (w.started_at at time zone 'UTC')::date) into v_count
+    from public.workout_sessions w
+    where w.user_id = v_uid and w.completed_at is not null
+      and w.started_at >= v_start and w.started_at < v_end;
+
+  -- Nutrición por RESULTADO, no por volumen de registro: días en que de
+  -- verdad cubriste tu meta de proteína. "Registra 10 comidas" premiaba abrir
+  -- la app; esto premia haber comido lo que tu plan necesita.
+  elsif v_kind = 'protein_days' then
+    select count(*) into v_count from (
+      select (f.logged_at at time zone 'UTC')::date as dia, sum(f.protein_g) as prot
+      from public.food_logs f
+      where f.user_id = v_uid and f.logged_at >= v_start and f.logged_at < v_end
+      group by 1
+    ) d
+    where d.prot >= coalesce((
+      select p.daily_protein_g from public.user_profiles p where p.user_id = v_uid
+    ), 999999);
+
+  -- Recuperación: entrenaste Y dejaste descansar. Exige las dos cosas — sin
+  -- la primera, no hacer nada en toda la semana cobraría la misión. Los días
+  -- se cuentan solo hasta HOY: el resto de la semana todavía no ha pasado.
+  elsif v_kind = 'rest_day' then
+    select count(distinct (w.started_at at time zone 'UTC')::date) into v_count
+    from public.workout_sessions w
+    where w.user_id = v_uid and w.completed_at is not null
+      and w.started_at >= v_start and w.started_at < v_end;
+
+    if v_count >= 1
+       and (least(current_date, (v_start + interval '8 days')::date)
+            - (v_start + interval '1 day')::date + 1) > v_count then
+      v_count := 1;   -- hubo al menos un día transcurrido sin entrenar
+    else
+      v_count := 0;
+    end if;
+
   else
     select count(*) into v_count from public.body_scans b
     where b.user_id = v_uid and b.scanned_at >= v_start and b.scanned_at < v_end;

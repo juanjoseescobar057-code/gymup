@@ -11,7 +11,15 @@ import { supabase } from './supabase';
 import { captureError } from './monitoring';
 import { loadUserStats } from './streaks';
 
-export type MissionType = 'workouts' | 'meals' | 'body_scans';
+/**
+ * Las tres misiones viejas (workouts, meals, body_scans) siguen existiendo en
+ * el servidor para las apps ya instaladas, pero este cliente ya no las
+ * muestra: premiaban USAR la app, no entrenar. "Hazte 1 análisis corporal"
+ * era además un embudo a una función de pago disfrazado de meta semanal.
+ */
+export type { MissionType, ActividadSemana } from './missionsMath';
+export { contarMisiones } from './missionsMath';
+import { contarMisiones, type MissionType, type ActividadSemana } from './missionsMath';
 
 export type Mission = {
   id: string;
@@ -22,10 +30,15 @@ export type Mission = {
   xp: number;
 };
 
+/**
+ * El objetivo de `w_planned` es 3 solo como respaldo mientras se carga el
+ * plan: el real sale de cuántos días de entreno programa TU plan, y lo decide
+ * el servidor. Pedirle 3 a quien entrena 2 días le exigiría más de lo suyo.
+ */
 export const WEEKLY_MISSIONS: Mission[] = [
-  { id: 'w_workouts3', label: 'Entrena 3 veces',          emoji: '🏋️', type: 'workouts',   target: 3, xp: 120 },
-  { id: 'w_meals10',   label: 'Registra 10 comidas',       emoji: '🍽️', type: 'meals',      target: 10, xp: 90 },
-  { id: 'w_scan1',     label: 'Hazte 1 análisis corporal', emoji: '📷', type: 'body_scans', target: 1, xp: 60 },
+  { id: 'w_planned',  label: 'Completa tus sesiones de la semana', emoji: '🏋️', type: 'planned_workouts', target: 3, xp: 120 },
+  { id: 'w_protein3', label: 'Cubre tu proteína en 3 días',        emoji: '🥩', type: 'protein_days',     target: 3, xp: 90 },
+  { id: 'w_rest',     label: 'Respeta un día de descanso',         emoji: '🌙', type: 'rest_day',         target: 1, xp: 60 },
 ];
 
 export type MissionProgress = Mission & { current: number; done: boolean; claimed: boolean };
@@ -72,19 +85,24 @@ function startOfWeekISO(): string {
 
 export async function fetchWeeklyCounts(userId: string): Promise<Record<MissionType, number>> {
   const since = startOfWeekISO();
-  const [workouts, meals, scans] = await Promise.all([
-    supabase.from('workout_sessions').select('id', { count: 'exact', head: true })
+  const [entrenos, comidas, perfil] = await Promise.all([
+    supabase.from('workout_sessions').select('started_at')
       .eq('user_id', userId).gte('started_at', since).not('completed_at', 'is', null),
-    supabase.from('food_logs').select('id', { count: 'exact', head: true })
+    supabase.from('food_logs').select('logged_at, protein_g')
       .eq('user_id', userId).gte('logged_at', since),
-    supabase.from('body_scans').select('id', { count: 'exact', head: true })
-      .eq('user_id', userId).gte('scanned_at', since),
+    supabase.from('user_profiles').select('daily_protein_g').eq('user_id', userId).maybeSingle(),
   ]);
-  return {
-    workouts: workouts.count ?? 0,
-    meals: meals.count ?? 0,
-    body_scans: scans.count ?? 0,
-  };
+
+  const inicio = new Date(since);
+  const hoy = new Date();
+  const diasTranscurridos = Math.floor((hoy.getTime() - inicio.getTime()) / 86400000) + 1;
+
+  return contarMisiones({
+    entrenos: (entrenos.data ?? []).map((r: any) => r.started_at),
+    comidas: (comidas.data ?? []) as any,
+    metaProteinaG: (perfil.data as any)?.daily_protein_g ?? 0,
+    diasTranscurridos,
+  });
 }
 
 /** Carga las misiones de la semana con su progreso y estado de reclamo. */
@@ -112,7 +130,7 @@ export async function claimMission(userId: string, missionId: string): Promise<n
   if (!mission) return 0;
 
   // La clave lleva la semana: el dedupe del servidor es por id de misión, así
-  // que "w_workouts3" de esta semana tiene que ser un id distinto al de la
+  // que "w_planned" de esta semana tiene que ser un id distinto al de la
   // pasada o la misión solo se podría cobrar una vez en la vida.
   const key = `${getWeekKey()}:${missionId}`;
 

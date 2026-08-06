@@ -237,9 +237,9 @@ create table if not exists public.set_logs (
 select public._apply_owner_rls('set_logs');
 create index if not exists set_logs_user_exercise on public.set_logs(user_id, exercise_name, logged_at desc);
 alter table public.set_logs add column if not exists rir numeric(3,1) check (rir between 0 and 10);
-create unique index if not exists set_logs_session_set_unique
-  on public.set_logs(session_id, exercise_name, set_number)
-  where session_id is not null;
+-- Índice único de (sesión, ejercicio, nº de serie) RETIRADO: rechazaba series
+-- legítimas. Ver la explicación completa en
+-- supabase/migrations/0007_world_class_safety_integrity.sql.
 
 -- Estado subjetivo previo a entrenar. No reemplaza el tamizaje clínico: sirve
 -- para distinguir una meseta real de fatiga, poco tiempo o un mal día aislado.

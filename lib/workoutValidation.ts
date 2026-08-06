@@ -15,7 +15,24 @@ export type NormalizedWorkoutSet = {
  */
 export function normalizeCompletedSets(input: SetLogInput[]): NormalizedWorkoutSet[] {
   if (input.length === 0) throw new Error('Registra al menos una serie con repeticiones antes de terminar.');
-  const seen = new Set<string>();
+
+  // El número de serie se cuenta por HUECO del día, no por ejercicio. Si la
+  // persona sustituye un ejercicio por otro que ya estaba en la sesión (el
+  // modal de cambio no excluye los que ya están), los dos huecos generan
+  // series 1, 2, 3 con el mismo nombre. Eso NO es un dato corrupto: son seis
+  // series reales que la persona hizo.
+  //
+  // Antes esto lanzaba y el entrenamiento entero quedaba imposible de guardar
+  // — para siempre, porque el reintento repetía los mismos datos y la app no
+  // ofrece editar ni borrar una serie ya registrada. Se renumera en vez de
+  // rechazar: se conserva todo lo que hizo y el orden en que lo hizo.
+  const usados = new Map<string, number>();
+  function numeroLibre(nombre: string, propuesto: number): number {
+    const clave = nombre.toLocaleLowerCase('es');
+    const siguiente = Math.max(propuesto, (usados.get(clave) ?? 0) + 1);
+    usados.set(clave, siguiente);
+    return siguiente;
+  }
 
   return input.map((set, index) => {
     const name = set.exercise_name.trim();
@@ -34,12 +51,9 @@ export function normalizeCompletedSets(input: SetLogInput[]): NormalizedWorkoutS
     if (rir !== null && (!Number.isFinite(rir) || rir < 0 || rir > 10)) {
       throw new Error(`La serie ${index + 1} tiene un RIR inválido.`);
     }
-    const key = `${name.toLocaleLowerCase('es')}::${set.set_number}`;
-    if (seen.has(key)) throw new Error(`La serie ${set.set_number} de ${name} está duplicada.`);
-    seen.add(key);
     return {
       exercise_name: name,
-      set_number: set.set_number,
+      set_number: numeroLibre(name, set.set_number),
       weight_kg: weight,
       reps: set.reps as number,
       rir,

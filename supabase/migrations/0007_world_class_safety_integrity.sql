@@ -51,8 +51,20 @@ alter table public.workout_sessions add column if not exists client_session_key 
 create unique index if not exists workout_session_idempotency
   on public.workout_sessions(user_id,client_session_key) where client_session_key is not null;
 alter table public.set_logs add column if not exists rir numeric(3,1) check (rir between 0 and 10);
-create unique index if not exists set_logs_session_set_unique
-  on public.set_logs(session_id,exercise_name,set_number) where session_id is not null;
+-- ÍNDICE RETIRADO. Rechazaba series LEGÍTIMAS y hacía imposible guardar el
+-- entrenamiento entero. El número de serie se cuenta por HUECO del día, no
+-- por ejercicio: si alguien sustituye un ejercicio por otro que ya está en la
+-- sesión (el modal de cambio no excluye los que ya están), los dos huecos
+-- generan series 1,2,3 con el mismo nombre. Son seis series reales, no un
+-- duplicado. Con el índice, el insert entero fallaba con 23505 y el reintento
+-- repetía los mismos datos: el entreno se perdía para siempre, porque la app
+-- no ofrece editar ni borrar una serie ya registrada.
+--
+-- La unicidad real la garantiza ahora normalizeCompletedSets, que renumera en
+-- vez de rechazar. El índice no vuelve mientras haya builds antiguos vivos:
+-- esos siguen enviando el número duplicado.
+--   create unique index if not exists set_logs_session_set_unique
+--     on public.set_logs(session_id,exercise_name,set_number) where session_id is not null;
 
 create table if not exists public.workout_readiness (
   id uuid primary key default uuid_generate_v4(),
@@ -122,13 +134,23 @@ begin
   select p.id,p.parent_plan_id into v_current,v_previous from public.training_plans p
     where p.user_id=v_uid and p.is_active order by p.generated_at desc limit 1 for update;
   if v_current is null then raise exception 'No hay plan activo'; end if;
+  -- parent_plan_id es una columna que el propio usuario puede escribir vía
+  -- PostgREST, y esta función es SECURITY DEFINER (sin RLS). Si se confía en
+  -- ella sin comprobar el dueño, apuntarla al plan de otra persona hacía que
+  -- la respuesta devolviera su rutina completa. Se re-valida la propiedad.
+  if v_previous is not null and not exists (
+    select 1 from public.training_plans p where p.id=v_previous and p.user_id=v_uid
+  ) then v_previous := null; end if;
   if v_previous is null then select p.id into v_previous from public.training_plans p
     where p.user_id=v_uid and p.id<>v_current order by p.generated_at desc limit 1; end if;
   if v_previous is null then raise exception 'No hay un plan anterior para restaurar'; end if;
-  update public.training_plans set is_active=false,replaced_at=now() where id=v_current;
+  -- Desactivar DESPUÉS de saber que hay un plan válido al que volver: antes se
+  -- desactivaba primero y, si la activación no afectaba filas, la persona se
+  -- quedaba sin ningún plan activo.
+  update public.training_plans set is_active=false,replaced_at=now() where id=v_current and user_id=v_uid;
   update public.training_plans set is_active=true,replaced_at=null where id=v_previous and user_id=v_uid;
   update public.user_profiles set current_plan_day=0,updated_at=now() where user_id=v_uid;
-  return query select p.* from public.training_plans p where p.id=v_previous;
+  return query select p.* from public.training_plans p where p.id=v_previous and p.user_id=v_uid;
 end $$;
 grant execute on function public.restore_previous_training_plan() to authenticated;
 

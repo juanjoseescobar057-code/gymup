@@ -94,6 +94,7 @@ export default function OnboardingScreen() {
   const [experience, setExperience] = useState<ExperienceKey>('principiante');
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [equipment, setEquipment] = useState<EquipmentKey>('gym');
+  const [legalConsent, setLegalConsent] = useState(false);
   const [targetWeight, setTargetWeight] = useState('');
   const [goalWhy, setGoalWhy] = useState('');
   const [health, setHealth] = useState<HealthProfile>(EMPTY_HEALTH);
@@ -149,6 +150,10 @@ export default function OnboardingScreen() {
   }
 
   async function handleFinish() {
+    if (!legalConsent) {
+      Alert.alert('Necesitamos tu autorización', 'Lee y acepta los Términos y la Política de Privacidad para guardar datos de salud y crear tu plan.');
+      return;
+    }
     Keyboard.dismiss();
     const tw = targetWeight.trim() ? parseFloat(targetWeight.replace(',', '.')) : null;
     if (tw != null && (isNaN(tw) || tw < 30 || tw > 300)) {
@@ -197,9 +202,6 @@ export default function OnboardingScreen() {
         height_cm: +height,
         goal,
         activity_level: activityLevel,
-        // TODO: experience, days_per_week y equipment todavía NO tienen columna
-        // en user_profiles, así que solo viajan al generador y se pierden al
-        // re-planificar. Merecen columnas propias para no volver a preguntarlos.
         experience,
         days_per_week: daysPerWeek,
         equipment,
@@ -238,6 +240,9 @@ export default function OnboardingScreen() {
           height_cm: +height,
           goal,
           activity_level: activityLevel,
+          training_experience: experience,
+          days_per_week: daysPerWeek,
+          equipment,
           daily_calories: macros.daily_calories,
           daily_protein_g: macros.daily_protein_g,
           daily_carbs_g: macros.daily_carbs_g,
@@ -674,7 +679,22 @@ export default function OnboardingScreen() {
 
                   <HealthForm value={health} onChange={setHealth} age={+age || 30} />
 
-                  <TouchableOpacity style={s.cta} onPress={handleFinish} activeOpacity={0.85}
+                  <TouchableOpacity style={[s.actRow, legalConsent && s.actSel]} onPress={() => setLegalConsent((v) => !v)}
+                    accessibilityRole="checkbox" accessibilityState={{ checked: legalConsent }}
+                    accessibilityLabel="Acepto los términos y autorizo el tratamiento de mis datos según la política de privacidad">
+                    <View style={[s.radio, legalConsent && s.radioSel]}>{legalConsent && <View style={s.radioDot} />}</View>
+                    <Text style={s.actLbl}>{legalConsent ? 'Aceptado. ' : ''}Acepto los Términos y autorizo el tratamiento de mis datos, incluidos datos sensibles de salud.</Text>
+                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 18, marginBottom: Spacing.md }}>
+                    <TouchableOpacity onPress={() => router.push('/legal?doc=terms' as any)} accessibilityRole="link" accessibilityLabel="Leer términos de uso">
+                      <Text style={{ color: Colors.accent, fontFamily: Fonts.bodySemi, fontSize: Type.caption, textDecorationLine: 'underline' }}>Leer Términos</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => router.push('/legal?doc=privacy' as any)} accessibilityRole="link" accessibilityLabel="Leer política de privacidad">
+                      <Text style={{ color: Colors.accent, fontFamily: Fonts.bodySemi, fontSize: Type.caption, textDecorationLine: 'underline' }}>Leer Privacidad</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity style={[s.cta, !legalConsent && { opacity: 0.55 }]} onPress={handleFinish} activeOpacity={0.85}
                     accessibilityRole="button" accessibilityLabel="Generar mi plan con inteligencia artificial">
                     <Text style={s.ctaTxt}>GENERAR MI PLAN IA ✦</Text>
                   </TouchableOpacity>

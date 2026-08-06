@@ -28,6 +28,7 @@
 
 import PostHog from 'posthog-react-native';
 import { captureError } from './monitoring';
+import { getSessionReplayConsent, saveSessionReplayConsent } from './privacyPreferences';
 
 const KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY;
 const HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
@@ -53,11 +54,18 @@ const RUTAS_SIN_GRABACION = [
   '/health',
   '/onboarding',
   '/coach-chat',
+  '/live-coach',
+  '/workout-session',
+  '/workout-complete',
+  '/food-manual',
+  '/history',
+  '/legal',
   '/telemetry',
 ];
 
 let ph: PostHog | null = null;
 let replayPausado = false;
+let replayConsent = false;
 
 export function esRutaSensible(pathname: string): boolean {
   return RUTAS_SIN_GRABACION.some((r) => pathname.startsWith(r));
@@ -67,13 +75,14 @@ export function esRutaSensible(pathname: string): boolean {
 export async function initPostHog(distinctId?: string): Promise<void> {
   if (ph || !KEY) return;
   try {
+    replayConsent = await getSessionReplayConsent();
     ph = new PostHog(KEY, {
       host: HOST,
       // Nuestra capa ya emite screen_viewed con dwell time y `from`. Dejar que
       // PostHog capture navegación y toques por su cuenta duplicaría eventos y
       // rompería la correspondencia con `analytics_events`.
       captureAppLifecycleEvents: false,
-      enableSessionReplay: true,
+      enableSessionReplay: replayConsent,
       sessionReplayConfig: {
         maskAllTextInputs: true,
         maskAllImages: true,
@@ -174,7 +183,7 @@ export function phReset(): void {
 export function ajustarReplayPorRuta(pathname: string): void {
   if (!ph) return;
   try {
-    const sensible = esRutaSensible(pathname);
+    const sensible = !replayConsent || esRutaSensible(pathname);
     if (sensible && !replayPausado) {
       replayPausado = true;
       ph.stopSessionRecording();
@@ -182,6 +191,22 @@ export function ajustarReplayPorRuta(pathname: string): void {
       replayPausado = false;
       // `false`: no reanudar la grabación anterior, empezar una nueva. Así el
       // tramo sensible no queda pegado al mismo replay.
+      ph.startSessionRecording(false);
+    }
+  } catch {}
+}
+
+/** Aplica de inmediato la decisión y la persiste. Nunca reanuda dentro de una ruta sensible. */
+export async function setSessionReplayConsent(granted: boolean, pathname = ''): Promise<void> {
+  replayConsent = granted;
+  await saveSessionReplayConsent(granted);
+  if (!ph) return;
+  try {
+    if (!granted || esRutaSensible(pathname)) {
+      replayPausado = true;
+      ph.stopSessionRecording();
+    } else {
+      replayPausado = false;
       ph.startSessionRecording(false);
     }
   } catch {}

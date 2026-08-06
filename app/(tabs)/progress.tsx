@@ -499,14 +499,14 @@ export default function ProgressScreen() {
           <Text style={{ fontSize: 18 }}>🧊</Text>
           <Text style={s.freezeTxt}>
             {(stats?.streak_freezes ?? 0) > 0
-              ? `Tienes ${stats!.streak_freezes} comodín${stats!.streak_freezes === 1 ? '' : 'es'} de racha — te salva si fallas un día.`
-              : 'Sin comodines de racha. Consigue uno para proteger tu racha.'}
+              ? `Tienes ${stats!.streak_freezes} comodín${stats!.streak_freezes === 1 ? '' : 'es'} — cubre una pausa no planificada sin borrar tu constancia.`
+              : 'Sin comodines. Tu plan ya respeta los días de descanso programados.'}
           </Text>
           {(stats?.streak_freezes ?? 0) < 2 && (
             <TouchableOpacity style={s.freezeBuyBtn} onPress={buyFreeze}
               accessibilityRole="button"
               accessibilityLabel={`Comprar un comodín de racha por ${FREEZE_COST} puntos de experiencia`}
-              accessibilityHint="Un comodín salva tu racha si fallas un día">
+              accessibilityHint="Cubre una pausa no planificada; los descansos del plan no rompen la racha">
               <Text style={s.freezeBuyTxt}>+1 por {FREEZE_COST} XP</Text>
             </TouchableOpacity>
           )}

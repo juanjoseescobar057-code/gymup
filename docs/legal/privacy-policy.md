@@ -1,6 +1,6 @@
 # Política de Privacidad de GymUp
 
-**Última actualización:** 2 de agosto de 2026 · **Versión:** 1.2
+**Última actualización:** 4 de agosto de 2026 · **Versión:** 1.3
 
 > ⚠️ **Antes de publicar:** este documento fue redactado como base sólida y específica para
 > GymUp, pero **no sustituye asesoría legal profesional**. Dado que la app trata **datos de
@@ -71,12 +71,13 @@ identificador anónimo de dispositivo, información técnica (modelo, sistema op
 versión de la app, idioma, zona horaria), y — si nos das permiso — token de
 notificaciones push.
 
-**Grabaciones de pantalla.** Para entender dónde la app confunde o falla, grabamos cómo
-la usas. Estas grabaciones van **enmascaradas**: todo el texto y todas las imágenes se
-sustituyen por bloques de color, así que no vemos lo que escribes ni tus fotos, solo por
-dónde te mueves y qué tocas. Además **desactivamos la grabación por completo** en las
-pantallas de análisis corporal, escáner de comida y nevera, tamizaje de salud y chat con
-tu coach: ahí no se graba nada, ni siquiera enmascarado.
+**Grabaciones de pantalla opcionales.** Esta función está **desactivada por defecto** y
+solo se habilita si das tu consentimiento desde Privacidad. Si la habilitas, usamos
+grabaciones enmascaradas para entender dónde la App confunde o falla: el texto y las
+imágenes se sustituyen por bloques de color. Aunque hayas dado permiso, la grabación se
+desactiva por completo en pantallas sensibles, entre ellas salud, análisis corporal,
+escáneres, cámara, entrenamiento, coach y datos legales. Puedes retirar el permiso en
+cualquier momento sin perder las funciones principales de GymUp.
 
 ### 2.7 Información de pago
 Si te suscribes a GymUp Premium, el pago lo procesa **Apple App Store o Google Play**
@@ -109,7 +110,7 @@ operar la app (encargados del tratamiento), bajo contrato de confidencialidad:
 | **Supabase** (base de datos, autenticación, almacenamiento) | Alojar toda tu información | Todo lo descrito arriba |
 | **OpenAI** (a través de nuestro servidor, nunca directo desde tu dispositivo) | Analizar tus fotos y responder en el chat | Fotos de comida/nevera/cuerpo/postura, mensajes del chat, tu ficha de contexto (sin identificarte por nombre real ante ellos más allá de lo necesario) |
 | **RevenueCat** | Gestionar tu suscripción | Estado de la suscripción, identificador de usuario |
-| **PostHog** | Entender cómo se usa la app y mejorarla | Eventos de uso (qué pantallas ves, qué botones tocas, si terminas un entrenamiento), tu identificador de usuario y datos del dispositivo. **Grabaciones de pantalla** con todo el texto y las imágenes ocultos. **Nunca grabamos** las pantallas de análisis corporal, escáner de comida o nevera, tamizaje de salud ni el chat con tu coach |
+| **PostHog** | Entender cómo se usa la app y mejorarla | Eventos de uso (qué pantallas ves, qué botones tocas, si terminas un entrenamiento), tu identificador de usuario y datos del dispositivo. Solo con tu consentimiento: **grabaciones de pantalla enmascaradas**, excluyendo siempre las rutas sensibles descritas en la sección 2.6 |
 | **Sentry** | Detectar y diagnosticar errores de la app | Reportes de fallo: mensaje de error, versión de la app, modelo de dispositivo y tu identificador de usuario |
 | **Expo (EAS)** | Enviar notificaciones push | Token de notificaciones |
 | **Apple / Google** | Distribución de la app y cobro de suscripciones | Lo que ya compartes con ellos al usar sus tiendas |
@@ -151,6 +152,11 @@ conservamos ninguna copia que podamos devolverte.
 - Las copias de seguridad y los registros técnicos de nuestro proveedor de infraestructura
   (Supabase) pueden conservar datos **hasta 30 días adicionales** antes de su eliminación
   definitiva.
+- El proveedor de IA puede conservar temporalmente las entradas y salidas enviadas por
+  nuestro servidor **hasta 30 días** para monitoreo de abuso, salvo que GymUp tenga
+  habilitado contractualmente un régimen de retención reducida o cero retención. GymUp
+  no usa ese contenido para entrenar modelos y no guarda las fotos analizadas en su base
+  de datos, salvo las fotos de transformación que tú decidas conservar.
 - Conservamos los registros de eventos de facturación que nos envía RevenueCat
   (identificador del evento, identificador interno de usuario, tipo de evento y fecha,
   sin datos de tarjeta ni de contacto) como soporte de las transacciones.

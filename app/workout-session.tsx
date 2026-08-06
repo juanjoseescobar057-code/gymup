@@ -10,7 +10,7 @@ import * as Notifications from 'expo-notifications';
 import { supabase } from '../lib/supabase';
 import { useUserStore } from '../store/userStore';
 import { recordWorkoutCompleted, getBadge } from '../lib/streaks';
-import { fetchLastPerformance, saveSetLogs, type SetLogInput, type LastPerf } from '../lib/setLogs';
+import { fetchLastPerformance, type SetLogInput, type LastPerf } from '../lib/setLogs';
 import { fetchExerciseBests } from '../lib/history';
 import { detectNewPRs } from '../lib/prs';
 import { platesPerSide, formatPlates } from '../lib/plates';
@@ -20,8 +20,11 @@ import { saveSession, loadSession, clearSession } from '../lib/workoutPersistenc
 import { track } from '../lib/analytics';
 import { captureError } from '../lib/monitoring';
 import { loadHealthSafe } from '../lib/health';
-import { exerciseConflicts, INJURY_ZONES, type InjuryZone, type Condition } from '../lib/healthMath';
-import { calentamientoPara, seriesDeAproximacion } from '../lib/warmupMath';
+import { computeRisk, evaluateWorkoutAccess, exerciseConflicts, INJURY_ZONES, type InjuryZone, type Condition, type HealthProfile } from '../lib/healthMath';
+import { calentamientoPara, minutosEstimados, seriesDeAproximacion } from '../lib/warmupMath';
+import { uuidV4 } from '../lib/ids';
+import { completeWorkout } from '../lib/workoutCompletion';
+import { adaptSessionExercises, sessionAdaptationMessage } from '../lib/sessionAdaptation';
 import { exercisesForGroup, EXERCISE_LIBRARY, type LibraryExercise } from '../constants/exercises';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../constants/theme';
 
@@ -38,7 +41,15 @@ export default function WorkoutSessionScreen() {
 
   const todayIndex = Math.min(profile?.current_plan_day ?? 0, 6);
   const todayPlan = trainingPlan?.plan_data?.days?.[todayIndex];
-  const exercises = todayPlan?.exercises ?? [];
+  const planExercises = todayPlan?.exercises ?? [];
+  const [sessionConfig, setSessionConfig] = useState<{ minutes: number; energy: number; soreness: number } | null>(null);
+  const exercises = sessionConfig
+    ? adaptSessionExercises(planExercises, {
+        availableMinutes: sessionConfig.minutes,
+        energy: sessionConfig.energy,
+        soreness: sessionConfig.soreness,
+      })
+    : planExercises;
 
   const [currentEx, setCurrentEx] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
@@ -47,10 +58,13 @@ export default function WorkoutSessionScreen() {
   const [restSeconds, setRestSeconds] = useState(0);
   // Inicio real de la sesión en un ref para poder restaurarlo tras un crash.
   const sessionStartRef = useRef(new Date());
+  const clientSessionKeyRef = useRef(uuidV4());
+  const workoutStartedRef = useRef(false);
 
   // Registro real de series (peso × reps) + última performance para prefill.
   const [weightInput, setWeightInput] = useState('');
   const [repsInput, setRepsInput] = useState('');
+  const [rirInput, setRirInput] = useState('');
   const [lastPerf, setLastPerf] = useState<Record<string, LastPerf>>({});
   const loggedSetsRef = useRef<SetLogInput[]>([]);
   const [swapModal, setSwapModal] = useState(false);
@@ -63,6 +77,8 @@ export default function WorkoutSessionScreen() {
   // y los estiramientos. Sin ellas, el catálogo propondría movimientos
   // contraindicados a quien menos se lo puede permitir.
   const [conditions, setConditions] = useState<Condition[]>([]);
+  const [healthProfile, setHealthProfile] = useState<HealthProfile | null>(null);
+  const [healthReload, setHealthReload] = useState(0);
   useEffect(() => {
     if (!profile) return;
     loadHealthSafe(profile.user_id)
@@ -72,29 +88,44 @@ export default function WorkoutSessionScreen() {
         } else {
           setInjuries(load.profile?.injuries ?? []);
           setConditions(load.profile?.conditions ?? []);
+          setHealthProfile(load.profile);
           setInjuriesStatus('ok');
         }
       })
       .catch(() => setInjuriesStatus('unknown'));
-  }, [profile?.user_id]);
+  }, [profile?.user_id, healthReload]);
 
   // Calentamiento: primera pantalla de la sesión. Se salta al retomar una
   // sesión interrumpida (ya calentó) y es saltable siempre — recomendarlo sí,
   // imponerlo no.
   const [faseCalentamiento, setFaseCalentamiento] = useState(true);
+  const [energyToday, setEnergyToday] = useState(3);
+  const [sorenessToday, setSorenessToday] = useState(2);
+  const [availableMinutes, setAvailableMinutes] = useState(60);
+  const [newPainToday, setNewPainToday] = useState(false);
   const ctxSalud = {
     injuries,
     conditions,
     desconocido: injuriesStatus !== 'ok', // fail-closed, igual que los swaps
+    age: profile?.age,
+    riskLevel: healthProfile && profile ? computeRisk(healthProfile, profile.age).level : undefined,
+    profile: healthProfile,
   };
+
+  function startWorkoutClock(startedAt = Date.now(), resumed = false, exerciseCount = exercises.length) {
+    sessionStartRef.current = new Date(startedAt);
+    workoutStartedRef.current = true;
+    if (timerRef.current) clearInterval(timerRef.current);
+    setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    timerRef.current = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - sessionStartRef.current.getTime()) / 1000));
+    }, 1000);
+    track('workout_started', { day_index: todayIndex, exercises: exerciseCount, resumed });
+  }
 
   useEffect(() => {
     // Derivar de Date.now(): un setInterval que solo suma +1 se congela
     // cuando la app va a background o se apaga la pantalla.
-    timerRef.current = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - sessionStartRef.current.getTime()) / 1000));
-    }, 1000);
-    track('workout_started', { day_index: todayIndex, exercises: exercises.length });
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
@@ -104,7 +135,7 @@ export default function WorkoutSessionScreen() {
       if (finishingRef.current) return; // terminó bien: workout_completed ya salió
       const sets = loggedSetsRef.current.length;
       const durMin = Math.round((Date.now() - sessionStartRef.current.getTime()) / 60_000);
-      if (sets > 0 || durMin >= 1) {
+      if (workoutStartedRef.current && (sets > 0 || durMin >= 1)) {
         track('workout_abandoned', { sets_logged: sets, duration_min: durMin });
       }
     };
@@ -125,9 +156,27 @@ export default function WorkoutSessionScreen() {
           {
             text: 'Retomar',
             onPress: () => {
-              setFaseCalentamiento(false); // ya calentó antes de la interrupción
-              sessionStartRef.current = new Date(snap.startedAt);
-              setCurrentEx(Math.min(snap.currentEx, exercises.length - 1));
+              // Tras una pausa larga el cuerpo ya no está preparado: se
+              // conserva todo el progreso, pero se vuelve a ofrecer calentamiento.
+              const pausaLarga = Date.now() - snap.savedAt > 20 * 60_000;
+              setFaseCalentamiento(pausaLarga);
+              clientSessionKeyRef.current = snap.clientSessionKey ?? uuidV4();
+              const restoredConfig = {
+                minutes: snap.sessionMinutes ?? 60,
+                energy: snap.readinessEnergy ?? 3,
+                soreness: snap.readinessSoreness ?? 2,
+              };
+              const restoredExercises = adaptSessionExercises(planExercises, {
+                availableMinutes: restoredConfig.minutes,
+                energy: restoredConfig.energy,
+                soreness: restoredConfig.soreness,
+              });
+              setSessionConfig(restoredConfig);
+              setEnergyToday(restoredConfig.energy);
+              setSorenessToday(restoredConfig.soreness);
+              setAvailableMinutes(restoredConfig.minutes);
+              if (!pausaLarga) startWorkoutClock(snap.startedAt, true, restoredExercises.length);
+              setCurrentEx(Math.min(snap.currentEx, restoredExercises.length - 1));
               setCompletedSets(snap.completedSets);
               loggedSetsRef.current = snap.loggedSets;
               const doneForEx = snap.completedSets[snap.currentEx] ?? 0;
@@ -138,11 +187,15 @@ export default function WorkoutSessionScreen() {
       );
     });
     return () => { cancelled = true; };
-  }, [exercises.length]);
+  }, [trainingPlan?.id, todayIndex, planExercises.length]);
 
   // Guarda un snapshot del progreso (para restaurar tras un crash).
   function persist(nextCompleted: Record<number, number>, nextEx: number) {
     saveSession({
+      clientSessionKey: clientSessionKeyRef.current,
+      sessionMinutes: sessionConfig?.minutes,
+      readinessEnergy: sessionConfig?.energy,
+      readinessSoreness: sessionConfig?.soreness,
       todayIndex,
       startedAt: sessionStartRef.current.getTime(),
       currentEx: nextEx,
@@ -167,6 +220,7 @@ export default function WorkoutSessionScreen() {
     const prev = lastPerf[currentExName];
     setWeightInput(prev?.weight_kg != null ? String(prev.weight_kg) : '');
     setRepsInput(prev?.reps != null ? String(prev.reps) : '');
+    setRirInput(exercises[currentEx]?.target_rir != null ? String(exercises[currentEx].target_rir) : '');
   }, [currentEx, currentSet, lastPerf, currentExName]);
 
   function formatTime(secs: number) {
@@ -209,24 +263,38 @@ export default function WorkoutSessionScreen() {
     // Anti doble-tap: dos toques rápidos duplicaban la serie registrada.
     const now = Date.now();
     if (now - lastTapRef.current < 600) return;
-    lastTapRef.current = now;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    const done = (completedSets[currentEx] ?? 0) + 1;
 
     // Registrar el peso y reps logrados en esta serie.
     const w = parseFloat(weightInput.replace(',', '.'));
     const r = parseInt(repsInput, 10);
+    const rir = rirInput.trim() === '' ? null : parseFloat(rirInput.replace(',', '.'));
+    if (!Number.isInteger(r) || r <= 0 || r > 1000) {
+      Alert.alert('Faltan las repeticiones', 'Escribe cuántas repeticiones completaste (entre 1 y 1000). Así tu progreso será real y útil.');
+      return;
+    }
+    lastTapRef.current = now;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const done = (completedSets[currentEx] ?? 0) + 1;
+    if (Number.isFinite(w) && (w < 0 || w > 1000)) {
+      Alert.alert('Revisa el peso', 'El peso debe estar entre 0 y 1000 kg. Déjalo vacío si fue con peso corporal.');
+      return;
+    }
+    if (rir !== null && (!Number.isFinite(rir) || rir < 0 || rir > 10)) {
+      Alert.alert('Revisa el esfuerzo', 'RIR debe estar entre 0 y 10. 0 significa que no quedaba ninguna repetición; 2, que quedaban unas dos.');
+      return;
+    }
     loggedSetsRef.current.push({
       exercise_name: ex.name,
       set_number: done,
       weight_kg: Number.isFinite(w) ? w : null,
-      reps: Number.isFinite(r) ? r : null,
+      reps: r,
+      rir,
     });
 
     const nextCompleted = { ...completedSets, [currentEx]: done };
     setCompletedSets(nextCompleted);
-    track('set_completed', { exercise: ex.name, set: done, weight_kg: Number.isFinite(w) ? w : null });
+    track('set_completed', { exercise: ex.name, set: done, weight_kg: Number.isFinite(w) ? w : null, rir });
 
     if (done < ex.sets) {
       persist(nextCompleted, currentEx); // snapshot para restaurar tras un crash
@@ -251,22 +319,23 @@ export default function WorkoutSessionScreen() {
         // El snapshot debe incluir la ÚLTIMA serie: si el guardado en el
         // servidor falla, es lo único que queda para reintentar sin perderla.
         persist(nextCompleted, currentEx);
-        finishWorkout();
+        finishWorkout(nextCompleted);
       }
     }
   }
 
   const finishingRef = useRef(false);
 
-  async function finishWorkout() {
+  async function finishWorkout(completedOverride?: Record<number, number>) {
     // Guard de re-entrada: doble confirmación / carrera con completeSet
     // duplicaba sesión, XP y racha.
     if (finishingRef.current) return;
     finishingRef.current = true;
 
     const plannedSets = exercises.reduce((a: number, e: any) => a + (e.sets ?? 0), 0);
-    const doneSets = Object.values(completedSets).reduce((a, b) => a + b, 0);
-    const durationMin = Math.round(elapsed / 60);
+    const finalCompleted = completedOverride ?? completedSets;
+    const doneSets = Object.values(finalCompleted).reduce((a, b) => a + b, 0);
+    const durationMin = Math.max(1, Math.round((Date.now() - sessionStartRef.current.getTime()) / 60_000));
     const prNames: string[] = []; // récords detectados en esta sesión
     // Id de la sesión guardada. Viaja hasta recordWorkoutCompleted como
     // EVIDENCIA: el servidor solo acredita XP si existe esa fila, es de este
@@ -287,20 +356,6 @@ export default function WorkoutSessionScreen() {
           throw new Error('Perfil o plan no cargados: no hay dónde guardar la sesión');
         }
       } else {
-        const { data: session, error } = await supabase.from('workout_sessions').insert({
-          user_id: profile.user_id,
-          training_plan_id: trainingPlan.id,
-          day_index: todayIndex,
-          started_at: sessionStartRef.current.toISOString(),
-          completed_at: new Date().toISOString(),
-          duration_min: durationMin,
-          exercises_completed: exercises.length,
-        }).select('id').single();
-        // Antes solo se logueaba: el entreno se perdía y el usuario veía la
-        // pantalla de celebración igual. Ahora aborta y deja reintentar.
-        if (error) throw new Error(`No se pudo guardar la sesión: ${error.message}`);
-        sessionId = session?.id ?? null;
-
         // 1b. Detectar PRs ANTES de guardar (comparar contra el histórico previo).
         // Cosmético: no detectar un récord no le cuesta el entreno a nadie.
         try {
@@ -318,8 +373,18 @@ export default function WorkoutSessionScreen() {
           console.log('[Workout] PR:', e?.message);
         }
 
-        // 1c. Guardar las series registradas (peso × reps).
-        await saveSetLogs(profile.user_id, sessionId, loggedSetsRef.current);
+        // 1c. Sesión + series se guardan atómicamente y con clave idempotente.
+        const saved = await completeWorkout({
+          clientSessionKey: clientSessionKeyRef.current,
+          trainingPlanId: trainingPlan.id,
+          dayIndex: todayIndex,
+          startedAt: sessionStartRef.current.toISOString(),
+          completedAt: new Date().toISOString(),
+          durationMin,
+          sets: loggedSetsRef.current,
+        });
+        sessionId = saved.sessionId;
+        if (saved.alreadyCompleted) track('workout_save_idempotent', { session_id: sessionId });
       }
 
       // 2. Datos a salvo en el servidor: RECIÉN AHORA se borra el snapshot
@@ -340,11 +405,11 @@ export default function WorkoutSessionScreen() {
       // permiso está denegado o el módulo nativo no existe en ese equipo, y
       // una notificación jamás puede costar un entrenamiento.
       const motivationalMessages = [
-        'Eso es lo que te separa de los demás. Sigue así.',
-        'El que entrena hoy, gana mañana. Bien hecho.',
-        'Tu cuerpo te lo va a agradecer esta noche.',
-        'Eso no lo hace cualquiera. Tú sí lo hiciste.',
-        'Un entrenamiento más en el banco. Nadie te lo quita.',
+        'Sumaste una sesión útil a tu proceso. Bien hecho.',
+        'La consistencia también incluye descansar cuando corresponde.',
+        'Registraste evidencia real de tu avance. Sigue a tu ritmo.',
+        'Hoy cumpliste la acción que estaba bajo tu control.',
+        'Tu progreso queda guardado para ajustar mejor lo que sigue.',
       ];
       const msg = motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)];
       try {
@@ -441,17 +506,22 @@ export default function WorkoutSessionScreen() {
         sets_logged: loggedSetsRef.current.length,
         day_index: todayIndex,
       });
+      const detail = String(e?.message ?? '');
+      const validationFailure = /inválid|duplicad|al menos una serie/i.test(detail);
       Alert.alert(
-        'No pudimos guardar tu entrenamiento',
-        'Tus series siguen guardadas en el teléfono. Revisa tu conexión e intenta de nuevo.',
+        validationFailure ? 'Revisa las series registradas' : 'No pudimos guardar tu entrenamiento',
+        validationFailure
+          ? `${detail} Nada se perdió: corrige el dato e intenta de nuevo.`
+          : 'Tus series siguen guardadas en el teléfono. Revisa tu conexión e intenta de nuevo.',
         [{ text: 'Entendido' }]
       );
     }
   }
 
   // Sustituir el ejercicio actual por otro de la biblioteca (edita el plan + persiste).
-  // Red de seguridad: si el destino del swap carga una zona lesionada,
-  // fricción informada (advertir + confirmar), no bloqueo paternalista.
+  // Red de seguridad: un swap no puede saltarse las restricciones que sí
+  // protegieron la generación del plan. Sin autorización específica por
+  // ejercicio, una zona lesionada se bloquea y se ofrece revisar la salud.
   function requestSwap(lib: LibraryExercise) {
     // Sin verificación de lesiones (cargando/red caída): advertencia genérica
     // conservadora en TODOS los swaps — nunca asumir "sin lesiones".
@@ -474,18 +544,29 @@ export default function WorkoutSessionScreen() {
     const zonas = conflicts
       .map((z) => INJURY_ZONES.find((x) => x.id === z)?.label ?? z)
       .join(', ');
+    track('swap_blocked_health', { exercise: lib.name, zones: conflicts });
     Alert.alert(
-      '⚠️ Cuidado con tu lesión',
-      `"${lib.name}" carga una zona que marcaste como lesionada (${zonas}). Tu coach recomienda elegir otra opción.`,
+      'Este cambio no es seguro con tu perfil actual',
+      `"${lib.name}" carga una zona que marcaste con lesión o molestia (${zonas}). Elige otra opción. Continúa solo si un profesional conoce tu estado actual y autorizó específicamente este movimiento.`,
       [
         { text: 'Elegir otro', style: 'cancel' },
         {
-          text: 'Usarlo igual',
-          style: 'destructive',
-          onPress: () => {
-            track('swap_risky_confirmed', { exercise: lib.name, zones: conflicts });
-            swapExercise(lib);
-          },
+          text: 'Tengo autorización',
+          onPress: () => Alert.alert(
+            'Confirma la autorización específica',
+            'No basta una autorización general para entrenar. Confirma únicamente si te indicaron que este ejercicio concreto es apropiado para tu lesión actual.',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Confirmo autorización',
+                style: 'destructive',
+                onPress: () => {
+                  track('swap_risky_confirmed', { exercise: lib.name, zones: conflicts, explicit_clearance: true });
+                  swapExercise(lib);
+                },
+              },
+            ]
+          ),
         },
       ]
     );
@@ -528,6 +609,79 @@ export default function WorkoutSessionScreen() {
     );
   }
 
+  const healthAccess = healthProfile && profile
+    ? evaluateWorkoutAccess(healthProfile, profile.age)
+    : null;
+
+  // La seguridad no puede depender de que una consulta de red haya salido
+  // bien. Si no conocemos el tamizaje no iniciamos una rutina de fuerza.
+  if (injuriesStatus !== 'ok' || !healthAccess) {
+    const loading = injuriesStatus === 'loading';
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.closeBtn} onPress={() => router.back()} hitSlop={A11y.hitSlopLg}
+            accessibilityRole="button" accessibilityLabel="Volver">
+            <Text style={s.closeTxt}>‹</Text>
+          </TouchableOpacity>
+          <Text style={s.calTitulo} accessibilityRole="header">SEGURIDAD DE LA SESIÓN</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={s.safetyCenter}>
+          <Text style={s.safetyIcon}>{loading ? '···' : '🩺'}</Text>
+          <Text style={s.safetyTitle}>{loading ? 'Revisando tu perfil de salud' : 'No pudimos verificar tu perfil'}</Text>
+          <Text style={s.safetyText}>
+            {loading
+              ? 'Un momento. Adaptaremos la sesión y el calentamiento a lo que declaraste.'
+              : 'No vamos a asumir que entrenar es seguro sin tus datos. Reintenta o revisa Mi salud; tu progreso no se pierde.'}
+          </Text>
+          {!loading && (
+            <>
+              <TouchableOpacity style={s.calBtn} onPress={() => {
+                setInjuriesStatus('loading');
+                setHealthReload((n) => n + 1);
+              }} accessibilityRole="button" accessibilityLabel="Volver a intentar cargar el perfil de salud">
+                <Text style={s.calBtnTxt}>VOLVER A INTENTAR</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.safetySecondary} onPress={() => router.push('/health' as any)}
+                accessibilityRole="button" accessibilityLabel="Abrir Mi salud">
+                <Text style={s.safetySecondaryTxt}>Abrir Mi salud</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (healthAccess.status === 'blocked') {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.closeBtn} onPress={() => router.back()} hitSlop={A11y.hitSlopLg}
+            accessibilityRole="button" accessibilityLabel="Volver">
+            <Text style={s.closeTxt}>‹</Text>
+          </TouchableOpacity>
+          <Text style={s.calTitulo} accessibilityRole="header">PRIMERO TU SALUD</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={s.safetyCenter}>
+          <Text style={s.safetyIcon}>🛑</Text>
+          <Text style={s.safetyTitle}>{healthAccess.title}</Text>
+          <Text style={s.safetyText}>{healthAccess.detail}</Text>
+          {healthAccess.reasons.slice(0, 3).map((reason) => (
+            <Text key={reason} style={s.safetyReason}>• {reason}</Text>
+          ))}
+          <TouchableOpacity style={s.calBtn} onPress={() => router.push('/health' as any)}
+            accessibilityRole="button" accessibilityLabel="Revisar Mi salud">
+            <Text style={s.calBtnTxt}>REVISAR MI SALUD</Text>
+          </TouchableOpacity>
+          <Text style={s.safetyFoot}>Si tienes dolor de pecho, dificultad para respirar, mareo intenso o desmayo, busca atención urgente.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const ex = exercises[currentEx];
   const totalSets = exercises.reduce((acc: number, e: any) => acc + (e.sets ?? 0), 0);
   const doneSets = Object.values(completedSets).reduce((a: number, b: number) => a + b, 0);
@@ -536,13 +690,53 @@ export default function WorkoutSessionScreen() {
   // ── CALENTAMIENTO ──
   if (faseCalentamiento && exercises.length > 0) {
     const items = calentamientoPara(todayPlan?.muscle_groups ?? [], ctxSalud);
-    const aproximacion = seriesDeAproximacion(exercises[0]?.name ?? null);
+    const aproximacion = seriesDeAproximacion(
+      exercises[0]?.name ?? null,
+      lastPerf[exercises[0]?.name]?.weight_kg
+    );
+    const warmupMinutes = minutosEstimados(items);
 
     // El cronómetro arranca AQUÍ, no al montar: el calentamiento no debería
     // inflar la duración de la sesión si alguien deja la pantalla abierta.
     function empezar(saltado: boolean) {
-      sessionStartRef.current = new Date();
+      if (newPainToday) {
+        Alert.alert(
+          'No entrenes sobre dolor nuevo',
+          'Revisa Mi salud y, si el dolor es intenso, repentino o viene con otros síntomas, busca evaluación profesional.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Abrir Mi salud', onPress: () => router.push('/health' as any) },
+          ]
+        );
+        return;
+      }
+      const config = { minutes: availableMinutes, energy: energyToday, soreness: sorenessToday };
+      const adapted = adaptSessionExercises(planExercises, {
+        availableMinutes,
+        energy: energyToday,
+        soreness: sorenessToday,
+      });
+      setSessionConfig(config);
+      startWorkoutClock(Date.now(), false, adapted.length);
       track(saltado ? 'warmup_skipped' : 'warmup_done', { day_index: todayIndex });
+      if (profile) {
+        supabase.from('workout_readiness').upsert({
+          user_id: profile.user_id,
+          client_session_key: clientSessionKeyRef.current,
+          energy: energyToday,
+          soreness: sorenessToday,
+          available_minutes: availableMinutes,
+          pain_new: newPainToday,
+        }, { onConflict: 'user_id,client_session_key' }).then(({ error }) => {
+          if (error) captureError(error, { scope: 'workout_readiness.save' });
+        });
+        track('workout_readiness_submitted', {
+          energy: energyToday,
+          soreness: sorenessToday,
+          available_minutes: availableMinutes,
+          pain_new: newPainToday,
+        });
+      }
       setFaseCalentamiento(false);
     }
 
@@ -559,14 +753,53 @@ export default function WorkoutSessionScreen() {
 
         <ScrollView contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40 }}>
           <Text style={s.calIntro}>
-            Cinco minutos ahora hacen que levantes mejor y con menos riesgo. Si algo te duele, sáltalo.
+            Preparación sugerida · {warmupMinutes} min. Sube gradualmente la temperatura y practica el movimiento. No elimina el riesgo: si aparece dolor o un síntoma nuevo, detente.
           </Text>
 
-          {injuriesStatus !== 'ok' && (
+          {healthAccess.level === 'moderado' && (
             <Text style={s.calAviso}>
-              No pudimos leer tu tamizaje de salud, así que esta lista es la más conservadora.
+              {healthAccess.detail}
             </Text>
           )}
+
+          <View style={s.readinessCard}>
+            <Text style={s.readinessTitle}>¿CÓMO LLEGAS HOY?</Text>
+            <Text style={s.readinessHelp}>Esto no te juzga: evita cambiar tu rutina por un mal día aislado.</Text>
+            <Text style={s.readinessLabel}>Energía</Text>
+            <View style={s.readinessRow}>
+              {[{ v: 2, l: 'Baja' }, { v: 3, l: 'Normal' }, { v: 5, l: 'Alta' }].map((o) => (
+                <TouchableOpacity key={o.v} style={[s.readinessChip, energyToday === o.v && s.readinessChipOn]}
+                  onPress={() => setEnergyToday(o.v)} accessibilityRole="radio"
+                  accessibilityState={{ selected: energyToday === o.v }} accessibilityLabel={`Energía ${o.l}`}>
+                  <Text style={[s.readinessChipTxt, energyToday === o.v && s.readinessChipTxtOn]}>{o.l}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={s.readinessLabel}>Molestia muscular normal</Text>
+            <View style={s.readinessRow}>
+              {[{ v: 1, l: 'Nada' }, { v: 3, l: 'Media' }, { v: 5, l: 'Alta' }].map((o) => (
+                <TouchableOpacity key={o.v} style={[s.readinessChip, sorenessToday === o.v && s.readinessChipOn]}
+                  onPress={() => setSorenessToday(o.v)} accessibilityRole="radio"
+                  accessibilityState={{ selected: sorenessToday === o.v }} accessibilityLabel={`Molestia muscular ${o.l}`}>
+                  <Text style={[s.readinessChipTxt, sorenessToday === o.v && s.readinessChipTxtOn]}>{o.l}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={s.readinessLabel}>Tiempo disponible</Text>
+            <View style={s.readinessRow}>
+              {[20, 40, 60].map((value) => (
+                <TouchableOpacity key={value} style={[s.readinessChip, availableMinutes === value && s.readinessChipOn]}
+                  onPress={() => setAvailableMinutes(value)} accessibilityRole="radio"
+                  accessibilityState={{ selected: availableMinutes === value }} accessibilityLabel={`${value} minutos disponibles`}>
+                  <Text style={[s.readinessChipTxt, availableMinutes === value && s.readinessChipTxtOn]}>{value === 60 ? 'Completo' : `${value} min`}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={[s.painToggle, newPainToday && s.painToggleOn]} onPress={() => setNewPainToday((v) => !v)}
+              accessibilityRole="checkbox" accessibilityState={{ checked: newPainToday }} accessibilityLabel="Tengo dolor nuevo o distinto al habitual">
+              <Text style={s.painToggleTxt}>{newPainToday ? '✓ ' : ''}Tengo dolor nuevo o distinto al habitual</Text>
+            </TouchableOpacity>
+          </View>
 
           {items.map((it, i) => (
             <View key={it.nombre} style={s.calItem} accessible
@@ -589,7 +822,7 @@ export default function WorkoutSessionScreen() {
 
           <TouchableOpacity style={s.calBtn} onPress={() => empezar(false)} activeOpacity={0.85}
             accessibilityRole="button" accessibilityLabel="Ya calenté, empezar el entrenamiento">
-            <Text style={s.calBtnTxt}>YA CALENTÉ · EMPEZAR</Text>
+            <Text style={s.calBtnTxt}>LISTO · EMPEZAR</Text>
           </TouchableOpacity>
 
           {/* Saltarlo es decisión suya. Un calentamiento obligatorio se
@@ -679,6 +912,20 @@ export default function WorkoutSessionScreen() {
 
       {!resting && exercises.length > 0 && (
         <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+          {sessionConfig && sessionAdaptationMessage({
+            availableMinutes: sessionConfig.minutes,
+            energy: sessionConfig.energy,
+            soreness: sessionConfig.soreness,
+          }) && (
+            <View style={s.sessionAdapted} accessible accessibilityRole="summary">
+              <Text style={s.sessionAdaptedTitle}>PLAN DE HOY, A TU MEDIDA</Text>
+              <Text style={s.sessionAdaptedText}>{sessionAdaptationMessage({
+                availableMinutes: sessionConfig.minutes,
+                energy: sessionConfig.energy,
+                soreness: sessionConfig.soreness,
+              })}</Text>
+            </View>
+          )}
           {ex && (
             <View style={s.currentExCard}>
               <View style={s.exBadge}>
@@ -767,7 +1014,20 @@ export default function WorkoutSessionScreen() {
                     accessibilityLabel="Repeticiones logradas"
                   />
                 </View>
+                <View style={s.logField}>
+                  <Text style={s.logLbl}>RIR (opc.)</Text>
+                  <TextInput
+                    style={s.logInput}
+                    value={rirInput}
+                    onChangeText={setRirInput}
+                    keyboardType="decimal-pad"
+                    placeholder="2"
+                    placeholderTextColor={Colors.textMuted}
+                    accessibilityLabel="Repeticiones que sentías que aún podías hacer"
+                  />
+                </View>
               </View>
+              <Text style={s.rirHelp}>RIR: repeticiones que aún sentías posibles. 0 = fallo; 2 = quedaban unas 2.</Text>
               {/* Calculadora de discos: qué cargar por lado (barra 20kg) */}
               {(() => {
                 const w = parseFloat(weightInput.replace(',', '.'));
@@ -897,6 +1157,29 @@ const s = StyleSheet.create({
   calAproxTxt: { fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 20 },
   calBtn: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 17, alignItems: 'center' },
   calBtnTxt: { fontFamily: Fonts.heading, fontSize: 16, color: '#0a0a0b', letterSpacing: 0.8 },
+  readinessCard: { backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.lg, padding: Spacing.md, marginBottom: Spacing.lg },
+  readinessTitle: { fontFamily: Fonts.heading, fontSize: Type.body, color: Colors.textPrimary, letterSpacing: 0.7 },
+  readinessHelp: { fontFamily: Fonts.body, fontSize: Type.caption, lineHeight: 18, color: Colors.textSecondary, marginTop: 4, marginBottom: Spacing.md },
+  readinessLabel: { fontFamily: Fonts.bodySemi, fontSize: Type.caption, color: Colors.textSecondary, marginTop: 8, marginBottom: 6 },
+  readinessRow: { flexDirection: 'row', gap: 8 },
+  readinessChip: { flex: 1, minHeight: 44, borderRadius: Radii.md, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
+  readinessChipOn: { borderColor: Colors.accent, backgroundColor: Colors.accentMuted },
+  readinessChipTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.caption, color: Colors.textSecondary },
+  readinessChipTxtOn: { color: Colors.accent },
+  sessionAdapted: { backgroundColor: Colors.accentMuted, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.lg, padding: Spacing.md, marginBottom: Spacing.md },
+  sessionAdaptedTitle: { fontFamily: Fonts.headingSemi, fontSize: Type.caption, color: Colors.accent, letterSpacing: 0.7, marginBottom: 4 },
+  sessionAdaptedText: { fontFamily: Fonts.body, fontSize: Type.caption, lineHeight: 18, color: Colors.textSecondary },
+  painToggle: { minHeight: 48, justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.md, paddingHorizontal: 12, marginTop: Spacing.md },
+  painToggleOn: { borderColor: Colors.error, backgroundColor: 'rgba(255,98,98,0.08)' },
+  painToggleTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.caption, color: Colors.textPrimary },
+  safetyCenter: { flex: 1, justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
+  safetyIcon: { fontSize: 42, textAlign: 'center', color: Colors.accent },
+  safetyTitle: { fontFamily: Fonts.heading, fontSize: 28, color: Colors.textPrimary, textAlign: 'center' },
+  safetyText: { fontFamily: Fonts.body, fontSize: Type.bodyLg, lineHeight: 24, color: Colors.textSecondary, textAlign: 'center' },
+  safetyReason: { fontFamily: Fonts.body, fontSize: Type.body, lineHeight: 21, color: Colors.textSecondary },
+  safetySecondary: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.lg },
+  safetySecondaryTxt: { fontFamily: Fonts.heading, fontSize: Type.body, color: Colors.textPrimary },
+  safetyFoot: { fontFamily: Fonts.body, fontSize: Type.caption, lineHeight: 18, color: Colors.textMuted, textAlign: 'center' },
   calSaltar: { paddingVertical: 14, alignItems: 'center' },
   calSaltarTxt: { fontFamily: Fonts.bodyMedium, fontSize: Type.body, color: Colors.textMuted },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
@@ -935,6 +1218,7 @@ const s = StyleSheet.create({
   logField: { flex: 1, backgroundColor: Colors.bgInput, borderRadius: Radii.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 12, paddingVertical: 8 },
   logLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 0.6, marginBottom: 2 },
   logInput: { fontFamily: Fonts.heading, fontSize: 26, color: Colors.textPrimary, padding: 0 },
+  rirHelp: { fontFamily: Fonts.body, fontSize: Type.micro, lineHeight: 15, color: Colors.textMuted, marginTop: 6, marginBottom: Spacing.sm },
   platesTxt: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textSecondary, marginBottom: 4 },
   lastPerfTxt: { fontFamily: Fonts.body, fontSize: 12, color: Colors.accent, marginBottom: 16 },
   notesBox: { backgroundColor: Colors.bgInput, borderRadius: Radii.md, padding: 12, marginBottom: 16, borderLeftWidth: 2, borderLeftColor: Colors.accent },

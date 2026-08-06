@@ -117,6 +117,56 @@ export function needsDoctorClearance(h: HealthProfile, age: number): boolean {
 }
 
 /**
+ * Puerta determinista para una sesión de fuerza.
+ *
+ * La IA nunca decide esto: se evalúa antes de mostrar el calentamiento. Las
+ * preguntas parq_chest_pain/parq_dizziness describen síntomas actuales, por lo
+ * que un visto bueno anterior no convierte una sesión normal en una opción
+ * prudente mientras sigan marcadas.
+ */
+export type WorkoutAccess = {
+  status: 'allowed' | 'blocked';
+  level: RiskLevel;
+  title: string;
+  detail: string;
+  reasons: string[];
+};
+
+export function evaluateWorkoutAccess(h: HealthProfile, age: number): WorkoutAccess {
+  const risk = computeRisk(h, age);
+  if (h.parq_chest_pain || h.parq_dizziness) {
+    return {
+      status: 'blocked',
+      level: 'alto',
+      title: 'Primero cuidemos tu salud',
+      detail:
+        'Tu perfil registra dolor de pecho, mareos o desmayos actuales. No es seguro iniciar esta sesión hasta que un profesional evalúe esos síntomas y actualices tu perfil de salud.',
+      reasons: risk.reasons,
+    };
+  }
+  if (risk.level === 'alto' && !h.doctor_cleared) {
+    return {
+      status: 'blocked',
+      level: risk.level,
+      title: 'Necesitas autorización antes de entrenar',
+      detail:
+        'Esta rutina incluye trabajo de fuerza. Por lo que declaraste, necesitamos que un profesional te autorice y que lo confirmes en Mi salud antes de comenzar.',
+      reasons: risk.reasons,
+    };
+  }
+  return {
+    status: 'allowed',
+    level: risk.level,
+    title: risk.level === 'moderado' ? 'Entrena con ajustes' : 'Listo para entrenar',
+    detail:
+      risk.level === 'moderado'
+        ? 'La sesión debe respetar tus molestias, condiciones y un esfuerzo cómodo. Detente ante dolor o síntomas nuevos.'
+        : 'Empieza progresivamente y detente ante dolor, mareo o síntomas nuevos.',
+    reasons: risk.reasons,
+  };
+}
+
+/**
  * Llaves de riesgo ALTO activas. Si este set CRECE respecto al perfil
  * guardado, la autorización médica previa queda invalidada (el médico
  * autorizó OTRA situación, no esta).

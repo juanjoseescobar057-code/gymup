@@ -5,7 +5,7 @@ import { AI_SAFETY_RULES, SLEEP_RECOVERY_GUIDANCE } from './safety';
 import { imageToOptimizedBase64 } from './image';
 import { parseAI, WeeklyPlanSchema, FoodResultSchema } from './schemas';
 import { aiChatContent as chat } from './aiClient';
-import { healthToPrompt, type HealthProfile } from './healthMath';
+import { evaluateWorkoutAccess, healthToPrompt, type HealthProfile } from './healthMath';
 
 // Los tipos del plan viven en lib/supabase.ts (fuente única) y aquí solo se
 // re-exportan. Antes había una copia local que se quedó atrás cuando el esquema
@@ -84,6 +84,11 @@ export async function generateTrainingPlan(
   profile: PlanProfile,
   health?: HealthProfile | null
 ): Promise<WeeklyPlan> {
+  if (!health) {
+    throw new Error('Completa y guarda Mi salud antes de generar una rutina. No vamos a asumir que entrenar es seguro.');
+  }
+  const access = evaluateWorkoutAccess(health, profile.age);
+  if (access.status === 'blocked') throw new Error(access.detail);
   const g: Record<string, string> = {
     muscle_gain: 'ganar masa muscular',
     fat_loss: 'perder grasa',
@@ -98,7 +103,7 @@ export async function generateTrainingPlan(
     very_active: 'muy activo',
   };
   // Directivas individuales: lesiones/condiciones/edad mandan sobre el objetivo.
-  const healthBlock = health ? healthToPrompt(health, profile.age) : '';
+  const healthBlock = healthToPrompt(health, profile.age);
 
   // Los perfiles creados antes de que existiera la columna llegan sin sexo: se
   // tratan como 'unspecified' en vez de reintroducir el sesgo masculino por defecto.

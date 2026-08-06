@@ -90,6 +90,16 @@ test('projectGoal: peso estable => stalled', () => {
   assert.equal(p.weeksToGoal, null);
 });
 
+test('projectGoal: dos pesajes no etiquetan estancamiento', () => {
+  const p = projectGoal({
+    goal: 'fat_loss', currentWeight: 80, targetWeight: 75, startWeight: 80,
+    points: [{ date: '2026-01-01', weight: 80 }, { date: '2026-01-08', weight: 80 }],
+  });
+  assert.equal(p.stalled, false);
+  assert.equal(p.enoughData, false);
+  assert.match(p.headline, /Sigue registrando/);
+});
+
 test('projectGoal: meta ya alcanzada', () => {
   const p = projectGoal({
     goal: 'fat_loss',

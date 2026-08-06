@@ -109,6 +109,7 @@ export default function RootLayout() {
         <Stack.Screen name="telemetry" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="health" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="history" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="legal" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="workout-complete" options={{ animation: 'fade', gestureEnabled: false }} />
       </Stack>
     </GestureHandlerRootView>

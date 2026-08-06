@@ -66,6 +66,9 @@ export const ExerciseSchema = z.object({
   rest_seconds: exigido(0, 600),
   notes: str,
   muscle_group: str,
+  target_rir: exigido(0, 10).optional(),
+  intensity_method: z.enum(['none', 'drop_set']).optional().default('none'),
+  exercise_id: z.string().min(1).optional(),
 });
 
 export const TrainingDaySchema = z.object({

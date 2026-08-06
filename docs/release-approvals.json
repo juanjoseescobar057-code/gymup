@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "clinical": {
+    "status": "pending",
+    "content_version": "2026.07",
+    "reviewer_name": null,
+    "reviewer_role": null,
+    "approved_at": null,
+    "notes": "Requiere revisión documentada por medicina del deporte/fisioterapia y nutrición cualificada."
+  },
+  "legal_privacy": {
+    "status": "pending",
+    "privacy_policy_version": "1.3",
+    "terms_version": "1.0",
+    "reviewer_name": null,
+    "approved_at": null,
+    "notes": "Requiere revisión jurídica para mercados de lanzamiento, datos sensibles, IA y suscripciones."
+  }
+}

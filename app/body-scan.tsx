@@ -342,7 +342,7 @@ export default function BodyScanScreen() {
 
       // Guardar en Supabase — solo datos del análisis, NO las fotos
       if (profile) {
-        const { error } = await supabase.from('body_scans').insert({
+        const { data: savedScan, error } = await supabase.from('body_scans').insert({
           user_id: profile.user_id,
           scanned_at: new Date().toISOString(),
           overall_score: analysis.overall_score,
@@ -353,7 +353,7 @@ export default function BodyScanScreen() {
           focus_areas: analysis.focus_areas,
           notes: analysis.refined_plan_notes,
           photos_count: photos.length,
-        });
+        }).select('id').single();
         if (error) {
           // Antes esto solo hacía console.log —que en producción se elimina— y
           // seguía mostrando el resultado. El usuario veía su análisis, creía
@@ -368,7 +368,7 @@ export default function BodyScanScreen() {
           );
         } else {
           // Gamificación: registrar el escaneo (XP + badges). Silencioso.
-          recordBodyScan(profile.user_id).catch((e) =>
+          recordBodyScan(profile.user_id, savedScan?.id).catch((e) =>
             console.log('[BodyScan] Error gamificación:', e?.message)
           );
         }
@@ -525,9 +525,9 @@ export default function BodyScanScreen() {
               <ScrollView showsVerticalScrollIndicator={false}>
                 <Text style={s.privacyTxt}>
                   {`GymUp toma la privacidad de tus datos corporales muy en serio.\n\n`}
-                  {`• Las fotos que tomas son enviadas a la API de OpenAI (GPT-4o) para análisis únicamente. OpenAI procesa las imágenes sin almacenarlas permanentemente según su política de privacidad.\n\n`}
+                  {`• Las fotos se envían a OpenAI mediante nuestro servidor únicamente para producir el análisis. GymUp no las guarda; OpenAI puede conservar datos de API temporalmente, normalmente hasta 30 días para prevención de abuso, salvo que se habiliten controles de retención reducida o cero.\n\n`}
                   {`• GymUp NO almacena tus fotos en ningún servidor. Solo guardamos los datos numéricos del análisis: score, % grasa estimado, zonas identificadas y notas del plan.\n\n`}
-                  {`• Tus datos nunca son vendidos ni compartidos con terceros bajo ninguna circunstancia.\n\n`}
+                  {`• No vendemos tus datos. Solo los comparten los proveedores necesarios descritos en la política (por ejemplo, Supabase y OpenAI) bajo sus medidas de seguridad.\n\n`}
                   {`• Puedes solicitar la eliminación completa de todos tus datos desde tu perfil en cualquier momento.\n\n`}
                   {`• El análisis es una estimación visual basada en inteligencia artificial. No es un diagnóstico médico y no reemplaza la evaluación de un profesional de la salud.\n\n`}
                   {`• Esta función es completamente opcional. Puedes usar GymUp sin nunca realizar un análisis corporal.`}

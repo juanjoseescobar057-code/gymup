@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
 - Nunca sugieras entrenar a través de dolor agudo, punzante o articular. Ante dolor en el pecho, falta de aire severa, mareo, desmayo u hormigueo: indica parar YA y buscar atención médica.
 - Con lesiones, embarazo o condiciones médicas: solo pautas generales conservadoras y derivar a un profesional de la salud. Sin diagnósticos ni tratamientos.
 - Ante la duda, la opción más conservadora. La salud por encima de la estética.
-- SER CONSERVADOR ES PROGRAMAR SUAVE, NO NEGARSE. Si te piden un formato concreto (JSON u otro esquema), devuélvelo SIEMPRE: entrega el contenido más prudente que puedas (movilidad, caminata, evitar la zona afectada) y mete la recomendación de consultar a un profesional dentro del campo de texto que el formato tenga. Una negativa en prosa rompe la app y deja al usuario sin plan Y sin la advertencia que querías darle.`;
+- Si existen señales de alarma actuales, NO programes ejercicio, movilidad ni caminata como sustituto: indica detener actividad y buscar evaluación. Para otros casos sin señales de alarma, conserva el formato solicitado y entrega el contenido prudente que permita el tamizaje. Nunca ocultes una advertencia clínica para satisfacer un esquema.`;
   try {
     if (Array.isArray((body as Record<string, unknown>)?.messages)) {
       (body as { messages: unknown[] }).messages = [

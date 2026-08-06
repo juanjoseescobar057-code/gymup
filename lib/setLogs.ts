@@ -12,6 +12,8 @@ export type SetLogInput = {
   set_number: number;
   weight_kg: number | null;
   reps: number | null;
+  /** Repeticiones en reserva declaradas por la persona (0 = fallo). */
+  rir?: number | null;
 };
 
 export type LastPerf = { weight_kg: number | null; reps: number | null; logged_at: string };

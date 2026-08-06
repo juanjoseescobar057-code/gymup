@@ -13,7 +13,7 @@
       "bundleIdentifier": "com.juanescobar.gymup",
       "infoPlist": {
         "NSCameraUsageDescription": "GymUp necesita la cámara para analizar tus comidas y corregir tu postura.",
-        "NSPhotoLibraryUsageDescription": "GymUp necesita acceso a tus fotos."
+        "NSPhotoLibraryUsageDescription": "Elige fotos de comida, postura o progreso solo cuando uses esas funciones. GymUp explicará antes qué se procesa y qué se guarda."
       }
     },
     "android": {
@@ -23,8 +23,7 @@
       },
       "package": "com.juanescobar.gymup",
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE"
+        "CAMERA"
       ]
     },
     "plugins": [

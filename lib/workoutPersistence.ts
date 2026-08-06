@@ -15,9 +15,15 @@ export type SetLogSnapshot = {
   set_number: number;
   weight_kg: number | null;
   reps: number | null;
+  rir?: number | null;
 };
 
 export type WorkoutSnapshot = {
+  /** Idempotencia del cierre: el mismo entreno nunca crea dos sesiones. */
+  clientSessionKey?: string;
+  sessionMinutes?: number;
+  readinessEnergy?: number;
+  readinessSoreness?: number;
   todayIndex: number;
   startedAt: number;        // ms epoch del inicio real
   currentEx: number;

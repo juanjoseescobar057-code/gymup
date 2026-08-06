@@ -29,6 +29,9 @@ export type GoalProjection = {
   pctComplete: number;         // 0..100 entre arranque y meta
   headline: string;
   detail: string;
+  observationCount: number;
+  observationDays: number;
+  enoughData: boolean;
 };
 
 // Ritmos saludables (alineados con lib/safety.ts): perder ~1% del peso por
@@ -87,6 +90,16 @@ export function projectGoal(args: {
     args.startWeight != null && Number.isFinite(args.startWeight) ? args.startWeight : currentWeight;
 
   const ratePerWeek = trendPerWeek(points);
+  const validPoints = points
+    .filter((p) => p && Number.isFinite(p.weight) && Number.isFinite(Date.parse(p.date)))
+    .slice().sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
+  const observationCount = validPoints.length;
+  const observationDays = observationCount >= 2
+    ? Math.max(0, Math.round((Date.parse(validPoints[observationCount - 1].date) - Date.parse(validPoints[0].date)) / 86_400_000))
+    : 0;
+  // El peso diario tiene ruido. Nunca etiquetar una meseta por dos pesajes o
+  // por pocos días: se requieren al menos 3 puntos y dos semanas observadas.
+  const enoughData = observationCount >= 3 && observationDays >= 14;
 
   // Sin meta de peso (rendimiento/resistencia o target no definido).
   if (targetWeight == null) {
@@ -100,13 +113,14 @@ export function projectGoal(args: {
       ratePerWeek,
       towardGoalPerWeek: 0,
       onTrack: false,
-      stalled: Math.abs(ratePerWeek) < MOVING_THRESHOLD,
+      stalled: enoughData && Math.abs(ratePerWeek) < MOVING_THRESHOLD,
       reversing: false,
       weeksToGoal: null,
       etaLabel: '—',
       pctComplete: 0,
       headline: 'Define tu meta de peso',
       detail: 'Agrega un peso objetivo para ver tu proyección hacia la meta.',
+      observationCount, observationDays, enoughData,
     };
   }
 
@@ -119,9 +133,9 @@ export function projectGoal(args: {
   const towardGoalPerWeek =
     direction === 'lose' ? -ratePerWeek : direction === 'gain' ? ratePerWeek : 0;
 
-  const stalled = Math.abs(ratePerWeek) < MOVING_THRESHOLD;
-  const onTrack = direction !== 'maintain' && towardGoalPerWeek >= MOVING_THRESHOLD;
-  const reversing = direction !== 'maintain' && towardGoalPerWeek <= -MOVING_THRESHOLD;
+  const stalled = enoughData && Math.abs(ratePerWeek) < MOVING_THRESHOLD;
+  const onTrack = enoughData && direction !== 'maintain' && towardGoalPerWeek >= MOVING_THRESHOLD;
+  const reversing = enoughData && direction !== 'maintain' && towardGoalPerWeek <= -MOVING_THRESHOLD;
 
   const weeksToGoal =
     onTrack && remainingKg > 0 ? Math.ceil(remainingKg / towardGoalPerWeek) : null;
@@ -146,6 +160,7 @@ export function projectGoal(args: {
       pctComplete: 100,
       headline: '🎯 ¡Meta alcanzada!',
       detail: `Estás en ${currentWeight.toFixed(1)} kg. Ahora toca mantener y consolidar.`,
+      observationCount, observationDays, enoughData,
     };
   }
 
@@ -162,18 +177,17 @@ export function projectGoal(args: {
     headline = 'Vas en dirección contraria';
     detail = `Tu peso se mueve al lado opuesto de tu meta de ${verb}. Revisemos tu plan y nutrición para reencaminarte.`;
   } else if (stalled) {
-    headline = 'Estás estancado';
-    detail = `Tu peso lleva días sin moverse. Faltan ${remainingKg.toFixed(
-      1
-    )} kg para tu meta. Un ajuste de calorías o entrenamiento puede reactivar el progreso.`;
+    headline = 'Posible meseta: revisemos el contexto';
+    detail = `En ${observationDays} días la tendencia no muestra un cambio claro. Antes de ajustar calorías o rutina revisaremos adherencia, sueño, estrés, recuperación y variaciones normales. Faltan ${remainingKg.toFixed(1)} kg para tu meta.`;
   } else {
     headline = 'Sigue registrando tu peso';
-    detail = `Con unos días más de datos podré proyectar cuándo llegas a ${targetWeight.toFixed(1)} kg.`;
+    detail = `Hay ${observationCount} pesaje${observationCount === 1 ? '' : 's'} en ${observationDays} días. Necesitamos al menos 3 pesajes repartidos en 14 días para interpretar la tendencia sin confundir ruido con estancamiento.`;
   }
 
   return {
     hasGoal: true, direction, currentWeight, targetWeight, startWeight,
     remainingKg, ratePerWeek, towardGoalPerWeek, onTrack, stalled, reversing,
     weeksToGoal: cappedWeeks, etaLabel, pctComplete, headline, detail,
+    observationCount, observationDays, enoughData,
   };
 }

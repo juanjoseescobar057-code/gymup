@@ -44,16 +44,10 @@ export async function registrarComida(opts: {
 }): Promise<ResultadoRegistro> {
   const { userId, comida, totalesPrevios, metas, origen, propsExtra } = opts;
 
-  const log = {
-    id: Date.now().toString(),
+  const loggedAt = new Date().toISOString();
+  const { data: saved, error } = await supabase.from('food_logs').insert({
     user_id: userId,
-    logged_at: new Date().toISOString(),
-    ...comida,
-  };
-
-  const { error } = await supabase.from('food_logs').insert({
-    user_id: userId,
-    logged_at: log.logged_at,
+    logged_at: loggedAt,
     meal_name: comida.meal_name,
     food_description: comida.food_description,
     calories: comida.calories,
@@ -61,7 +55,7 @@ export async function registrarComida(opts: {
     carbs_g: comida.carbs_g,
     fat_g: comida.fat_g,
     fiber_g: comida.fiber_g,
-  });
+  }).select('*').single();
 
   if (error) {
     captureError(error, { scope: 'logMeal.insert', origen, calories: comida.calories });
@@ -71,10 +65,17 @@ export async function registrarComida(opts: {
     };
   }
 
+  if (!saved?.id) {
+    captureError(new Error('Insert de comida sin fila devuelta'), { scope: 'logMeal.insert_result', origen });
+    return { ok: false, mensaje: 'La base de datos no confirmó la comida. Intenta de nuevo para mantener tus macros correctos.' };
+  }
+
+  const log = { ...(saved as any), ...comida } as ComidaNueva & { id: string; user_id: string; logged_at: string };
+
   track('food_added', { calories: comida.calories, protein_g: comida.protein_g, origen, ...(propsExtra ?? {}) });
 
   const macroPerfect = completaMacrosDelDia(totalesPrevios, comida, metas);
-  recordMealLogged(userId, macroPerfect)
+  recordMealLogged(userId, macroPerfect, saved.id)
     .then((r) => {
       if (r.macroDayCounted) {
         track('macro_day_perfect'); // contrato de analítica: no renombrar

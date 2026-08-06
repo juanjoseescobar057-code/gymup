@@ -13,9 +13,13 @@ verificarlo por mi cuenta. Corre `git log origin/master -1` o revisa en github.c
 ## Paso 1 · ✅ Cuenta de Supabase correcta — HECHO
 Proyecto `rpoqsanpyciecybpaget` confirmado y enlazado.
 
-## Paso 2 · ✅ Base de datos — HECHO
-`setup.sql` corrido y verificado (incluye `rc_webhook_events` y `ai_content_reports`,
-agregadas en el hardening de esta sesión). Anonymous sign-ins activo.
+## Paso 2 · 🔴 Base de datos — MIGRACIÓN NUEVA PENDIENTE
+El hardening anterior está desplegado y Anonymous sign-ins está activo. Esta versión
+añade la migración `supabase/migrations/0007_world_class_safety_integrity.sql`: cierre
+atómico e idempotente de entrenamientos, RIR/readiness, versiones de plan, integridad de
+XP y nuevos índices. Debe probarse primero en staging y luego aplicarse con
+`supabase db push` antes de distribuir el nuevo binario. No despliegues el cliente nuevo
+contra una base sin esta migración.
 
 ## Paso 3 · ✅ Proxy de IA + Edge Functions — HECHO
 Las 4 funciones desplegadas (`ai-proxy`, `delete-account`, `send-reactivation`,
@@ -40,7 +44,7 @@ Push, no FCM directo). Aún así, EAS necesita las credenciales **FCM v1** para 
 a dispositivos Android — Google eliminó las server keys legacy en junio 2024.
 
 1. **Crear/vincular el proyecto Firebase**: [console.firebase.google.com](https://console.firebase.google.com)
-   → Agregar proyecto → Agregar app → Android. Package name **`com.gymup.app`** (debe
+   → Agregar proyecto → Agregar app → Android. Package name **`com.juanescobar.gymup`** (debe
    coincidir exacto con `app.json → expo.android.package`).
 2. **Habilitar Cloud Messaging API (V1)**: Configuración del proyecto → Cloud
    Messaging. Si aparece deshabilitada, actívala en Google Cloud Console (puede tardar
@@ -49,7 +53,7 @@ a dispositivos Android — Google eliminó las server keys legacy en junio 2024.
    apps → Descargar. Colócalo en `C:\GymUp\google-services.json` (seguro de commitear,
    solo IDs públicos). Falta agregar en `app.json`:
    ```json
-   "android": { "package": "com.gymup.app", "googleServicesFile": "./google-services.json" }
+   "android": { "package": "com.juanescobar.gymup", "googleServicesFile": "./google-services.json" }
    ```
    (hoy `app.json` **no tiene** este campo — agrégalo cuando tengas el archivo).
 4. **Generar la service account key**: Configuración del proyecto → Cuentas de
@@ -94,6 +98,12 @@ salud, categoría sensible bajo la Ley 1581 de 2012.
 verdad (con carga perezosa segura — el módulo nativo de Sentry se resuelve en el
 import de nivel superior del paquete y necesita el build nativo para funcionar del
 todo; hasta el próximo build queda en modo logger local sin romper nada).
+
+🔴 Para que los errores minificados de producción tengan stack trace legible, configura
+en EAS `SENTRY_ORG`, `SENTRY_PROJECT` y `SENTRY_AUTH_TOKEN` (el token debe ser secreto,
+nunca `EXPO_PUBLIC_*` ni un archivo commiteado). `npm run release:check` y el hook de
+producción bloquean el build si falta alguno. El bundle local confirmó que la app
+compila, pero mostró esta configuración de source maps como pendiente.
 
 ## Paso 9 · 🔴 Monetización — RevenueCat (👤 cuentas externas, código ya listo)
 El código (`lib/purchases.ts` + `supabase/functions/rc-webhook` + `sync-premium`) ya
@@ -260,12 +270,15 @@ eas submit --platform android    # sube a Play (Internal Testing primero, recome
 
 ## Checklist de verificación local (antes de cada build)
 ```bash
-node ./node_modules/typescript/bin/tsc --noEmit   # 0 errores
-npm test                                          # todos verdes
+npm run verify                                    # secretos + tipos + todos los tests
+npm run release:check                             # firmas clínica y legal obligatorias
+npx expo install --check                          # dependencias alineadas al SDK
 npx expo export --platform android                # bundle sin errores
 ```
-(Los tres ya están verificados en el estado actual del código: 102/102 tests, 0 errores
-de tipos, bundle exporta limpio con 1684 módulos.)
+Estado local del 4 de agosto de 2026: 208/208 tests, 0 errores de tipos, escaneo de
+secretos limpio y dependencias alineadas con Expo SDK 54. `release:check` permanece
+bloqueado intencionalmente hasta documentar las revisiones externas en
+`docs/release-approvals.json`.
 
 ## Estado real ahora mismo
 - ✅ Código: proxy con entitlement por feature + topes premium, borrado completo,
@@ -280,8 +293,9 @@ de tipos, bundle exporta limpio con 1684 módulos.)
   (gráfica de peso, anillo de calorías) resumidos en texto; contador de reps y fin de
   descanso anunciados; sin contenedores agrupados que escondan botones.
 - ✅ Despliegue del hardening completo (Paso 9.7): SQL + las tres Edge Functions.
-- 🔴 Bloqueantes que solo tú puedes resolver: confirmar `OPENAI_API_KEY` en el servidor
-  (Paso 3), cuentas de tienda + RevenueCat (Paso 9).
+- 🔴 Bloqueantes: aplicar y probar la migración 0007 en staging/producción; revisión
+  clínica y legal documentada; confirmar `OPENAI_API_KEY` en el servidor (Paso 3);
+  cuentas de tienda + RevenueCat (Paso 9).
 - ✅ Insignias y misiones blindadas en servidor (2026-08-01): `badge_catalog` y
   `mission_catalog` son la fuente de verdad; `_derive_badges` deriva las insignias de
   las stats reales y las RPC ignoran `p_badges`; `claim_mission` cuenta la actividad

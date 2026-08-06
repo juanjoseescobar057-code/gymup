@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { track } from '../lib/analytics';
 import { loadHealthSafe } from '../lib/health';
-import { estiramientoPara, type ContextoSalud } from '../lib/warmupMath';
+import { estiramientoPara, minutosEstimados, type ContextoSalud } from '../lib/warmupMath';
 import { useUserStore } from '../store/userStore';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
@@ -52,7 +52,10 @@ export default function WorkoutCompleteScreen() {
   }, [profile?.user_id]);
 
   const estiramientos = estiramientoPara(grupos, salud);
+  const cooldownMinutes = minutosEstimados(estiramientos);
   const saludDesconocida = salud.desconocido === true;
+  const [showCooldown, setShowCooldown] = useState(false);
+  const [cooldownDone, setCooldownDone] = useState(false);
 
   const scale = useRef(new Animated.Value(0.3)).current;
 
@@ -142,11 +145,31 @@ export default function WorkoutCompleteScreen() {
         {/* Vuelta a la calma. Va ANTES de compartir y de salir: si se pone al
             final, nadie baja hasta ahí. Estiramiento ESTÁTICO — el momento de
             mantener la posición es ahora, no antes de levantar. */}
-        {estiramientos.length > 0 && (
+        {estiramientos.length > 0 && !showCooldown && !cooldownDone && (
           <View style={s.estWrap}>
-            <Text style={s.estTitulo} accessibilityRole="header">🧘 ANTES DE IRTE</Text>
+            <Text style={s.estTitulo} accessibilityRole="header">VUELTA A LA CALMA OPCIONAL · {cooldownMinutes} MIN</Text>
             <Text style={s.estIntro}>
-              Dos minutos de estiramiento de lo que acabas de trabajar. Hasta notar tensión, nunca dolor.
+              Puede ayudarte a bajar el ritmo y trabajar movilidad. No garantiza evitar dolor muscular ni acelera por sí sola la recuperación.
+            </Text>
+            <TouchableOpacity style={s.cooldownBtn} onPress={() => {
+              setShowCooldown(true);
+              track('cooldown_opened', { items: estiramientos.length, estimated_min: cooldownMinutes });
+            }} accessibilityRole="button" accessibilityLabel="Ver vuelta a la calma opcional">
+              <Text style={s.cooldownBtnTxt}>VER RUTINA</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.cooldownSkip} onPress={() => {
+              setCooldownDone(true);
+              track('cooldown_skipped');
+            }} accessibilityRole="button" accessibilityLabel="Omitir vuelta a la calma">
+              <Text style={s.cooldownSkipTxt}>Ahora no</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {estiramientos.length > 0 && showCooldown && !cooldownDone && (
+          <View style={s.estWrap}>
+            <Text style={s.estTitulo} accessibilityRole="header">VUELTA A LA CALMA · {cooldownMinutes} MIN</Text>
+            <Text style={s.estIntro}>
+              Respira con normalidad. Llega solo a tensión cómoda; nunca rebotes ni continúes si duele.
             </Text>
             {saludDesconocida && (
               <Text style={s.estAviso}>
@@ -161,6 +184,13 @@ export default function WorkoutCompleteScreen() {
                 <Text style={s.estComo}>{e.como}</Text>
               </View>
             ))}
+            <TouchableOpacity style={s.cooldownBtn} onPress={() => {
+              setCooldownDone(true);
+              track('cooldown_completed', { items: estiramientos.length, estimated_min: cooldownMinutes });
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }} accessibilityRole="button" accessibilityLabel="Marcar vuelta a la calma como terminada">
+              <Text style={s.cooldownBtnTxt}>LISTO</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -198,6 +228,10 @@ const s = StyleSheet.create({
   estNombre: { fontFamily: Fonts.bodySemi, fontSize: Type.body, color: Colors.textPrimary },
   estDur: { fontFamily: Fonts.bodyMedium, fontSize: Type.caption, color: Colors.accent, marginTop: 1 },
   estComo: { fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textSecondary, lineHeight: 17, marginTop: 3 },
+  cooldownBtn: { minHeight: 48, backgroundColor: Colors.accent, borderRadius: Radii.md, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.md },
+  cooldownBtnTxt: { fontFamily: Fonts.heading, fontSize: Type.bodyLg, color: '#0a0a0b', letterSpacing: 0.6 },
+  cooldownSkip: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  cooldownSkipTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.body, color: Colors.textSecondary },
   scroll: { padding: Spacing.xl, alignItems: 'center', paddingTop: 40 },
   trophy: { fontSize: 80, marginBottom: 8 },
   title: { fontFamily: Fonts.heading, fontSize: 40, color: Colors.textPrimary, textAlign: 'center', lineHeight: 42, marginBottom: Spacing.xl },

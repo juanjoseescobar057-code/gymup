@@ -12,16 +12,20 @@ import { supabase, type BiologicalSex } from '../../lib/supabase';
 import { useUserStore } from '../../store/userStore';
 import { calculateDailyMacros } from '../../lib/openai';
 import { getAccountEmail, deleteAccountServerSide } from '../../lib/account';
-import { regenerateAdaptivePlan, saveAdaptedPlan } from '../../lib/adaptivePlan';
+import { regenerateAdaptivePlan, restorePreviousPlan, saveAdaptedPlan } from '../../lib/adaptivePlan';
+import { planChangePreview } from '../../lib/planDiff';
 import { canUseFeature } from '../../lib/subscription';
 import { resetPurchasesIdentity } from '../../lib/purchases';
 import { phReset } from '../../lib/posthog';
 import { cancelDailyNotifications } from '../../lib/dailyNotifications';
 import { resetAnalyticsIdentity } from '../../lib/analytics';
+import { track } from '../../lib/analytics';
 import AuthSheet from '../../Components/AuthSheet';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
 import { MIN_AGE, MAX_AGE } from '../../lib/safety';
+import { getSessionReplayConsent } from '../../lib/privacyPreferences';
+import { setSessionReplayConsent } from '../../lib/posthog';
 
 const GOAL_LABELS: Record<string, { label: string; emoji: string }> = {
   muscle_gain: { label: 'Ganar músculo', emoji: '💪' },
@@ -68,6 +72,16 @@ const ACTIVITY_LEVELS = [
   { key: 'active',      label: 'Activo',       desc: '5-6 días/semana' },
   { key: 'very_active', label: 'Muy activo',   desc: 'Atleta / trabajo físico' },
 ] as const;
+const EXPERIENCE_OPTIONS = [
+  { key: 'principiante', label: 'Principiante' },
+  { key: 'intermedio', label: 'Intermedio' },
+  { key: 'avanzado', label: 'Avanzado' },
+] as const;
+const EQUIPMENT_OPTIONS = [
+  { key: 'gym', label: 'Gimnasio completo' },
+  { key: 'casa_basico', label: 'Casa con mancuernas/bandas' },
+  { key: 'casa_sin_equipo', label: 'Casa sin equipo' },
+] as const;
 
 export default function ProfileScreen() {
   const profile = useUserStore((s: any) => s.profile);
@@ -81,9 +95,11 @@ export default function ProfileScreen() {
   const [replanning, setReplanning] = useState(false);
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const [authSheet, setAuthSheet] = useState(false);
+  const [replayConsent, setReplayConsentState] = useState(false);
 
   useEffect(() => {
     getAccountEmail().then(setAccountEmail).catch(() => {});
+    getSessionReplayConsent().then(setReplayConsentState).catch(() => {});
   }, []);
 
   const isAnon = !accountEmail;
@@ -101,6 +117,9 @@ export default function ProfileScreen() {
   const [sex, setSex] = useState<BiologicalSex>(profile?.sex ?? 'unspecified');
   const [goal, setGoal] = useState(profile?.goal ?? 'muscle_gain');
   const [activityLevel, setActivityLevel] = useState(profile?.activity_level ?? 'moderate');
+  const [trainingExperience, setTrainingExperience] = useState(profile?.training_experience ?? 'principiante');
+  const [daysPerWeek, setDaysPerWeek] = useState(profile?.days_per_week ?? 3);
+  const [equipment, setEquipment] = useState(profile?.equipment ?? 'gym');
 
   async function saveChanges() {
     if (!name.trim()) { Alert.alert('Error', 'Ingresa tu nombre.'); return; }
@@ -131,6 +150,9 @@ export default function ProfileScreen() {
         height_cm: +height,
         goal,
         activity_level: activityLevel,
+        training_experience: trainingExperience,
+        days_per_week: daysPerWeek,
+        equipment,
         ...newMacros,
       })
       .eq('user_id', profile.user_id)
@@ -226,16 +248,59 @@ export default function ProfileScreen() {
     setReplanning(true);
     try {
       const newPlan = await regenerateAdaptivePlan(profile, trainingPlan.plan_data);
-      const saved = await saveAdaptedPlan(profile.user_id, newPlan);
-      if (saved) setTrainingPlan(saved);
-      setProfile({ ...profile, current_plan_day: 0 });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('✅ Plan ajustado', 'Tu plan se adaptó a tu desempeño de las últimas semanas.');
+      const preview = planChangePreview(trainingPlan.plan_data, newPlan);
+      track('plan_adaptation_previewed', { changes: preview.split('\n').length });
+      Alert.alert(
+        'Revisa antes de aplicar',
+        `${preview}\n\nNada cambiará hasta que lo confirmes. Podrás deshacerlo después.`,
+        [
+          { text: 'Conservar mi plan', style: 'cancel' },
+          {
+            text: 'Aplicar cambios',
+            onPress: async () => {
+              setReplanning(true);
+              try {
+                const saved = await saveAdaptedPlan(profile.user_id, newPlan);
+                setTrainingPlan(saved);
+                setProfile({ ...profile, current_plan_day: 0 });
+                track('plan_adaptation_applied', { changes: preview.split('\n').length });
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('Plan actualizado', 'El ajuste está activo. Si no te funciona, puedes restaurar el anterior.');
+              } catch (error: any) {
+                Alert.alert('No se pudo aplicar', error?.message ?? 'Intenta de nuevo.');
+              } finally {
+                setReplanning(false);
+              }
+            },
+          },
+        ]
+      );
     } catch (e: any) {
       Alert.alert('No se pudo ajustar', e?.message ?? 'Intenta de nuevo.');
     } finally {
       setReplanning(false);
     }
+  }
+
+  async function handleRestorePlan() {
+    Alert.alert('Restaurar plan anterior', 'Volverás al día 1 del plan anterior. Tu historial y todas tus métricas se conservan.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Restaurar', onPress: async () => {
+        setReplanning(true);
+        try {
+          const restored = await restorePreviousPlan();
+          setTrainingPlan(restored);
+          setProfile({ ...profile, current_plan_day: 0 });
+          track('plan_adaptation_rolled_back');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Plan restaurado', 'Volviste al plan anterior sin perder tu historial.');
+        } catch (error: any) {
+          Alert.alert('No se pudo restaurar', error?.message ?? 'No hay un plan anterior.');
+        } finally {
+          setReplanning(false);
+        }
+      } },
+    ]);
   }
 
   async function handleLogout() {
@@ -292,6 +357,9 @@ export default function ProfileScreen() {
                 setSex(profile.sex ?? 'unspecified');
                 setGoal(profile.goal);
                 setActivityLevel(profile.activity_level);
+                setTrainingExperience(profile.training_experience ?? 'principiante');
+                setDaysPerWeek(profile.days_per_week ?? 3);
+                setEquipment(profile.equipment ?? 'gym');
                 setEditModal(true);
               }}>
               <Text style={s.editBtnTxt}>✏️ Editar</Text>
@@ -326,6 +394,9 @@ export default function ProfileScreen() {
             { label: 'Altura', value: `${profile.height_cm} cm` },
             { label: 'Sexo biológico', value: SEX_LABELS[profile.sex] ?? SEX_LABELS.unspecified },
             { label: 'Actividad', value: ACTIVITY_LABELS[profile.activity_level] },
+            { label: 'Experiencia', value: EXPERIENCE_OPTIONS.find((o) => o.key === profile.training_experience)?.label ?? 'Principiante' },
+            { label: 'Días disponibles', value: `${profile.days_per_week ?? 3} por semana` },
+            { label: 'Equipo', value: EQUIPMENT_OPTIONS.find((o) => o.key === profile.equipment)?.label ?? 'Gimnasio completo' },
             { label: 'Objetivo', value: `${goalInfo.emoji} ${goalInfo.label}` },
             { label: 'Día del plan', value: `Día ${(profile.current_plan_day ?? 0) + 1} de 7` },
           ].map((row, i, arr) => (
@@ -375,6 +446,15 @@ export default function ProfileScreen() {
               <Text style={[s.actDesc, { marginTop: 2 }]}>Adapta cargas según tu desempeño real</Text>
             </View>
             <Text style={[s.rowValue, { color: Colors.accent }]}>{replanning ? '…' : '›'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={handleRestorePlan} disabled={replanning}
+            accessibilityRole="button" accessibilityLabel="Restaurar mi plan anterior"
+            accessibilityHint="No elimina el historial ni las métricas">
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>↶ Restaurar plan anterior</Text>
+              <Text style={[s.actDesc, { marginTop: 2 }]}>Deshace el último ajuste; conserva todo tu progreso</Text>
+            </View>
+            <Text style={s.rowValue}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.row}
             accessibilityRole="button" accessibilityLabel="Reiniciar mi plan al día 1"
@@ -457,6 +537,27 @@ export default function ProfileScreen() {
         {/* Privacidad y datos */}
         <Text style={s.sectionLbl} accessibilityRole="header">PRIVACIDAD Y DATOS</Text>
         <View style={s.card}>
+          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={async () => {
+            const next = !replayConsent;
+            setReplayConsentState(next);
+            await setSessionReplayConsent(next, '/profile');
+            track('privacy_replay_preference_changed', { enabled: next });
+          }} accessibilityRole="switch" accessibilityState={{ checked: replayConsent }}
+            accessibilityLabel="Grabaciones opcionales para mejorar la experiencia">
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>Grabación de uso opcional</Text>
+              <Text style={[s.actDesc, { marginTop: 2 }]}>Apagada por defecto; texto e imágenes ocultos y nunca en pantallas sensibles</Text>
+            </View>
+            <Text style={[s.rowValue, { color: replayConsent ? Colors.accent : Colors.textMuted }]}>{replayConsent ? 'Activada' : 'Apagada'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={() => router.push('/legal?doc=privacy' as any)}
+            accessibilityRole="button" accessibilityLabel="Abrir política de privacidad">
+            <Text style={s.rowLabel}>Política de privacidad</Text><Text style={s.rowValue}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={() => router.push('/legal?doc=terms' as any)}
+            accessibilityRole="button" accessibilityLabel="Abrir términos de uso">
+            <Text style={s.rowLabel}>Términos de uso</Text><Text style={s.rowValue}>›</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={[s.row, s.rowBorder]} onPress={handleDeleteBodyScans}
             accessibilityRole="button" accessibilityLabel="Eliminar mi historial de análisis corporal">
             <Text style={s.rowLabel}>🗑️ Eliminar historial de análisis corporal</Text>
@@ -637,6 +738,40 @@ export default function ProfileScreen() {
                           </Text>
                           <Text style={s.actDesc}>{a.desc}</Text>
                         </View>
+                      </TouchableOpacity>
+                    ))}
+
+                    <Text style={s.fieldLabel}>Experiencia entrenando</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {EXPERIENCE_OPTIONS.map((o) => (
+                        <TouchableOpacity key={o.key} style={[s.optionBtn, trainingExperience === o.key && s.optionBtnSel]}
+                          onPress={() => setTrainingExperience(o.key)} accessibilityRole="radio"
+                          accessibilityState={{ selected: trainingExperience === o.key }} accessibilityLabel={o.label}>
+                          <Text style={[s.optionTxt, trainingExperience === o.key && { color: Colors.accent }]}>{o.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={s.fieldLabel}>Días disponibles por semana</Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {[2, 3, 4, 5, 6].map((day) => (
+                        <TouchableOpacity key={day} style={[s.optionBtn, { flex: 1, alignItems: 'center' }, daysPerWeek === day && s.optionBtnSel]}
+                          onPress={() => setDaysPerWeek(day)} accessibilityRole="radio"
+                          accessibilityState={{ selected: daysPerWeek === day }} accessibilityLabel={`${day} días por semana`}>
+                          <Text style={[s.optionTxt, daysPerWeek === day && { color: Colors.accent }]}>{day}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <Text style={s.fieldLabel}>Equipo disponible</Text>
+                    {EQUIPMENT_OPTIONS.map((o) => (
+                      <TouchableOpacity key={o.key} style={[s.actRow, equipment === o.key && s.actRowSel]}
+                        onPress={() => setEquipment(o.key)} accessibilityRole="radio"
+                        accessibilityState={{ selected: equipment === o.key }} accessibilityLabel={o.label}>
+                        <View style={[s.radio, equipment === o.key && s.radioSel]}>
+                          {equipment === o.key && <View style={s.radioDot} />}
+                        </View>
+                        <Text style={[s.actLbl, equipment === o.key && { color: Colors.accent }]}>{o.label}</Text>
                       </TouchableOpacity>
                     ))}
 

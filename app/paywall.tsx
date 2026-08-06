@@ -183,6 +183,14 @@ export default function PaywallScreen() {
         <Text style={s.legal}>
           El precio mostrado es el de la tienda en tu moneda; si aparece con «≈» todavía lo estamos consultando y es solo orientativo. Las funciones con IA tienen los cupos diarios indicados arriba. La suscripción se renueva automáticamente salvo que la canceles al menos 24h antes del fin del periodo. Puedes gestionarla en la tienda.
         </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 10 }}>
+          <TouchableOpacity onPress={() => router.push('/legal?doc=terms' as any)} accessibilityRole="link" accessibilityLabel="Leer términos de uso">
+            <Text style={s.legalLink}>Términos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/legal?doc=privacy' as any)} accessibilityRole="link" accessibilityLabel="Leer política de privacidad">
+            <Text style={s.legalLink}>Privacidad</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -207,4 +215,5 @@ const s = StyleSheet.create({
   ctaTxt: { fontFamily: Fonts.heading, fontSize: 20, color: '#0a0a0b', letterSpacing: 1 },
   restore: { fontFamily: Fonts.bodyMedium, fontSize: 13, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.lg, textDecorationLine: 'underline' },
   legal: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.lg, lineHeight: 15 },
+  legalLink: { fontFamily: Fonts.bodySemi, fontSize: Type.caption, color: Colors.accent, textDecorationLine: 'underline' },
 });

@@ -177,6 +177,9 @@ export type UserProfile = {
   height_cm: number;
   goal: 'muscle_gain' | 'fat_loss' | 'performance' | 'endurance';
   activity_level: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+  training_experience: 'principiante' | 'intermedio' | 'avanzado';
+  days_per_week: number;
+  equipment: 'gym' | 'casa_basico' | 'casa_sin_equipo';
   daily_calories: number;
   daily_protein_g: number;
   daily_carbs_g: number;
@@ -202,6 +205,9 @@ export type TrainingPlan = {
   plan_data: WeeklyPlan;
   is_active: boolean;
   generated_at: string;
+  parent_plan_id?: string | null;
+  change_reason?: Record<string, unknown>;
+  replaced_at?: string | null;
 };
 
 export type WeeklyPlan = {
@@ -227,6 +233,9 @@ export type Exercise = {
   rest_seconds: number;
   notes: string;
   muscle_group: string;
+  target_rir?: number;
+  intensity_method?: 'none' | 'drop_set';
+  exercise_id?: string;
 };
 
 export type FoodLog = {

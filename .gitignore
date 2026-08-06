@@ -31,6 +31,9 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.*
+!.env.example
 .env*.local
 
 # typescript
@@ -45,3 +48,6 @@ supabase/.temp/
 
 # Respaldos de historial de conversación (decenas de MB, crecen sin límite)
 docs/backup-historial/
+# Exportaciones de chats pueden contener credenciales ya revocadas y datos personales.
+docs/*conversacion*.md
+docs/*conversación*.md

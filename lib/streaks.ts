@@ -271,44 +271,14 @@ export async function recordWorkoutCompleted(
 // servidor DISPONE, vía apply_activity_stats con p_kind='meal'.
 export async function recordMealLogged(
   userId: string,
-  macroPerfectDay = false
+  macroPerfectDay = false,
+  evidenceId?: string
 ): Promise<{ newBadges: BadgeId[]; xpGained: number; leveledUp: boolean; macroDayCounted: boolean }> {
   const stats = await loadUserStats(userId);
   const prevLevel = xpToLevel(stats.total_xp);
 
-  // "Día perfecto de macros": debe pagarse UNA sola vez por día LOCAL. El
-  // dedupe ya no puede vivir en el cliente porque apply_activity_stats NO
-  // escribe claimed_missions, así que la clave 'macroday:<fecha>' nunca
-  // quedaría persistida y el bonus se cobraría en cada comida.
-  // Solución: usar claim_mission como CERROJO DE IDEMPOTENCIA por día. Con
-  // p_xp=0 no paga nada — solo intenta poner la clave del día en
-  // claimed_missions (operación atómica, con `for update`, en el servidor) y
-  // nos dice si ya estaba: already_claimed=true ⇒ el día perfecto ya se contó
-  // hoy. Es la misma garantía que da la RPC a las misiones semanales,
-  // reutilizada aquí como candado en vez de como pago.
-  let macroDayCounted = false;
-  if (macroPerfectDay) {
-    const dayKey = `macroday:${localDayKey()}`; // día LOCAL, no UTC (ver streaksMath)
-    const { data: cerrojo, error: errorCerrojo } = await supabase.rpc('claim_mission', {
-      p_mission_id: dayKey,
-      p_xp: 0,
-    });
-    const filaCerrojo = Array.isArray(cerrojo) ? cerrojo[0] : cerrojo;
-
-    if (errorCerrojo || !filaCerrojo) {
-      // Sin confirmación del cerrojo NO contamos el día perfecto: dejar de
-      // pagar un bonus una vez es mucho menos grave que pagarlo dos veces.
-      captureError(errorCerrojo ?? new Error('claim_mission no devolvió fila'), {
-        scope: 'claim_mission.macroday',
-        mission_id: dayKey,
-      });
-    } else {
-      macroDayCounted = !filaCerrojo.already_claimed;
-    }
-  }
-
   const XP_PER_MEAL = 15;
-  const baseXp = XP_PER_MEAL + (macroDayCounted ? 50 : 0);
+  const baseXp = XP_PER_MEAL + (macroPerfectDay ? 50 : 0);
 
   // Las insignias las deriva y paga el servidor (ver recordWorkoutCompleted).
   const { data, error } = await supabase.rpc('apply_activity_stats', {
@@ -316,7 +286,9 @@ export async function recordMealLogged(
     p_xp_delta: baseXp,
     p_base_xp: baseXp,
     p_badges: [],
-    p_macro_perfect: macroDayCounted,
+    p_macro_perfect: macroPerfectDay,
+    p_evidence_id: evidenceId ?? null,
+    p_local_day: localDayKey(),
   });
 
   // La RPC devuelve `returns table`, o sea una fila dentro de un array.
@@ -342,13 +314,14 @@ export async function recordMealLogged(
     newBadges: badgesOtorgados,
     xpGained: Math.max(0, (fila.total_xp ?? stats.total_xp) - stats.total_xp),
     leveledUp: (fila.level ?? prevLevel) > prevLevel,
-    macroDayCounted,
+    macroDayCounted: Boolean(fila.macro_day_counted),
   };
 }
 
 // ─── REGISTRAR ESCANEO CORPORAL ──────────────────────────
 export async function recordBodyScan(
-  userId: string
+  userId: string,
+  evidenceId?: string
 ): Promise<{ newBadges: BadgeId[]; xpGained: number; leveledUp: boolean }> {
   const stats = await loadUserStats(userId);
   const XP_PER_SCAN = 40;
@@ -360,6 +333,8 @@ export async function recordBodyScan(
     p_base_xp: XP_PER_SCAN,
     p_badges: [],
     p_macro_perfect: false,
+    p_evidence_id: evidenceId ?? null,
+    p_local_day: localDayKey(),
   });
 
   const fila = Array.isArray(data) ? data[0] : data;

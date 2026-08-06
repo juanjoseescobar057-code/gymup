@@ -21,7 +21,7 @@
 // algo duele, no se hace. Ver CLINICAL_REVIEW_STATUS en healthMath.
 // ─────────────────────────────────────────────────────────
 
-import type { Condition, InjuryZone } from './healthMath';
+import type { Condition, HealthProfile, InjuryZone, RiskLevel } from './healthMath';
 
 /**
  * Etiquetas de lo que EXIGE un movimiento. Es lo que permite descartarlo sin
@@ -88,7 +88,7 @@ const GENERAL: ItemMovilidad[] = [
     nombre: 'Círculos de hombros y brazos',
     duracion: '30 s',
     como: 'Hacia atrás y hacia delante, sin forzar el final del recorrido.',
-    demandas: [],
+    demandas: ['hombro_sobre_cabeza', 'cuello_rango'],
   },
 ];
 
@@ -114,14 +114,14 @@ const POR_GRUPO: { claves: string[]; items: ItemMovilidad[] }[] = [
     claves: ['espalda', 'bíceps', 'biceps', 'dorsal'],
     items: [
       { nombre: 'Gato-camello', duracion: '8 reps', como: 'A cuatro patas, alterna redondear y arquear la espalda SIN llegar al dolor.', demandas: ['flexion_lumbar'] },
-      { nombre: 'Retracción de escápulas', duracion: '12 reps', como: 'Junta los omóplatos como si sostuvieras un lápiz entre ellos, 2 segundos.', demandas: [] },
+      { nombre: 'Retracción de escápulas', duracion: '12 reps', como: 'Junta los omóplatos como si sostuvieras un lápiz entre ellos, 2 segundos.', demandas: ['cuello_rango'] },
     ],
   },
   {
     claves: ['core', 'abdomen', 'abdominal'],
     items: [
-      { nombre: 'Bird-dog', duracion: '8 por lado', como: 'A cuatro patas, extiende brazo y pierna contrarios sin que la cadera se ladee.', demandas: [] },
-      { nombre: 'Plancha corta', duracion: '20 s', como: 'Costillas abajo y glúteo apretado. Si la espalda se arquea, párate.', demandas: [] },
+      { nombre: 'Bird-dog', duracion: '8 por lado', como: 'A cuatro patas, extiende brazo y pierna contrarios sin que la cadera se ladee.', demandas: ['muneca_carga', 'hombro_sobre_cabeza', 'cadera_rango'] },
+      { nombre: 'Plancha corta', duracion: '20 s', como: 'Costillas abajo y glúteo apretado. Si la espalda se arquea, párate.', demandas: ['muneca_carga'] },
     ],
   },
 ];
@@ -139,7 +139,7 @@ const ESTIRAMIENTOS: { claves: string[]; items: ItemMovilidad[] }[] = [
   {
     claves: ['pecho', 'tríceps', 'triceps', 'hombro'],
     items: [
-      { nombre: 'Pecho en marco de puerta', duracion: '30 s por lado', como: 'Antebrazo en el marco, gira el cuerpo despacio hasta notar tensión, no dolor.', demandas: [] },
+      { nombre: 'Pecho en marco de puerta', duracion: '30 s por lado', como: 'Antebrazo en el marco, gira el cuerpo despacio hasta notar tensión, no dolor.', demandas: ['hombro_sobre_cabeza'] },
       { nombre: 'Tríceps sobre la cabeza', duracion: '30 s por lado', como: 'Codo arriba, mano hacia la espalda, ayuda suave con la otra mano.', demandas: ['hombro_sobre_cabeza'] },
     ],
   },
@@ -147,7 +147,7 @@ const ESTIRAMIENTOS: { claves: string[]; items: ItemMovilidad[] }[] = [
     claves: ['espalda', 'bíceps', 'biceps', 'dorsal'],
     items: [
       { nombre: 'Dorsal colgado o en barra', duracion: '30 s por lado', como: 'Agarra algo fijo, deja caer la cadera hacia atrás y lateral.', demandas: ['hombro_sobre_cabeza'] },
-      { nombre: 'Apertura torácica en el suelo', duracion: '30 s por lado', como: 'De lado, abre el brazo de arriba siguiendo la mano con la mirada.', demandas: [] },
+      { nombre: 'Apertura torácica en el suelo', duracion: '30 s por lado', como: 'De lado, abre el brazo de arriba siguiendo la mano con la mirada.', demandas: ['hombro_sobre_cabeza', 'cuello_rango'] },
     ],
   },
   {
@@ -163,6 +163,10 @@ export type ContextoSalud = {
   conditions: Condition[];
   /** true si el tamizaje no se pudo leer: se cae a lo más conservador. */
   desconocido?: boolean;
+  /** Datos para extender el calentamiento sin depender de la IA. */
+  age?: number;
+  riskLevel?: RiskLevel;
+  profile?: HealthProfile | null;
 };
 
 function vetadas(ctx: ContextoSalud): Set<DemandaMovimiento> {
@@ -171,7 +175,14 @@ function vetadas(ctx: ContextoSalud): Set<DemandaMovimiento> {
   // demandas que más daño pueden hacer si hay algo sin declarar. Es la misma
   // regla de "fallar cerrado" que usa el resto de la app.
   if (ctx.desconocido) {
-    ['impacto', 'intensidad_alta', 'flexion_lumbar', 'rodilla_profunda'].forEach((d) => v.add(d as DemandaMovimiento));
+    // Sin contexto no se conoce qué articulación o posición está limitada.
+    // Se conserva únicamente el cierre/caminar general; todas las demandas
+    // articulares quedan fuera hasta restaurar el tamizaje.
+    [
+      'impacto', 'intensidad_alta', 'flexion_lumbar', 'rodilla_profunda',
+      'hombro_sobre_cabeza', 'cuello_rango', 'muneca_carga', 'cadera_rango',
+      'tobillo_rango', 'supino',
+    ].forEach((d) => v.add(d as DemandaMovimiento));
     return v;
   }
   for (const l of ctx.injuries) (VETO_POR_LESION[l] ?? []).forEach((d) => v.add(d));
@@ -197,7 +208,15 @@ function filtrar(items: ItemMovilidad[], veto: Set<DemandaMovimiento>): ItemMovi
  */
 export function calentamientoPara(muscleGroups: string[], ctx: ContextoSalud): ItemMovilidad[] {
   const veto = vetadas(ctx);
-  const items = [...filtrar(GENERAL, veto)];
+  const general = GENERAL.map((item) => {
+    if (item.nombre !== 'Caminar o bici suave') return item;
+    const extendido =
+      (ctx.age ?? 0) >= 65 ||
+      ctx.conditions.includes('cardiopatia') ||
+      ctx.conditions.includes('asma');
+    return extendido ? { ...item, duracion: '8-10 min' } : item;
+  });
+  const items = [...filtrar(general, veto)];
   for (const g of POR_GRUPO) {
     if (coincide(muscleGroups, g.claves)) items.push(...filtrar(g.items, veto));
   }
@@ -234,8 +253,34 @@ export function estiramientoPara(muscleGroups: string[], ctx: ContextoSalud): It
  * que NINGÚN catálogo genérico puede darte, porque depende de lo que vayas a
  * levantar hoy — y es la que de verdad prepara ese movimiento.
  */
-export function seriesDeAproximacion(primerEjercicio: string | null): string | null {
+export function seriesDeAproximacion(
+  primerEjercicio: string | null,
+  pesoTrabajoKg?: number | null
+): string | null {
   if (!primerEjercicio) return null;
-  return `Antes de tu primera serie de ${primerEjercicio}: 1-2 series ligeras del mismo movimiento ` +
-    `(la mitad del peso, la mitad de las repeticiones). No cuentan para tu registro.`;
+  const esCompuesto = /sentadilla|peso muerto|press|remo|dominada|hip thrust|prensa/i.test(primerEjercicio);
+  if (!pesoTrabajoKg || pesoTrabajoKg <= 0) {
+    return `Antes de ${primerEjercicio}: haz ${esCompuesto ? '2-3' : '1-2'} series progresivas del mismo movimiento, con pocas repeticiones y sin acercarte al fallo. No cuentan para tu registro.`;
+  }
+  const redondear = (n: number) => Math.max(1, Math.round(n / 2.5) * 2.5);
+  if (!esCompuesto || pesoTrabajoKg < 25) {
+    return `Antes de ${primerEjercicio}: 1 serie de 8 repeticiones con ~${redondear(pesoTrabajoKg * 0.5)} kg y otra de 3-5 repeticiones con ~${redondear(pesoTrabajoKg * 0.7)} kg. Sin fatiga; no cuentan para tu registro.`;
+  }
+  return `Antes de ${primerEjercicio}: 8 repeticiones con ~${redondear(pesoTrabajoKg * 0.4)} kg, 5 con ~${redondear(pesoTrabajoKg * 0.6)} kg y 2-3 con ~${redondear(pesoTrabajoKg * 0.8)} kg. Descansa brevemente y empieza tu carga de trabajo; ninguna serie de aproximación va al fallo.`;
+}
+
+/** Estimación honesta para el copy; incluye trabajo por lado. */
+export function minutosEstimados(items: ItemMovilidad[]): number {
+  let segundos = 0;
+  for (const item of items) {
+    const rango = item.duracion.match(/(\d+)(?:-(\d+))?\s*min/i);
+    if (rango) {
+      segundos += Number(rango[2] ?? rango[1]) * 60;
+      continue;
+    }
+    const valor = Number(item.duracion.match(/\d+/)?.[0] ?? 30);
+    const porLado = /por lado/i.test(item.duracion);
+    segundos += /rep/i.test(item.duracion) ? valor * 3 * (porLado ? 2 : 1) : valor * (porLado ? 2 : 1);
+  }
+  return Math.max(1, Math.ceil(segundos / 60));
 }

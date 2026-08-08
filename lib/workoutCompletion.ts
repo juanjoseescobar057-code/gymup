@@ -3,7 +3,8 @@ import type { SetLogInput } from './setLogs';
 import { normalizeCompletedSets } from './workoutValidation';
 
 export type CompletedWorkout = {
-  sessionId: string;
+  /** null cuando se salió sin registrar ninguna serie: no hubo sesión que abrir. */
+  sessionId: string | null;
   exercisesCompleted: number;
   setsSaved: number;
   alreadyCompleted: boolean;
@@ -23,6 +24,16 @@ export async function completeWorkout(input: {
   sets: SetLogInput[];
 }): Promise<CompletedWorkout> {
   const sets = normalizeCompletedSets(input.sets);
+
+  // Sin series NO se abre sesión en el servidor: la RPC exige al menos una
+  // ("La sesión necesita al menos una serie real") y con razón, porque una
+  // sesión vacía contaría como entrenamiento para la racha y el XP. Pero eso
+  // no puede impedirle a la persona SALIR de la pantalla, que es lo que
+  // pasaba: los dos botones de salida fallaban con un error de validación.
+  // Se sale sin registrar nada, que es exactamente lo que ocurrió.
+  if (sets.length === 0) {
+    return { sessionId: null, exercisesCompleted: 0, setsSaved: 0, alreadyCompleted: false };
+  }
 
   const { data, error } = await supabase.rpc('complete_workout_session', {
     p_client_session_key: input.clientSessionKey,

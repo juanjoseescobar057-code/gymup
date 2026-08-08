@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { track } from '../lib/analytics';
 import { loadHealthSafe } from '../lib/health';
-import { estiramientoPara, minutosEstimados, type ContextoSalud } from '../lib/warmupMath';
+import { estiramientoPara, minutosEstimados, cierreExtendido, type ContextoSalud } from '../lib/warmupMath';
 import { useUserStore } from '../store/userStore';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
@@ -46,6 +46,8 @@ export default function WorkoutCompleteScreen() {
         setSalud({
           injuries: load.profile?.injuries ?? [],
           conditions: load.profile?.conditions ?? [],
+          // La edad faltaba, así que el cierre extendido de 65+ no se activaba nunca.
+          age: profile?.age,
         });
       })
       .catch(() => {});
@@ -54,6 +56,9 @@ export default function WorkoutCompleteScreen() {
   const estiramientos = estiramientoPara(grupos, salud);
   const cooldownMinutes = minutosEstimados(estiramientos);
   const saludDesconocida = salud.desconocido === true;
+  // A quien la app le exige 10 minutos de calentamiento por su condición no se
+  // le puede etiquetar el cierre como "OPCIONAL": es la misma directiva.
+  const cierreRecomendado = cierreExtendido(salud);
   const [showCooldown, setShowCooldown] = useState(false);
   const [cooldownDone, setCooldownDone] = useState(false);
 
@@ -147,7 +152,7 @@ export default function WorkoutCompleteScreen() {
             mantener la posición es ahora, no antes de levantar. */}
         {estiramientos.length > 0 && !showCooldown && !cooldownDone && (
           <View style={s.estWrap}>
-            <Text style={s.estTitulo} accessibilityRole="header">VUELTA A LA CALMA OPCIONAL · {cooldownMinutes} MIN</Text>
+            <Text style={s.estTitulo} accessibilityRole="header">VUELTA A LA CALMA {cierreRecomendado ? 'RECOMENDADA' : 'OPCIONAL'} · {cooldownMinutes} MIN</Text>
             <Text style={s.estIntro}>
               Puede ayudarte a bajar el ritmo y trabajar movilidad. No garantiza evitar dolor muscular ni acelera por sí sola la recuperación.
             </Text>

@@ -239,13 +239,46 @@ const CIERRE_GENERAL: ItemMovilidad[] = [
 ];
 
 /** Vuelta a la calma: estiramientos ESTÁTICOS de lo que se acaba de trabajar. */
+/**
+ * ¿A esta persona la vuelta a la calma le toca extendida?
+ *
+ * Las directivas de salud del propio repo lo piden para las DOS mitades —
+ * CONDITION_DIRECTIVES.cardiopatia dice literalmente "Calentamiento y vuelta a
+ * la calma extendidos (10 min cada uno)" — pero solo se había implementado el
+ * calentamiento. Bajar de golpe tras el esfuerzo es justo el momento que esas
+ * directivas quieren cubrir.
+ */
+export function cierreExtendido(ctx: ContextoSalud): boolean {
+  return (
+    (ctx.age ?? 0) >= 65 ||
+    ctx.conditions.includes('cardiopatia') ||
+    ctx.conditions.includes('asma') ||
+    ctx.conditions.includes('hipertension')
+  );
+}
+
 export function estiramientoPara(muscleGroups: string[], ctx: ContextoSalud): ItemMovilidad[] {
   const veto = vetadas(ctx);
   const items: ItemMovilidad[] = [];
   for (const g of ESTIRAMIENTOS) {
     if (coincide(muscleGroups, g.claves)) items.push(...filtrar(g.items, veto));
   }
-  return items.length > 0 ? items : CIERRE_GENERAL;
+  const base = items.length > 0 ? items : CIERRE_GENERAL;
+
+  // El paseo de bajada SIEMPRE va primero en el cierre extendido: es la parte
+  // que de verdad importa para estos perfiles, más que los estiramientos.
+  if (cierreExtendido(ctx)) {
+    return [
+      {
+        nombre: 'Caminar suave hasta recuperar el pulso',
+        duracion: '8-10 min',
+        como: 'No te sientes de golpe. Baja el ritmo poco a poco hasta respirar con normalidad.',
+        demandas: [],
+      },
+      ...base.filter((i) => i.nombre !== 'Caminar suave'),
+    ];
+  }
+  return base;
 }
 
 /**

@@ -29,47 +29,19 @@
 import PostHog from 'posthog-react-native';
 import { captureError } from './monitoring';
 import { getSessionReplayConsent, saveSessionReplayConsent } from './privacyPreferences';
+import { esRutaSensible } from './replayRoutes';
+export { esRutaSensible, RUTAS_SIN_GRABACION } from './replayRoutes';
 
 const KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY;
 const HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
 
-/**
- * Rutas donde la grabación de pantalla se apaga por completo.
- * Se comparan por prefijo contra el pathname de expo-router.
- *
- * El criterio no es "aquí hay datos", es "aquí hay datos que NO puedo
- * permitirme filtrar aunque el enmascarado falle":
- *   • body-scan  → fotos del cuerpo del usuario
- *   • food-scan / fridge-scan → fotos de su casa y su comida
- *   • health     → dolor en el pecho, mareos, restricción médica
- *   • onboarding → el tamizaje de salud vive en su paso 3
- *   • coach-chat → la gente le cuenta cosas personales al coach
- * Lo que SÍ se graba es donde están los problemas de UX que buscamos: inicio,
- * entrenamiento, progreso, paywall.
- */
-const RUTAS_SIN_GRABACION = [
-  '/body-scan',
-  '/food-scan',
-  '/fridge-scan',
-  '/health',
-  '/onboarding',
-  '/coach-chat',
-  '/live-coach',
-  '/workout-session',
-  '/workout-complete',
-  '/food-manual',
-  '/history',
-  '/legal',
-  '/telemetry',
-];
+// La lista de rutas que nunca se graban vive en lib/replayRoutes.ts, con sus
+// tests: es una promesa escrita en la política de privacidad publicada.
 
 let ph: PostHog | null = null;
 let replayPausado = false;
 let replayConsent = false;
 
-export function esRutaSensible(pathname: string): boolean {
-  return RUTAS_SIN_GRABACION.some((r) => pathname.startsWith(r));
-}
 
 /** Arranca PostHog. Sin key configurada es un no-op silencioso. */
 export async function initPostHog(distinctId?: string): Promise<void> {
@@ -196,10 +168,32 @@ export function ajustarReplayPorRuta(pathname: string): void {
   } catch {}
 }
 
-/** Aplica de inmediato la decisión y la persiste. Nunca reanuda dentro de una ruta sensible. */
+/**
+ * Aplica de inmediato la decisión y la persiste. Nunca reanuda dentro de una
+ * ruta sensible.
+ *
+ * El orden importa y estaba al revés: se persistía ANTES de detener la
+ * grabación, así que si AsyncStorage fallaba (disco lleno, por ejemplo) la
+ * función abortaba por excepción y la grabación seguía corriendo mientras la
+ * pantalla ya decía "Apagada". Un opt-out que no apaga es peor que no
+ * ofrecerlo. Ahora se APAGA primero —que es lo irreversible para el usuario—
+ * y el fallo al persistir se reporta sin dejar la grabación viva.
+ */
 export async function setSessionReplayConsent(granted: boolean, pathname = ''): Promise<void> {
   replayConsent = granted;
-  await saveSessionReplayConsent(granted);
+  aplicarEstadoReplay(granted, pathname);
+  try {
+    await saveSessionReplayConsent(granted);
+  } catch (e) {
+    // Se apagó en esta sesión, pero al reabrir la app volvería al valor
+    // guardado. getSessionReplayConsent falla cerrado (false), así que el
+    // riesgo real solo existe al CONCEDER, no al revocar.
+    captureError(e, { scope: 'setSessionReplayConsent.persistencia', granted });
+    if (granted) throw new Error('No pudimos guardar tu preferencia. Inténtalo de nuevo.');
+  }
+}
+
+function aplicarEstadoReplay(granted: boolean, pathname: string): void {
   if (!ph) return;
   try {
     if (!granted || esRutaSensible(pathname)) {

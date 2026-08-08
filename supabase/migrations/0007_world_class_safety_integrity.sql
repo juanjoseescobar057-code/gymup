@@ -212,12 +212,18 @@ declare
   v_uid uuid:=auth.uid(); v_claimed boolean:=false; v_xp integer:=0; v_streak integer;
   v_sessions integer; v_meals integer; v_macro_days integer; v_scans integer;
   v_old_badges text[]; v_claimed_missions text[]; v_key text;
-  v_day date:=coalesce(p_local_day,current_date); v_derived text[]; v_fresh text[];
+  v_day date:=coalesce(p_local_day,current_date); v_dia_evidencia date; v_derived text[]; v_fresh text[];
   v_badge_xp integer:=0; v_macro_counted boolean:=false;
 begin
   if v_uid is null then raise exception 'Se requiere autenticación'; end if;
   if p_kind not in ('meal','body_scan') then raise exception 'Actividad inválida'; end if;
   if v_day<current_date-1 or v_day>current_date+1 then v_day:=current_date; end if;
+  -- El margen de ±1 día es necesario para las zonas horarias, pero convertía
+  -- el día en un parámetro ELEGIBLE por el cliente: había tres claves
+  -- 'macroday:' válidas a la vez, y como cada una es un cerrojo independiente,
+  -- el bonus de 50 XP y el contador de días perfectos se podían cobrar tres
+  -- veces en la misma jornada. El cerrojo se ancla ahora al día de la
+  -- EVIDENCIA (la fila de comida) más abajo, no al día que diga el cliente.
   insert into public.user_stats(user_id) values(v_uid) on conflict(user_id) do nothing;
   select coalesce(s.current_streak,0),coalesce(s.total_workouts,0),coalesce(s.total_meals_logged,0),
     coalesce(s.total_macro_perfect_days,0),coalesce(s.total_body_scans,0),
@@ -227,7 +233,8 @@ begin
   if p_kind='meal' then
     update public.food_logs f set xp_credited_at=now()
       where f.id=coalesce(p_evidence_id,(select x.id from public.food_logs x where x.user_id=v_uid and x.xp_credited_at is null
-        order by x.logged_at desc limit 1 for update skip locked)) and f.user_id=v_uid and f.xp_credited_at is null;
+        order by x.logged_at desc limit 1 for update skip locked)) and f.user_id=v_uid and f.xp_credited_at is null
+      returning (f.logged_at at time zone 'UTC')::date into v_dia_evidencia;
   else
     update public.body_scans b set xp_credited_at=now()
       where b.id=coalesce(p_evidence_id,(select x.id from public.body_scans x where x.user_id=v_uid and x.xp_credited_at is null
@@ -239,7 +246,14 @@ begin
       from public.user_stats s where s.user_id=v_uid; return;
   end if;
   if p_kind='meal' then
-    v_meals:=v_meals+1; v_xp:=15; v_key:='macroday:'||to_char(v_day,'YYYY-MM-DD');
+    -- El cerrojo se ancla a la fecha de la EVIDENCIA (la fila de comida que
+    -- acabamos de marcar), no al día que mande el cliente: si dependiera de
+    -- p_local_day, el margen de ±1 día daría tres claves válidas a la vez y
+    -- el bonus se podría cobrar tres veces la misma jornada. A cambio, en
+    -- husos alejados de UTC el corte del día cae a media tarde local; es un
+    -- desfase conocido y preferible a un cerrojo que el cliente elige.
+    v_meals:=v_meals+1; v_xp:=15;
+    v_key:='macroday:'||to_char(coalesce(v_dia_evidencia,v_day),'YYYY-MM-DD');
     if p_macro_perfect and not(v_key=any(v_claimed_missions)) then
       v_macro_counted:=true; v_macro_days:=v_macro_days+1; v_xp:=v_xp+50;
       v_claimed_missions:=array_append(v_claimed_missions,v_key);
@@ -285,6 +299,20 @@ begin
       returning w.completed_at::date into v_date;
   end if;
   insert into public.user_stats(user_id) values(v_uid) on conflict(user_id) do nothing;
+  -- El día de la RACHA es el día LOCAL de la persona, no el UTC del cierre.
+  -- La versión anterior usaba coalesce(p_workout_date, current_date); esta lo
+  -- sacaba solo de completed_at::date, que en UTC-5 adelanta un día cualquier
+  -- entreno posterior a las 19:00 locales. Efecto real: a quien entrena de
+  -- noche se le abrían huecos de un día de más, se le rompía la racha o se le
+  -- gastaba un comodín por entrenar EXACTAMENTE el día que su plan pedía.
+  -- p_workout_date sigue siendo una PROPUESTA del cliente, así que solo se
+  -- acepta si cae a un día de distancia de la fecha real de la sesión: eso
+  -- cubre cualquier zona horaria del mundo sin dejar elegir la fecha.
+  if v_date is not null and p_workout_date is not null
+     and abs(p_workout_date - v_date) <= 1 then
+    v_date := p_workout_date;
+  end if;
+
   if v_date is null then
     return query select s.current_streak,s.longest_streak,s.total_xp,s.level,s.total_workouts,s.earned_badges,s.streak_freezes
       from public.user_stats s where s.user_id=v_uid; return;

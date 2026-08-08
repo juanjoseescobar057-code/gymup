@@ -100,7 +100,11 @@ export default function WorkoutSessionScreen() {
   // imponerlo no.
   const [faseCalentamiento, setFaseCalentamiento] = useState(true);
   const [energyToday, setEnergyToday] = useState(3);
-  const [sorenessToday, setSorenessToday] = useState(2);
+  // 3 = "Media", que es uno de los chips reales. Antes arrancaba en 2, un
+  // valor que ningún chip representa: los tres salían apagados como si fuera
+  // una pregunta sin responder, y ese 2 invisible se guardaba igual en
+  // workout_readiness y entraba en el promedio de recuperación.
+  const [sorenessToday, setSorenessToday] = useState(3);
   const [availableMinutes, setAvailableMinutes] = useState(60);
   const [newPainToday, setNewPainToday] = useState(false);
   const ctxSalud = {
@@ -175,7 +179,17 @@ export default function WorkoutSessionScreen() {
               setEnergyToday(restoredConfig.energy);
               setSorenessToday(restoredConfig.soreness);
               setAvailableMinutes(restoredConfig.minutes);
-              if (!pausaLarga) startWorkoutClock(snap.startedAt, true, restoredExercises.length);
+              if (pausaLarga) {
+                // Pausa larga: se vuelve a mostrar el calentamiento (tiene
+                // sentido, el cuerpo se enfrió) pero el reloj NO se reinicia.
+                // Se recuerda el arranque real para que `empezar()` lo retome:
+                // si no, los 45 minutos ya entrenados se borraban del registro
+                // y la sesión quedaba guardada como si hubiera durado 10.
+                sessionStartRef.current = new Date(snap.startedAt);
+                workoutStartedRef.current = true;
+              } else {
+                startWorkoutClock(snap.startedAt, true, restoredExercises.length);
+              }
               setCurrentEx(Math.min(snap.currentEx, restoredExercises.length - 1));
               setCompletedSets(snap.completedSets);
               loggedSetsRef.current = snap.loggedSets;
@@ -220,7 +234,13 @@ export default function WorkoutSessionScreen() {
     const prev = lastPerf[currentExName];
     setWeightInput(prev?.weight_kg != null ? String(prev.weight_kg) : '');
     setRepsInput(prev?.reps != null ? String(prev.reps) : '');
-    setRirInput(exercises[currentEx]?.target_rir != null ? String(exercises[currentEx].target_rir) : '');
+    // El RIR se deja VACÍO a propósito. El campo pide un autoinforme
+    // ("repeticiones que sentías que aún podías hacer"), así que rellenarlo con
+    // el objetivo del plan hace que quien no lo toca guarde como esfuerzo
+    // propio un número que nunca declaró — y ese dato inventado alimenta
+    // después las decisiones de progresión. El objetivo del plan se muestra
+    // como pista al lado del campo, no dentro de él.
+    setRirInput('');
   }, [currentEx, currentSet, lastPerf, currentExName]);
 
   function formatTime(secs: number) {
@@ -385,6 +405,18 @@ export default function WorkoutSessionScreen() {
         });
         sessionId = saved.sessionId;
         if (saved.alreadyCompleted) track('workout_save_idempotent', { session_id: sessionId });
+
+        // Salida sin ninguna serie: no hubo entrenamiento que guardar, así que
+        // no se celebra, no se suma XP, no se avanza el día del plan y no se
+        // abre la pantalla de logro. Simplemente se sale, que es lo que la
+        // persona pidió. Antes esto era imposible: la validación lanzaba y los
+        // dos botones de salida devolvían un error.
+        if (sessionId === null) {
+          await clearSession();
+          track('workout_abandoned', { sets_logged: 0, duration_min: durationMin });
+          router.back();
+          return;
+        }
       }
 
       // 2. Datos a salvo en el servidor: RECIÉN AHORA se borra el snapshot
@@ -717,7 +749,16 @@ export default function WorkoutSessionScreen() {
         soreness: sorenessToday,
       });
       setSessionConfig(config);
-      startWorkoutClock(Date.now(), false, adapted.length);
+      // Al retomar tras una pausa larga se vuelve a pasar por aquí. Arrancar el
+      // reloj desde cero borraba del registro TODO el tiempo entrenado antes
+      // del corte: 55 minutos reales se guardaban como 10. Si ya había un
+      // arranque previo, se conserva.
+      const inicio = workoutStartedRef.current ? sessionStartRef.current.getTime() : Date.now();
+      startWorkoutClock(inicio, workoutStartedRef.current, adapted.length);
+      // Y el ejercicio activo se vuelve a acotar: recortar la sesión por tiempo
+      // disponible puede dejar `currentEx` apuntando fuera de la lista nueva, y
+      // entonces la pantalla se queda sin ejercicio ni botón para registrar.
+      setCurrentEx((i) => Math.min(i, Math.max(0, adapted.length - 1)));
       track(saltado ? 'warmup_skipped' : 'warmup_done', { day_index: todayIndex });
       if (profile) {
         supabase.from('workout_readiness').upsert({
@@ -756,8 +797,12 @@ export default function WorkoutSessionScreen() {
             Preparación sugerida · {warmupMinutes} min. Sube gradualmente la temperatura y practica el movimiento. No elimina el riesgo: si aparece dolor o un síntoma nuevo, detente.
           </Text>
 
-          {healthAccess.level === 'moderado' && (
-            <Text style={s.calAviso}>
+          {/* Antes solo se pintaba en riesgo 'moderado', así que quien tiene
+              cardiopatía o embarazo con autorización médica —riesgo ALTO— no
+              veía NINGÚN aviso, y sí lo veía quien tiene una molestia de
+              rodilla. Ahora avisa a los dos, y con más énfasis al alto. */}
+          {(healthAccess.level === 'moderado' || healthAccess.level === 'alto') && (
+            <Text style={[s.calAviso, healthAccess.level === 'alto' && s.calAvisoAlto]}>
               {healthAccess.detail}
             </Text>
           )}
@@ -1134,6 +1179,10 @@ const s = StyleSheet.create({
   calAviso: {
     fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.warning, lineHeight: 18,
     backgroundColor: 'rgba(255,180,84,0.10)', borderRadius: Radii.md, padding: Spacing.sm, marginBottom: Spacing.md,
+  },
+  // Riesgo alto autorizado: mismo aviso, más peso visual y tamaño legible.
+  calAvisoAlto: {
+    fontSize: Type.body, borderWidth: 1, borderColor: Colors.warning + '66', padding: Spacing.md,
   },
   calItem: {
     flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start',

@@ -102,7 +102,9 @@ todo; hasta el próximo build queda en modo logger local sin romper nada).
 🔴 Para que los errores minificados de producción tengan stack trace legible, configura
 en EAS `SENTRY_ORG`, `SENTRY_PROJECT` y `SENTRY_AUTH_TOKEN` (el token debe ser secreto,
 nunca `EXPO_PUBLIC_*` ni un archivo commiteado). `npm run release:check` y el hook de
-producción bloquean el build si falta alguno. El bundle local confirmó que la app
+producción AVISAN de lo que falta, pero NO bloquean el build (decisión del dueño del
+producto, 5 de agosto de 2026): la publicación es una decisión de negocio, no un
+cerrojo técnico. Lo único que sigue abortando el build es la fuga de secretos. El bundle local confirmó que la app
 compila, pero mostró esta configuración de source maps como pendiente.
 
 ## Paso 9 · 🔴 Monetización — RevenueCat (👤 cuentas externas, código ya listo)
@@ -271,14 +273,15 @@ eas submit --platform android    # sube a Play (Internal Testing primero, recome
 ## Checklist de verificación local (antes de cada build)
 ```bash
 npm run verify                                    # secretos + tipos + todos los tests
-npm run release:check                             # firmas clínica y legal obligatorias
+npm run release:check                             # informe de firmas clínica y legal (no bloquea)
 npx expo install --check                          # dependencias alineadas al SDK
 npx expo export --platform android                # bundle sin errores
 ```
 Estado local del 4 de agosto de 2026: 208/208 tests, 0 errores de tipos, escaneo de
-secretos limpio y dependencias alineadas con Expo SDK 54. `release:check` permanece
-bloqueado intencionalmente hasta documentar las revisiones externas en
-`docs/release-approvals.json`.
+secretos limpio y dependencias alineadas con Expo SDK 54. `release:check` informa de que las revisiones
+clínica y legal siguen pendientes en `docs/release-approvals.json`, y sale con código 0.
+Ese archivo se mantiene fiel a la realidad: no se marca "approved" nada que no se haya
+revisado de verdad.
 
 ## Estado real ahora mismo
 - ✅ Código: proxy con entitlement por feature + topes premium, borrado completo,

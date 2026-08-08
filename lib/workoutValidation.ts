@@ -14,7 +14,15 @@ export type NormalizedWorkoutSet = {
  * o reintentar sin creer que guardó más de lo que realmente quedó registrado.
  */
 export function normalizeCompletedSets(input: SetLogInput[]): NormalizedWorkoutSet[] {
-  if (input.length === 0) throw new Error('Registra al menos una serie con repeticiones antes de terminar.');
+  // Un lote VACÍO no es un error: es alguien que abrió la sesión y se va sin
+  // registrar nada — un día de descanso, una molestia a la primera serie, o
+  // simplemente cambió de idea. Lanzar aquí convertía los dos únicos botones
+  // de salida de la pantalla en un callejón sin salida: la app se negaba a
+  // dejarle salir exigiéndole registrar una serie que no hizo.
+  //
+  // Quien decide qué hacer con la sesión vacía es el llamador (no se abre
+  // sesión en el servidor); esta función solo valida lo que sí trae datos.
+  if (input.length === 0) return [];
 
   // El número de serie se cuenta por HUECO del día, no por ejercicio. Si la
   // persona sustituye un ejercicio por otro que ya estaba en la sesión (el

@@ -24,6 +24,11 @@
       "package": "com.juanescobar.gymup",
       "permissions": [
         "CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [

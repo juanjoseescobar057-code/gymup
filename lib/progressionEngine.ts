@@ -99,6 +99,15 @@ export function chooseIntervention(args: {
   if ((readiness.adherencePct ?? 100) < 70) {
     return { kind: 'adherence', title: 'Hagamos el plan más ejecutable', detail: 'Antes de añadir técnicas, reduciremos fricción o duración para que puedas cumplirlo con constancia.' };
   }
+  // "No sé nada de tu recuperación" NO es lo mismo que "tu recuperación es
+  // buena". Con los `??` de persona sana, un usuario que nunca llenó el
+  // cuestionario (o cuyos registros caducaron) recibía la recomendación de
+  // técnicas avanzadas al fallo sin un solo dato que la respaldara. Ahora la
+  // ausencia de datos se trata como lo que es: falta de evidencia.
+  const sinDatosDeRecuperacion =
+    readiness.energy == null && readiness.sleepQuality == null &&
+    readiness.soreness == null && readiness.stress == null;
+
   const underRecovered = (readiness.energy ?? 3) <= 2 || (readiness.sleepQuality ?? 3) <= 2 ||
     (readiness.soreness ?? 3) >= 5 || (readiness.stress ?? 3) >= 5;
   if (underRecovered && progress.status !== 'progressing') {
@@ -107,8 +116,12 @@ export function chooseIntervention(args: {
   if (progress.status === 'progressing') {
     return { kind: 'keep', title: 'No cambies lo que está funcionando', detail: 'Mantén el ejercicio y progresa dentro del rango previsto.' };
   }
-  // Dropset: opción acotada, solo aislamiento/hipertrofia y recuperación buena.
-  if (progress.status === 'stable' && isIsolation && /muscle|músculo|hypertrophy/i.test(goal) && progress.exposures >= 6) {
+  // Dropset: opción acotada, solo aislamiento/hipertrofia y recuperación
+  // COMPROBADA. Sin ningún dato de recuperación no se propone: es la única
+  // recomendación de este motor que empuja hacia el fallo muscular, y hacerlo
+  // a ciegas es exactamente lo que las reglas de seguridad del repo prohíben.
+  if (!sinDatosDeRecuperacion &&
+      progress.status === 'stable' && isIsolation && /muscle|músculo|hypertrophy/i.test(goal) && progress.exposures >= 6) {
     return {
       kind: 'dropset', intensityMethod: 'drop_set', title: 'Bloque opcional de dropset',
       detail: 'Durante 3–4 semanas, solo en la última serie: reduce 20–30% la carga y continúa con técnica estable. No lo uses en compuestos ni si empeora tu recuperación.',

@@ -154,6 +154,24 @@ export function evaluateWorkoutAccess(h: HealthProfile, age: number): WorkoutAcc
       reasons: risk.reasons,
     };
   }
+  // El nivel ALTO autorizado necesita su PROPIO texto. Antes caía en el `else`
+  // pensado para el nivel bajo, así que a alguien con cardiopatía o embarazo
+  // —autorizado por su médico, pero de riesgo alto— la app le decía
+  // literalmente lo mismo que a una persona de 25 años sin nada: "Listo para
+  // entrenar". La app terminaba advirtiendo MÁS a quien tiene una molestia de
+  // rodilla que a quien tiene un problema cardiaco.
+  if (risk.level === 'alto') {
+    return {
+      status: 'allowed',
+      level: 'alto',
+      title: 'Entrena con autorización médica',
+      detail:
+        'Tu médico te autorizó, así que entrenas con las pautas que él te dio por delante de las nuestras. ' +
+        'Calentamiento y vuelta a la calma largos, esfuerzo cómodo, nada de máximos ni de llegar al fallo. ' +
+        'Ante dolor, mareo, falta de aire desproporcionada o cualquier síntoma nuevo: detente y consulta.',
+      reasons: risk.reasons,
+    };
+  }
   return {
     status: 'allowed',
     level: risk.level,

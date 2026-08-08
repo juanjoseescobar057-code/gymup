@@ -10,8 +10,8 @@ import { aiChatContent } from './aiClient';
 import { parseAI, WeeklyPlanSchema } from './schemas';
 import { AI_SAFETY_RULES } from './safety';
 import { summarizePerformance, type PerfRow } from './adaptivePlanMath';
-import { loadHealthSafe, clearPlanStaleForHealth } from './health';
-import { healthToPrompt } from './healthMath';
+import { loadHealthSafe, clearPlanStaleForHealth, markPlanStaleForHealth } from './health';
+import { healthToPrompt, evaluateWorkoutAccess } from './healthMath';
 import type { UserProfile, WeeklyPlan, BiologicalSex } from './supabase';
 import { analyzeExerciseProgress, chooseIntervention, type PerformanceSet } from './progressionEngine';
 
@@ -90,6 +90,22 @@ export async function regenerateAdaptivePlan(
   if (!healthLoad.profile) {
     throw new Error('Completa Mi salud antes de ajustar una rutina. No vamos a inferir que entrenar es seguro.');
   }
+
+  // La MISMA puerta que bloquea la pantalla de entrenamiento. Faltaba aquí, y
+  // este es justo el camino que app/health.tsx ofrece con un Alert ("¿Quieres
+  // que la IA ajuste tu plan AHORA?") NADA MÁS guardar el tamizaje: alguien
+  // podía marcar "dolor u opresión en el pecho", tocar "Ajustar mi plan" y
+  // recibir un plan de fuerza generado y guardado, mientras la pantalla de
+  // entrenar se lo bloqueaba. La comprobación de arriba solo miraba si el
+  // tamizaje EXISTE, no lo que dice.
+  //
+  // Delegar esto al prompt no vale: el modelo puede obedecer o no, y el plan
+  // se persiste en la base de datos y guía semanas de entrenamiento.
+  const acceso = evaluateWorkoutAccess(healthLoad.profile, profile.age);
+  if (acceso.status === 'blocked') {
+    throw new Error(`${acceso.title}. ${acceso.detail}`);
+  }
+
   const healthBlock = healthToPrompt(healthLoad.profile, profile.age, sex);
 
   const content = await aiChatContent({
@@ -200,5 +216,18 @@ export async function restorePreviousPlan(): Promise<any> {
   const { data, error } = await supabase.rpc('restore_previous_training_plan');
   const restored = Array.isArray(data) ? data[0] : data;
   if (error || !restored) throw new Error(error?.message ?? 'No hay un plan anterior disponible.');
+
+  // El plan que se restaura es el ANTERIOR a la adaptación — es decir, el que
+  // se generó con el perfil de salud VIEJO. Si la adaptación se disparó
+  // justamente por declarar una lesión o una condición nueva, volver atrás te
+  // devuelve al plan que la ignoraba: el que traía el peso muerto desde el
+  // suelo que tu hernia prohíbe.
+  //
+  // saveAdaptedPlan había limpiado la marca de "plan obsoleto por salud", así
+  // que la app presentaba esto como estado normal, sin ningún aviso. Se
+  // vuelve a marcar: la tarjeta de Inicio reaparece y ofrece regenerar.
+  if (restored.user_id) {
+    await markPlanStaleForHealth(restored.user_id).catch(() => {});
+  }
   return restored;
 }

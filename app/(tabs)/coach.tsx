@@ -435,16 +435,23 @@ export default function CoachScreen() {
 
           {/* Instrucciones */}
           <View style={s.instructCard}>
-            <Text style={s.instructTitle}>📸 Para el mejor análisis</Text>
+            {/* Tres pasos, no cinco. El resto va debajo como consejos: una
+                lista de cinco requisitos antes de una foto se salta entera. */}
+            <Text style={s.instructTitle}>Para que el análisis sirva</Text>
             {[
-              'Pídele a alguien que te tome la foto de lado o de frente',
-              'Cuerpo completo visible — de cabeza a pies',
-              'Posición en el punto más difícil del movimiento (punto más bajo)',
-              'Buena iluminación, fondo simple si es posible',
-              'La IA detectará si el ejercicio no es visible en la foto',
+              'Coloca el teléfono lo bastante lejos para salir de cabeza a pies.',
+              'Que se te vea el cuerpo completo, de lado o de frente.',
+              'Haz el movimiento SIN peso o con una carga cómoda, y detente en el punto más bajo.',
             ].map((tip, i) => (
-              <Text key={i} style={s.instructItem}>✓  {tip}</Text>
+              <Text key={i} style={s.instructItem}>{i + 1}.  {tip}</Text>
             ))}
+            <Text style={s.instructNota}>
+              Detente si sientes dolor. Esto no sustituye la evaluación de un profesional.
+            </Text>
+            <Text style={s.instructNota}>
+              La app intentará comprobar que tu cuerpo y el movimiento se vean antes de analizar;
+              con buena luz y fondo simple acierta más.
+            </Text>
           </View>
 
           {/* Botones */}
@@ -737,7 +744,8 @@ const s = StyleSheet.create({
   selectedMuscles: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, marginTop: 2 },
   instructCard: { marginHorizontal: Spacing.lg, backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 16 },
   instructTitle: { fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.textPrimary, marginBottom: 10 },
-  instructItem: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 24 },
+  instructItem: { fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 22 },
+  instructNota: { fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textMuted, lineHeight: 18, marginTop: 8 },
   primaryBtn: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 18, alignItems: 'center', marginBottom: 10 },
   primaryBtnTxt: { fontFamily: Fonts.heading, fontSize: 18, color: '#0a0a0b', letterSpacing: 0.8 },
   secondaryBtn: { borderRadius: Radii.lg, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: Colors.border, marginBottom: 10 },

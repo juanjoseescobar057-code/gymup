@@ -26,6 +26,10 @@ import HelpButton from '../../Components/HelpButton';
 import { MIN_AGE, MAX_AGE } from '../../lib/safety';
 import { getSessionReplayConsent } from '../../lib/privacyPreferences';
 import { setSessionReplayConsent } from '../../lib/posthog';
+import { exportarMisDatos } from '../../lib/exportData';
+import { captureError } from '../../lib/monitoring';
+import * as ExpoFS from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 const GOAL_LABELS: Record<string, { label: string; emoji: string }> = {
   muscle_gain: { label: 'Ganar músculo', emoji: '💪' },
@@ -173,6 +177,46 @@ export default function ProfileScreen() {
   }
 
   // Derecho al olvido — borrar solo el historial de análisis corporal.
+  const [exportando, setExportando] = useState(false);
+
+  /**
+   * Llevarte tus datos. El centro de privacidad dejaba ver la política y
+   * borrarlo todo, pero no irte SIN perderlo todo — y para una app con meses
+   * de entrenamientos, pesos y fotos, "bórralo o quédate" no es una elección.
+   */
+  async function handleExportarDatos() {
+    if (!profile || exportando) return;
+    setExportando(true);
+    try {
+      const res = await exportarMisDatos(profile.user_id);
+      if (!res.ok) { Alert.alert('No se pudo exportar', res.mensaje); return; }
+
+      const ruta = ExpoFS.cacheDirectory + 'gymup-mis-datos.json';
+      await ExpoFS.writeAsStringAsync(ruta, res.json);
+      track('privacy_data_exported', { tablas: res.tablas, filas: res.filas, incompleto: res.incompletas.length > 0 });
+
+      // Se avisa ANTES de compartir si faltó algo: alguien podría exportar y
+      // borrar la cuenta a continuación creyendo que ya tiene todo lo suyo.
+      if (res.incompletas.length > 0) {
+        Alert.alert(
+          'Export incompleto',
+          `No pudimos leer: ${res.incompletas.join(', ')}. El archivo lo dice también por dentro. Vuelve a intentarlo antes de borrar tu cuenta.`
+        );
+      }
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(ruta, { mimeType: 'application/json', dialogTitle: 'Tus datos de GymUp' });
+      } else {
+        Alert.alert('Datos listos', `Se guardaron ${res.filas} registros en ${ruta}`);
+      }
+    } catch (e: any) {
+      captureError(e, { scope: 'profile.exportar_datos' });
+      Alert.alert('No se pudo exportar', e?.message ?? 'Intenta de nuevo.');
+    } finally {
+      setExportando(false);
+    }
+  }
+
   async function handleDeleteBodyScans() {
     Alert.alert(
       'Eliminar análisis corporal',
@@ -557,6 +601,15 @@ export default function ProfileScreen() {
           <TouchableOpacity style={[s.row, s.rowBorder]} onPress={() => router.push('/legal?doc=terms' as any)}
             accessibilityRole="button" accessibilityLabel="Abrir términos de uso">
             <Text style={s.rowLabel}>Términos de uso</Text><Text style={s.rowValue}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.row, s.rowBorder]} onPress={handleExportarDatos} disabled={exportando}
+            accessibilityRole="button" accessibilityLabel="Descargar una copia de todos mis datos"
+            accessibilityState={{ disabled: exportando, busy: exportando }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowLabel}>Descargar mis datos</Text>
+              <Text style={[s.actDesc, { marginTop: 2 }]}>Un archivo con todo lo tuyo: entrenamientos, comidas, pesos y ajustes</Text>
+            </View>
+            <Text style={s.rowValue}>{exportando ? '…' : '›'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.row, s.rowBorder]} onPress={handleDeleteBodyScans}
             accessibilityRole="button" accessibilityLabel="Eliminar mi historial de análisis corporal">

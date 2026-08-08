@@ -11,7 +11,7 @@ import {
   Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { linkEmailPassword, signInExisting } from '../lib/account';
+import { linkEmailPassword, signInExisting, requestPasswordReset } from '../lib/account';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 type Props = {
@@ -25,6 +25,35 @@ export default function AuthSheet({ visible, mode, onClose, onSuccess }: Props) 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+
+  /**
+   * Recuperar contraseña. Antes no existía: quien la olvidaba perdía la cuenta
+   * entera —entrenamientos, plan, racha y fotos— sin ninguna vía de vuelta.
+   * El aviso es el MISMO exista o no la cuenta: decir "ese correo no está
+   * registrado" dejaría averiguar quién usa una app de salud probando
+   * direcciones.
+   */
+  async function recuperar() {
+    Keyboard.dismiss();
+    if (!email.trim()) {
+      Alert.alert('Escribe tu correo', 'Necesitamos saber a qué dirección enviarte el enlace.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await requestPasswordReset(email);
+      if (!res.ok) {
+        Alert.alert('No se pudo enviar', res.error ?? 'Intenta de nuevo.');
+        return;
+      }
+      Alert.alert(
+        'Revisa tu correo',
+        'Si hay una cuenta con esa dirección, te enviamos un enlace para cambiar tu contraseña. Mira también la carpeta de spam.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const isLink = mode === 'link';
   const title = isLink ? 'GUARDA TU PROGRESO' : 'INICIAR SESIÓN';
@@ -103,6 +132,17 @@ export default function AuthSheet({ visible, mode, onClose, onSuccess }: Props) 
                   <Text style={s.btnTxt}>{busy ? 'Un momento…' : cta}</Text>
                 </TouchableOpacity>
 
+                {/* Solo al iniciar sesión: al CREAR cuenta no hay contraseña
+                    que recuperar todavía. */}
+                {!isLink && (
+                  <TouchableOpacity onPress={recuperar} disabled={busy}
+                    style={{ paddingVertical: 12, alignItems: 'center' }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Olvidé mi contraseña, enviarme un enlace para cambiarla">
+                    <Text style={s.link}>¿Olvidaste tu contraseña?</Text>
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity onPress={() => { Keyboard.dismiss(); onClose(); }} style={{ paddingVertical: 12, alignItems: 'center' }}
                   accessibilityRole="button" accessibilityLabel="Cancelar y cerrar">
                   <Text style={s.cancel}>Cancelar</Text>
@@ -126,4 +166,5 @@ const s = StyleSheet.create({
   btn: { backgroundColor: Colors.accent, borderRadius: Radii.lg, paddingVertical: 16, alignItems: 'center', marginTop: Spacing.lg },
   btnTxt: { fontFamily: Fonts.heading, fontSize: 18, color: '#0a0a0b', letterSpacing: 0.8 },
   cancel: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textMuted },
+  link: { fontFamily: Fonts.bodySemi, fontSize: 14, color: Colors.accent },
 });

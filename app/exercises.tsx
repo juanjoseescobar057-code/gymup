@@ -107,7 +107,7 @@ const s = StyleSheet.create({
   back: { width: 40, height: 40, backgroundColor: Colors.bgCard, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   backTxt: { fontFamily: Fonts.heading, fontSize: 22, color: Colors.textPrimary },
   navTitle: { fontFamily: Fonts.heading, fontSize: 18, color: Colors.textPrimary, letterSpacing: 0.8 },
-  chip: { borderRadius: Radii.full, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: Colors.bgCard, height: 34 },
+  chip: { borderRadius: Radii.full, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: Colors.bgCard, minHeight: 34 },
   chipActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   chipTxt: { fontFamily: Fonts.bodySemi, fontSize: 12, color: Colors.textSecondary },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md },

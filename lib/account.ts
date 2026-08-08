@@ -114,3 +114,32 @@ export async function signInExisting(
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+/**
+ * Envía el correo de recuperación de contraseña.
+ *
+ * No existía: quien olvidaba su contraseña perdía la cuenta entera —
+ * entrenamientos, plan, racha y fotos— sin ninguna vía de vuelta. Con las
+ * cuentas anónimas de esta app el daño es peor de lo normal, porque el email
+ * es el ÚNICO vínculo con esos datos una vez vinculada la cuenta.
+ *
+ * Respuesta DELIBERADAMENTE ambigua: se contesta lo mismo exista o no la
+ * cuenta. Si dijéramos "ese correo no está registrado", cualquiera podría
+ * averiguar quién tiene cuenta en una app de salud probando direcciones.
+ */
+export async function requestPasswordReset(
+  email: string,
+  redirectTo?: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isValidEmail(email)) return { ok: false, error: 'Email no válido.' };
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    email.trim().toLowerCase(),
+    redirectTo ? { redirectTo } : undefined
+  );
+  // Un fallo de RED sí se reporta (si no, la persona espera un correo que
+  // nunca se pidió). Lo que no se revela es si la cuenta existe.
+  if (error && /network|fetch|timeout/i.test(error.message)) {
+    return { ok: false, error: 'No pudimos conectar. Revisa tu conexión e intenta de nuevo.' };
+  }
+  return { ok: true };
+}

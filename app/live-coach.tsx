@@ -23,6 +23,7 @@ import type { FormCue, Pose } from '../lib/pose/types';
 import { speak, setVoiceEnabled } from '../lib/voice';
 import { saveSetLogs } from '../lib/setLogs';
 import { track } from '../lib/analytics';
+import Icon from '../Components/Icon';
 import { useSafeKeepAwake } from '../lib/useSafeKeepAwake';
 import { useUserStore } from '../store/userStore';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
@@ -303,7 +304,7 @@ export default function LiveCoachScreen() {
               accessibilityRole="switch"
               accessibilityLabel={voiceOn ? 'Indicaciones por voz activadas' : 'Silenciar indicaciones'}
               accessibilityState={{ checked: voiceOn }}>
-              <Text style={{ fontSize: 20 }}>{voiceOn ? '🔊' : '🔇'}</Text>
+              <Icon name={voiceOn ? 'volumen' : 'volumen-off'} color={voiceOn ? Colors.accent : Colors.textSecondary} size={22} />
             </TouchableOpacity>
           </View>
 
@@ -467,9 +468,9 @@ export default function LiveCoachScreen() {
         <Text style={s.navTitle} accessibilityRole="header">COACH EN VIVO</Text>
         <TouchableOpacity style={s.back} onPress={toggleVoice}
           accessibilityRole="switch"
-          accessibilityLabel="Voz del coach"
+          accessibilityLabel={voiceOn ? 'Indicaciones por voz activadas' : 'Silenciar indicaciones'}
           accessibilityState={{ checked: voiceOn }}>
-          <Text style={{ fontSize: 18 }}>{voiceOn ? '🔊' : '🔇'}</Text>
+          <Icon name={voiceOn ? 'volumen' : 'volumen-off'} color={voiceOn ? Colors.accent : Colors.textSecondary} size={20} />
         </TouchableOpacity>
       </View>
 

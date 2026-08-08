@@ -50,7 +50,9 @@ function CameraTabButton({ onPress, children, accessibilityState }: BottomTabBar
         {children}
       </View>
       {/* La pestaña central no tenía label: era el único destino sin nombre. */}
-      <Text style={[styles.camLabel, activo && { color: Colors.accent }]}>ESCANEAR</Text>
+      {/* allowFontScaling={false} igual que el resto de etiquetas de la barra:
+          es un Text propio, así que tabBarAllowFontScaling no lo alcanza. */}
+      <Text style={[styles.camLabel, activo && { color: Colors.accent }]} allowFontScaling={false}>ESCANEAR</Text>
     </TouchableOpacity>
   );
 }
@@ -71,6 +73,12 @@ export default function TabsLayout() {
         tabBarActiveTintColor: Colors.accent,
         tabBarInactiveTintColor: Colors.textSecondary,
         tabBarLabelStyle: styles.tabLabel,
+        // La barra tiene alto fijo por diseño de plataforma: con la fuente del
+        // sistema al 200% la etiqueta se comía el icono y la pestaña quedaba
+        // sin identificar. Se acota SOLO aquí; el contenido de las pantallas
+        // escala sin tope, que es lo que pide la accesibilidad.
+        tabBarLabelPosition: 'below-icon',
+        tabBarAllowFontScaling: false,
         tabBarShowLabel: true,
       }}
     >

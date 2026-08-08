@@ -22,7 +22,7 @@ import { generateFirstPlan } from '../../lib/adaptivePlan';
 import { captureError } from '../../lib/monitoring';
 import { track } from '../../lib/analytics';
 import { getWaterCount, addWater, WATER_GOAL } from '../../lib/water';
-import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
+import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
   const size = 120;
@@ -336,10 +336,21 @@ export default function DashboardScreen() {
               pantalla="la pantalla de inicio"
               pregunta="Explícame la pantalla de inicio de GymUp: qué significa cada cosa que veo (el anillo de calorías, las barras de macros, los vasos de agua, el día del plan) y cómo la uso día a día."
             />
-            <View style={s.avatar} importantForAccessibility="no-hide-descendants"
-              accessibilityElementsHidden>
+            {/* Era un View inerte: tiene toda la pinta de un botón de perfil
+                —círculo con tu inicial, arriba a la derecha— y no hacía nada
+                al tocarlo. Encima estaba oculto a los lectores de pantalla,
+                así que quien navega por voz ni siquiera sabía que existía.
+                Ahora lleva al perfil, que es lo que la gente ya esperaba. */}
+            <TouchableOpacity
+              style={s.avatar}
+              onPress={() => router.push('/(tabs)/profile' as any)}
+              activeOpacity={0.8}
+              hitSlop={A11y.hitSlop}
+              accessibilityRole="button"
+              accessibilityLabel="Tu perfil y ajustes"
+            >
               <Text style={s.avatarTxt}>{(profile.nickname || profile.name)?.[0]?.toUpperCase() ?? '?'}</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 

@@ -5,6 +5,7 @@ import {
   Platform, Alert, Keyboard, TouchableWithoutFeedback,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { supabase, type WeeklyPlan } from '../../lib/supabase';
@@ -79,6 +80,7 @@ type ExperienceKey = typeof EXPERIENCE_LEVELS[number]['key'];
 type EquipmentKey = typeof EQUIPMENT_OPTIONS[number]['key'];
 
 export default function OnboardingScreen() {
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1);
   const [loadingMessage, setLoadingMessage] = useState(0);
   const [name, setName] = useState('');
@@ -323,7 +325,11 @@ export default function OnboardingScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={s.container}>
+      {/* El padding superior sale del inset REAL del dispositivo, no de un 60
+          fijo: ese número quedaba corto en teléfonos con isla dinámica y
+          sobraba en pantallas sin muesca, así que el contenido empezaba a una
+          altura distinta en cada equipo. */}
+      <View style={[s.container, { paddingTop: insets.top + Spacing.lg }]}>
         <View style={s.halo} pointerEvents="none" />
 
         {step < 4 && (
@@ -337,10 +343,17 @@ export default function OnboardingScreen() {
         <Animated.View style={{ flex: 1, transform: [{ translateX: slideAnim }] }}>
           <KeyboardAvoidingView
             style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            // En Android NO se usa KeyboardAvoidingView: el sistema ya
+            // redimensiona la ventana (adjustResize) y el modo 'height'
+            // aplicaba un segundo ajuste encima. El resultado era el salto que
+            // se veía — el contenido aparecía a media pantalla o abajo según
+            // el momento en que se midiera.
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <ScrollView
-              contentContainerStyle={s.scroll}
+              // flexGrow para que el contenido corto quede SIEMPRE anclado
+              // arriba en vez de repartirse por el alto disponible.
+              contentContainerStyle={[s.scroll, { flexGrow: 1, paddingBottom: insets.bottom + 48 }]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
@@ -743,9 +756,12 @@ export default function OnboardingScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg, paddingTop: 60 },
+  // paddingTop lo pone el componente con el inset real del dispositivo.
+  container: { flex: 1, backgroundColor: Colors.bg },
   halo: { position: 'absolute', top: -80, left: '50%', marginLeft: -200, width: 400, height: 300, borderRadius: 200 },
-  scroll: { paddingHorizontal: Spacing.lg, paddingBottom: 60 },
+  // El paddingBottom base se suma al inset inferior en el componente: sin eso,
+  // en teléfonos con barra de gestos el botón de continuar queda debajo de ella.
+  scroll: { paddingHorizontal: Spacing.lg },
   steps: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: Spacing.lg },
   dot: { width: 28, height: 4, borderRadius: 2, backgroundColor: Colors.border },
   dotActive: { backgroundColor: Colors.accent, width: 48 },
@@ -807,7 +823,7 @@ const s = StyleSheet.create({
   dayChipTxt: { fontFamily: Fonts.headingBold, fontSize: 22, color: Colors.textPrimary },
   dayChipTxtSel: { color: Colors.accent },
   dayChipUnit: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, marginTop: 2 },
-  gen: { flex: 1, alignItems: 'center', paddingTop: 60 },
+  gen: { flex: 1, alignItems: 'center', paddingTop: Spacing.xl },
   orb: {
     width: 100, height: 100, borderRadius: 50, overflow: 'hidden',
     alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xl,

@@ -108,6 +108,12 @@ export default function PaywallScreen() {
     purchasedRef.current = true;
     track('purchase_completed', { plan });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // El pago se hizo, pero el servidor aún no confirmó el acceso. Decirlo
+    // ahora evita que la persona abra una función Premium y reciba un 402
+    // justo después de pagar, sin entender por qué.
+    if (res.pendiente) {
+      Alert.alert('Pago recibido', res.error ?? 'Estamos activando tu Premium.');
+    }
     router.back();
   }
 

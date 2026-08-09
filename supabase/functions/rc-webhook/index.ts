@@ -90,47 +90,44 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   );
 
-  // Idempotencia: si ya procesamos este event.id (reintento de RevenueCat),
-  // confirmar 200 sin reaplicar nada.
-  if (eventId) {
-    const { data: already } = await admin
-      .from('rc_webhook_events')
-      .select('event_id')
-      .eq('event_id', eventId)
-      .maybeSingle();
-    if (already) return json({ ok: true, skipped: 'evento ya procesado (duplicado)' });
-  }
-
-  async function applyPremium(userId: string, isPremium: boolean): Promise<boolean> {
-    if (!UUID_RE.test(userId)) return false; // ids anónimos de RevenueCat ($RCAnonymousID:...)
-
-    // Orden: no pisar un estado más reciente con un evento más viejo — pero
-    // SOLO contra otros eventos que también cambian is_premium (STATE_CHANGING).
-    // Un CANCELLATION/BILLING_ISSUE más reciente (que no tocan is_premium) no
-    // debe poder bloquear una RENEWAL/EXPIRATION legítima entregada tarde.
-    const { data: last } = await admin
-      .from('rc_webhook_events')
-      .select('event_timestamp_ms')
-      .eq('user_id', userId)
-      .in('event_type', [...STATE_CHANGING])
-      .order('event_timestamp_ms', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (last && Number(last.event_timestamp_ms) > eventTsMs) {
-      console.log(`rc-webhook: evento ${type} (${eventId}) más viejo que el último evento de estado aplicado para ${userId} — se ignora la escritura, solo se registra`);
-      return false;
-    }
-
-    const { error } = await admin
-      .from('user_profiles')
-      .update({ is_premium: isPremium })
-      .eq('user_id', userId);
+  /**
+   * Aplica el evento en UNA transacción del servidor (apply_rc_event).
+   *
+   * Antes esto eran cuatro operaciones sueltas desde aquí: comprobar si el
+   * evento ya se procesó, leer el último evento de estado, actualizar
+   * is_premium y registrar el evento. Entre cualquiera de esas cabe otra
+   * entrega concurrente —RevenueCat reintenta las fallidas— y el estado
+   * premium podía acabar escrito por el evento equivocado.
+   *
+   * El TRANSFER recibe su propia clave por usuario afectado (event_id#uid):
+   * un solo event_id para varias personas dejaba a todas menos a una fuera
+   * del control de orden, porque el cerrojo de idempotencia es por event_id.
+   */
+  async function aplicar(
+    lockKey: string,
+    userId: string | null,
+    isPremium: boolean | null,
+    stateChanging: boolean,
+  ): Promise<boolean> {
+    const uid = userId && UUID_RE.test(userId) ? userId : null; // ids anónimos de RevenueCat
+    const { data, error } = await admin.rpc('apply_rc_event', {
+      p_event_id: lockKey,
+      p_user_id: uid,
+      p_event_type: type,
+      p_event_ts_ms: eventTsMs,
+      p_environment: environment,
+      p_is_premium: isPremium,
+      p_state_changing: stateChanging,
+    });
     if (error) {
-      console.error('rc-webhook update error:', error.message);
+      console.error('rc-webhook apply_rc_event:', error.message);
       return false;
     }
-    console.log(`rc-webhook: ${type} [${environment}] → is_premium=${isPremium} para ${userId}`);
-    return true;
+    const fila = Array.isArray(data) ? data[0] : data;
+    if (fila?.duplicado) console.log(`rc-webhook: ${lockKey} duplicado, se ignora`);
+    else if (fila?.motivo) console.log(`rc-webhook: ${lockKey} -> ${fila.motivo}`);
+    else if (fila?.aplicado) console.log(`rc-webhook: ${type} [${environment}] -> is_premium=${isPremium} para ${uid}`);
+    return fila?.aplicado === true;
   }
 
   let handled = false;
@@ -140,30 +137,24 @@ Deno.serve(async (req) => {
     // cuenta anónima a una cuenta real bajo un id distinto al de la compra).
     const from: string[] = Array.isArray(event.transferred_from) ? event.transferred_from : [];
     const to: string[] = Array.isArray(event.transferred_to) ? event.transferred_to : [];
-    for (const uid of to) await applyPremium(uid, true);
-    for (const uid of from) await applyPremium(uid, false);
-    handled = to.length > 0 || from.length > 0;
+    // Clave por usuario afectado. Con un solo event_id para varias personas,
+    // el cerrojo de idempotencia dejaba a todas menos a una fuera del control
+    // de orden — y a su fila sin quedar asociada a nadie en concreto.
+    for (const uid of to) handled = (await aplicar(`${eventId}#${uid}`, uid, true, true)) || handled;
+    for (const uid of from) handled = (await aplicar(`${eventId}#${uid}`, uid, false, true)) || handled;
   } else {
     const userId: string = event.app_user_id ?? '';
     let isPremium: boolean | null = null;
     if (ACTIVATE.has(type)) isPremium = true;
     else if (DEACTIVATE.has(type)) isPremium = false;
-    if (isPremium !== null) handled = await applyPremium(userId, isPremium);
+    // Se llama SIEMPRE, aunque el evento no cambie el estado: así queda
+    // registrado y un reintento futuro se detecta como duplicado.
+    handled = await aplicar(eventId, userId, isPremium, isPremium !== null);
   }
 
-  // Registrar el evento (para idempotencia/orden) independientemente de si
-  // se aplicó un cambio — así un duplicado futuro también se detecta.
-  if (eventId) {
-    await admin.from('rc_webhook_events').insert({
-      event_id: eventId,
-      user_id: UUID_RE.test(event.app_user_id ?? '') ? event.app_user_id : null,
-      event_type: type,
-      event_timestamp_ms: eventTsMs,
-      environment,
-    }).then(({ error }) => {
-      if (error) console.error('rc-webhook: no se pudo registrar el evento:', error.message);
-    });
-  }
+  // El registro del evento ya NO se hace aquí: lo hace apply_rc_event dentro
+  // de la misma transacción que la escritura. Insertarlo aparte, después, era
+  // justo la ventana por la que dos entregas concurrentes se pisaban.
 
   return json({ ok: true, handled, type, environment });
 });

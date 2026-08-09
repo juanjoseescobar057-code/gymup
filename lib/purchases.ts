@@ -131,7 +131,9 @@ async function syncLocalPremium(active: boolean): Promise<void> {
 }
 
 /** Compra el plan (product id de la tienda, ej. gymup_premium_monthly). */
-export async function purchasePlan(planId: string): Promise<{ ok: boolean; error?: string }> {
+export async function purchasePlan(
+  planId: string
+): Promise<{ ok: boolean; error?: string; pendiente?: boolean }> {
   try {
     const P = await ensureConfigured();
     if (!P) return { ok: false, error: NOT_READY };
@@ -155,10 +157,23 @@ export async function purchasePlan(planId: string): Promise<{ ok: boolean; error
     await syncLocalPremium(true);
     // Reconciliar con el servidor ANTES de dar la compra por buena: sin esto
     // la app decía "ya eres Premium" mientras el proxy seguía respondiendo 402
-    // hasta que llegara el webhook. Si la reconciliación no se puede hacer
-    // (RevenueCat sin configurar, red caída) no se bloquea la compra: el
-    // webhook sigue siendo la vía normal y esto es solo el atajo.
-    await syncPremiumWithServer();
+    // hasta que llegara el webhook.
+    //
+    // El resultado SÍ se mira. Antes se ignoraba, y `null` no significa "no
+    // premium" sino "no lo sabemos": el pago se cobró, la tienda dice que sí,
+    // pero el servidor todavía no lo confirmó. Anunciar "¡Listo!" ahí manda a
+    // la persona a usar la función que acaba de pagar y recibir un 402.
+    // Ahora se le dice la verdad: pagó, y su acceso está por llegar.
+    const confirmado = await syncPremiumWithServer();
+    if (confirmado !== true) {
+      track('purchase_pending_reconciliation', { plan: planId, resultado: String(confirmado) });
+      return {
+        ok: true,
+        pendiente: true,
+        error: 'Tu pago se procesó. Estamos activando tu Premium; puede tardar un minuto. ' +
+          'Si al abrir una función Premium te la pide de nuevo, usa "Restaurar compras".',
+      };
+    }
     return { ok: true };
   } catch (e: any) {
     if (e?.userCancelled) {

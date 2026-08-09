@@ -570,7 +570,7 @@ language sql stable security definer set search_path = public as $$
     where d ->> 'type' = 'workout'
   ), 0), 3)::integer));
 $$;
-revoke all on function public._planned_workout_days(uuid) from anon, authenticated;
+revoke all on function public._planned_workout_days(uuid) from public, anon, authenticated;
 
 -- Parte pura: recibe el array de días y devuelve el margen. Separada de la
 -- lectura del plan para poder probarla con planes reales sin inventar
@@ -619,8 +619,12 @@ language sql stable security definer set search_path = public as $$
     limit 1
   ));
 $$;
-revoke all on function public._max_rest_gap(uuid) from anon, authenticated;
-revoke all on function public._max_rest_gap_days(jsonb) from anon, authenticated;
+-- OJO: hay que revocar a PUBLIC, no solo a anon/authenticated. Postgres
+-- concede EXECUTE a PUBLIC por defecto en toda función nueva, así que
+-- revocar solo a los roles no quitaba nada: estas son SECURITY DEFINER y
+-- aceptan un user_id, o sea que cualquiera podía consultar el plan de otro.
+revoke all on function public._max_rest_gap(uuid) from public, anon, authenticated;
+revoke all on function public._max_rest_gap_days(jsonb) from public, anon, authenticated;
 
 -- Devuelve TODAS las insignias que corresponden a unas stats dadas. Es pura:
 -- no lee ni escribe user_stats, así que se puede llamar con los valores YA
@@ -1612,3 +1616,64 @@ create trigger set_updated_at before update on public.user_profiles
 create index if not exists food_logs_user_date on public.food_logs(user_id, logged_at);
 create index if not exists sessions_user_date on public.workout_sessions(user_id, started_at);
 create index if not exists plans_user_active on public.training_plans(user_id, is_active);
+-- ─── APLICAR UN EVENTO DE REVENUECAT, ATÓMICAMENTE ───────
+-- Antes esto eran cuatro operaciones sueltas desde la Edge Function: leer si
+-- el evento ya se procesó, leer el último evento de estado, actualizar
+-- is_premium y registrar el evento. Entre cualquiera de esos pasos cabe otra
+-- entrega concurrente de RevenueCat — que reintenta las fallidas — y el
+-- resultado podía ser un estado premium escrito por el evento equivocado.
+--
+-- Aquí es UNA transacción: el insert del event_id hace de cerrojo de
+-- idempotencia (on conflict do nothing), y el bloqueo de la fila del perfil
+-- impide que dos eventos del mismo usuario se pisen.
+create or replace function public.apply_rc_event(
+  p_event_id text,
+  p_user_id uuid,
+  p_event_type text,
+  p_event_ts_ms bigint,
+  p_environment text,
+  p_is_premium boolean,        -- null = el evento no cambia el estado
+  p_state_changing boolean
+)
+returns table (aplicado boolean, duplicado boolean, motivo text)
+language plpgsql security definer set search_path = public as $$
+declare
+  v_ultimo bigint;
+begin
+  -- 1. Cerrojo de idempotencia. Si el event_id ya estaba, es un reintento de
+  --    RevenueCat: se confirma sin reaplicar nada.
+  insert into public.rc_webhook_events(event_id, user_id, event_type, event_timestamp_ms, environment)
+  values (p_event_id, p_user_id, p_event_type, p_event_ts_ms, p_environment)
+  on conflict (event_id) do nothing;
+  if not found then
+    return query select false, true, 'evento ya procesado'::text;
+    return;
+  end if;
+
+  if p_user_id is null or p_is_premium is null or not p_state_changing then
+    return query select false, false, 'evento registrado sin cambio de estado'::text;
+    return;
+  end if;
+
+  -- 2. Bloquea la fila del perfil: dos eventos del mismo usuario se serializan.
+  perform 1 from public.user_profiles where user_id = p_user_id for update;
+
+  -- 3. Orden: no pisar un estado más reciente con un evento más viejo. Se
+  --    compara SOLO contra eventos que también cambian is_premium; el evento
+  --    recién insertado se excluye por su propio id.
+  select max(e.event_timestamp_ms) into v_ultimo
+  from public.rc_webhook_events e
+  where e.user_id = p_user_id
+    and e.event_id <> p_event_id
+    and e.event_type = any (array['INITIAL_PURCHASE','RENEWAL','UNCANCELLATION','EXPIRATION','TRANSFER','PRODUCT_CHANGE','SUBSCRIPTION_PAUSED']);
+
+  if v_ultimo is not null and v_ultimo > p_event_ts_ms then
+    return query select false, false, 'evento fuera de orden, ignorado'::text;
+    return;
+  end if;
+
+  update public.user_profiles set is_premium = p_is_premium where user_id = p_user_id;
+  return query select true, false, null::text;
+end $$;
+revoke all on function public.apply_rc_event(text,uuid,text,bigint,text,boolean,boolean) from anon, authenticated;
+revoke all on function public.apply_rc_event(text,uuid,text,bigint,text,boolean,boolean) from public;

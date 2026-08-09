@@ -465,13 +465,24 @@ insert into public.badge_catalog (id, metric, threshold, xp) values
   ('meals_50',    'meals',      50,  400),
   ('macro_day_1', 'macro_days', 1,   80),
   ('macro_day_7', 'macro_days', 7,   300),
-  ('body_scan_1', 'body_scans', 1,   60),
-  ('body_scan_4', 'body_scans', 4,   200),
   ('sessions_1',  'sessions',   1,   30),
   ('sessions_10', 'sessions',   10,  200),
   ('sessions_50', 'sessions',   50,  800)
 on conflict (id) do update
   set metric = excluded.metric, threshold = excluded.threshold, xp = excluded.xp;
+
+-- Insignias por ESCANEARSE EL CUERPO retiradas (60 XP por el primero, 200 por
+-- el cuarto). Premiaban mirarse, no entrenar ni comer mejor, y eran refuerzo
+-- directo de la vigilancia corporal compulsiva — lo mismo que la app le
+-- prohíbe a la IA en cuanto alguien declara un trastorno alimentario. No se
+-- esconden solo para ese perfil: no son buena idea para nadie.
+-- Las ya concedidas se dejan en earned_badges de quien las tenga: quitarle
+-- XP a alguien por una decisión nuestra sería peor que el problema.
+delete from public.badge_catalog where id in ('body_scan_1', 'body_scan_4');
+-- Y la misión 'hazte 1 análisis corporal', por lo mismo. Los builds antiguos
+-- que la pidan recibirán 'unknown_mission' y no la mostrarán: es la única de
+-- las tres viejas que empujaba a una función de pago disfrazada de meta.
+delete from public.mission_catalog where id = 'w_scan1';
 
 alter table public.badge_catalog enable row level security;
 drop policy if exists badge_catalog_read on public.badge_catalog;
@@ -507,7 +518,6 @@ alter table public.mission_catalog add constraint mission_catalog_kind_check
 insert into public.mission_catalog (id, kind, target, xp) values
   ('w_workouts3', 'workouts',         3,  120),
   ('w_meals10',   'meals',            10, 90),
-  ('w_scan1',     'body_scans',       1,  60),
   -- El target de 'planned_workouts' lo sobrescribe el servidor con el plan
   -- real del usuario; el 3 de aquí es solo un respaldo legible.
   ('w_planned',   'planned_workouts', 3,  120),

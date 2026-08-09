@@ -12,6 +12,7 @@ import { localDateKey } from '../../lib/foodLogs';
 import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
 import OfflineBanner from '../../Components/OfflineBanner';
+import { AVISO_RECUPERACION } from '../../lib/recoveryMode';
 
 const SCAN_OPTIONS = [
   {
@@ -48,6 +49,7 @@ const SCAN_OPTIONS = [
 
 export default function CameraScreen() {
   const profile = useUserStore((s: any) => s.profile);
+  const recuperacion = useUserStore((s: any) => s.recuperacion);
   const getDailyTotals = useUserStore((s: any) => s.getDailyTotals);
   // Suscripción a los logs del día: sin esto el hub nunca re-renderiza al
   // agregar una comida y "Progreso de hoy" queda congelado.
@@ -96,8 +98,9 @@ export default function CameraScreen() {
         <OfflineBanner disponible="Tus registros de hoy siguen ahí. Escanear y guardar comida vuelven con la señal." />
 
 
-        {/* Resumen rápido del día */}
-        {profile && (
+        {/* Resumen rápido del día. Se oculta en modo recuperación: es el
+            mismo número de calorías que la pantalla de Inicio ya esconde. */}
+        {profile && !recuperacion.ocultarCalorias && (
           <View style={s.summaryCard}>
             <Text style={s.summaryTitle}>PROGRESO DE HOY</Text>
             <View style={s.summaryRow}>
@@ -123,7 +126,9 @@ export default function CameraScreen() {
         )}
 
         {/* Opciones de escáner */}
-        {SCAN_OPTIONS.map((opt) => {
+        {/* El análisis corporal desaparece en modo recuperación: es la
+            función que más directamente alimenta la vigilancia del cuerpo. */}
+        {SCAN_OPTIONS.filter((o) => !(recuperacion.ocultarCuerpo && o.id === 'body')).map((opt) => {
           // Chip de cupo (solo usuarios free).
           let chip: { txt: string; warn: boolean } | null = null;
           if (!isPremium) {
@@ -182,6 +187,12 @@ export default function CameraScreen() {
           </View>
           <Text style={s.manualArrow}>›</Text>
         </TouchableOpacity>
+
+        {recuperacion.ocultarCuerpo && (
+          <View style={s.manualCard} accessible accessibilityLabel={AVISO_RECUPERACION}>
+            <Text style={s.manualDesc}>{AVISO_RECUPERACION}</Text>
+          </View>
+        )}
 
         {/* Tip del día */}
         <View style={s.tipCard}>

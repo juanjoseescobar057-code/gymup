@@ -20,6 +20,7 @@ import { captureError } from '../../lib/monitoring';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
 import OfflineBanner from '../../Components/OfflineBanner';
+import { AVISO_RECUPERACION } from '../../lib/recoveryMode';
 import CameraDisclosureModal from '../../Components/CameraDisclosureModal';
 import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../../lib/cameraConsent';
 
@@ -131,6 +132,7 @@ export default function ProgressScreen() {
   const [goalModal, setGoalModal] = useState(false);
   const [goalTargetInput, setGoalTargetInput] = useState('');
   const [goalWhyInput, setGoalWhyInput] = useState('');
+  const recuperacion = useUserStore((s: any) => s.recuperacion);
   const [showDisclosure, setShowDisclosure] = useState(false);
   const disclosureResolver = useRef<((aceptado: boolean) => void) | null>(null);
 
@@ -551,6 +553,18 @@ export default function ProgressScreen() {
           );
         })}
 
+        {/* Meta, peso y transformación. En modo recuperación NO se muestran:
+            la app promete programar sin metas de peso ni estética, y aquí
+            estaban la báscula, la proyección y las fotos del cuerpo. Los datos
+            NO se borran — se dejan de enseñar y de usar como refuerzo. */}
+        {recuperacion.ocultarPeso ? (
+          <View style={s.card} accessible accessibilityLabel={AVISO_RECUPERACION}>
+            <Text style={{ fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 20 }}>
+              {AVISO_RECUPERACION}
+            </Text>
+          </View>
+        ) : (
+        <>
         {/* Meta concreta + proyección */}
         <View style={[s.section, { justifyContent: 'space-between' }]}>
           <Text style={s.sectionLbl} accessibilityRole="header">MI META</Text>
@@ -661,6 +675,9 @@ export default function ProgressScreen() {
               </View>
             ))}
           </ScrollView>
+        )}
+
+        </>
         )}
 
         {/* Badges ganados */}

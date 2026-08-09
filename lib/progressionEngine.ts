@@ -96,6 +96,12 @@ export function chooseIntervention(args: {
   if (progress.status === 'insufficient') {
     return { kind: 'collect_data', title: 'Aún no hay evidencia de meseta', detail: `Hay ${progress.exposures} exposiciones en ${progress.observationDays} días. Mantén la rutina y registra peso, reps y RIR.` };
   }
+  // OJO: hoy nadie calcula adherencePct (adaptivePlan no lo pasa), así que el
+  // `?? 100` hace que esta rama esté MUERTA y el motor asuma adherencia
+  // perfecta. Se deja la rama porque la lógica es correcta y el dato es
+  // calculable —sesiones planeadas contra completadas—, pero mientras no
+  // llegue, el motor NO debe presumir que la persona cumplió: por eso el
+  // dropset exige además datos de recuperación reales (ver más abajo).
   if ((readiness.adherencePct ?? 100) < 70) {
     return { kind: 'adherence', title: 'Hagamos el plan más ejecutable', detail: 'Antes de añadir técnicas, reduciremos fricción o duración para que puedas cumplirlo con constancia.' };
   }

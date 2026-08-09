@@ -6,6 +6,8 @@
 
 import { create } from 'zustand';
 import type { UserProfile, TrainingPlan, FoodLog } from '../lib/supabase';
+import { modoRecuperacion, type ModoRecuperacion } from '../lib/recoveryMode';
+import type { HealthProfile } from '../lib/healthMath';
 
 type DailyTotals = {
   calories: number;
@@ -28,11 +30,21 @@ type UserStore = {
   getMacroProgress: () => { calories: number; protein: number; carbs: number; fat: number };
   onboardingComplete: boolean;
   setOnboardingComplete: (v: boolean) => void;
+  /**
+   * Modo recuperación (trastorno alimentario declarado). Vive en el store
+   * para que cualquier pantalla lo consulte sin volver a leer el tamizaje:
+   * si cada una lo cargara por su cuenta, alguna se olvidaría y enseñaría el
+   * número de la báscula justo donde no debe.
+   */
+  recuperacion: ModoRecuperacion;
+  setHealthProfile: (h: HealthProfile | null) => void;
 };
 
 export const useUserStore = create<UserStore>((set, get) => ({
   profile: null,
   setProfile: (profile) => set({ profile }),
+  recuperacion: modoRecuperacion(null),
+  setHealthProfile: (h) => set({ recuperacion: modoRecuperacion(h) }),
 
   trainingPlan: null,
   setTrainingPlan: (trainingPlan) => set({ trainingPlan }),

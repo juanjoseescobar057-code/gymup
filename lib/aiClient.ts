@@ -20,12 +20,17 @@ import { supabase } from './supabase';
 import { captureError } from './monitoring';
 import { computeCostUsd } from './aiMetrics';
 import { logAiCall } from './aiTelemetry';
+import { codigoDeError } from './aiErrorCodes';
+export { codigoDeError } from './aiErrorCodes';
 
 const PROXY_URL = process.env.EXPO_PUBLIC_AI_PROXY_URL ?? '';
 
 // Timeout duro: sin esto, en redes móviles inestables una llamada podía
 // colgarse minutos con el usuario mirando un spinner.
 const AI_TIMEOUT_MS = 60_000;
+
+// La clasificación de errores del proveedor vive en lib/aiErrorCodes.ts,
+// pura y con tests: garantiza que a Sentry no llegue contenido del prompt.
 
 function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController();
@@ -69,16 +74,23 @@ async function aiChatRaw(body: object, feature: AIFeature): Promise<any> {
   });
   if (!res.ok) {
     const msg = await res.text();
-    // Se trunca antes de reportar: el cuerpo de error de OpenAI puede citar el
-    // prompt, y el prompt puede citar lo que la persona escribió sobre su
-    // salud. 200 caracteres bastan para identificar el tipo de fallo.
+    // El cuerpo del proveedor NO se reporta. Truncarlo a 200 caracteres no era
+    // sanearlo: los primeros 200 caracteres de un error de OpenAI son justo
+    // donde empieza a citarse el prompt, y el prompt lleva las directivas de
+    // salud de la persona. Lo que va a Sentry es solo lo que sirve para
+    // diagnosticar sin arrastrar contenido: el estado HTTP, un código propio
+    // derivado del cuerpo, y su longitud.
     captureError(new Error(`ai-proxy ${res.status}`), {
       status: res.status,
-      msg: msg.slice(0, 200),
+      codigo: codigoDeError(msg),
+      largo_respuesta: msg.length,
     });
     if (res.status === 429) throw new Error('Alcanzaste el límite de IA de hoy. Vuelve mañana o pásate a Premium.');
     if (res.status === 402) throw new Error('Esta función es Premium. Suscríbete para usarla.');
-    throw new Error(`IA no disponible (${res.status}): ${msg}`);
+    // Tampoco aquí: este mensaje lo ve el usuario Y lo guarda logAiCall en
+    // ai_telemetry. Adjuntar `msg` metía el cuerpo del proveedor —con el
+    // prompt dentro— en nuestra propia base por la puerta de atrás.
+    throw new Error(`IA no disponible (${res.status}). Inténtalo de nuevo en un momento.`);
   }
   return res.json();
 }

@@ -49,8 +49,6 @@ export const BADGES = [
   { id: 'macro_day_7',  emoji: '🎯',  title: '7 días en tu rango',     desc: 'Adherencia sostenida',       xp: 300,  requirement: { type: 'macro_days', value: 7 } },
 
   // Escaneos corporales
-  { id: 'body_scan_1',  emoji: '📷',  title: 'Primer análisis corporal', desc: 'La IA ya te conoce',      xp: 60,   requirement: { type: 'body_scans', value: 1 } },
-  { id: 'body_scan_4',  emoji: '💪',  title: '4 análisis — Transformación', desc: 'Tu progreso es visible', xp: 200, requirement: { type: 'body_scans', value: 4 } },
 
   // Sesiones de entrenamiento
   { id: 'sessions_1',   emoji: '🏋️', title: 'Primer entrenamiento',   desc: 'El viaje empieza',           xp: 30,   requirement: { type: 'sessions', value: 1 } },
@@ -105,9 +103,10 @@ export function checkAndAwardBadges(stats: UserStats): BadgeId[] {
       case 'macro_days':
         earned = stats.total_macro_perfect_days >= req.value;
         break;
-      case 'body_scans':
-        earned = stats.total_body_scans >= req.value;
-        break;
+      // 'body_scans' ya no es una métrica de insignia: se retiraron las dos
+      // que premiaban escanearse el cuerpo. El contador sigue existiendo
+      // porque es dato del usuario y se lo puede llevar en su export; lo que
+      // desaparece es la recompensa por mirarse.
       case 'sessions':
         earned = stats.total_workouts >= req.value;
         break;

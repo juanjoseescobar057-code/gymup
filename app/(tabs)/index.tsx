@@ -22,6 +22,7 @@ import { generateFirstPlan } from '../../lib/adaptivePlan';
 import { captureError } from '../../lib/monitoring';
 import { track } from '../../lib/analytics';
 import { getWaterCount, addWater, WATER_GOAL } from '../../lib/water';
+import { AVISO_RECUPERACION } from '../../lib/recoveryMode';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
@@ -81,6 +82,7 @@ export default function DashboardScreen() {
   const setProfile = useUserStore((s: any) => s.setProfile);
   const hydrateTodayLogs = useUserStore((s: any) => s.hydrateTodayLogs);
   const loadedDate = useUserStore((s: any) => s.loadedDate);
+  const recuperacion = useUserStore((s: any) => s.recuperacion);
 
   const [aiSuggestion, setAiSuggestion] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -357,7 +359,14 @@ export default function DashboardScreen() {
         {/* Sin conexión: informar, no bloquear. Lo de abajo sigue usable. */}
         <OfflineBanner disponible="Puedes entrenar y registrar tus series. El coach IA y la sincronización vuelven con la señal." />
 
-        {/* Macros del día */}
+        {/* Macros del día. En modo recuperación NO se muestran: la app
+            promete programar sin metas de peso ni estética y luego enseñaba
+            el anillo de calorías en la primera pantalla. */}
+        {recuperacion.ocultarCalorias ? (
+          <View style={s.recoveryCard} accessible accessibilityLabel={AVISO_RECUPERACION}>
+            <Text style={s.recoveryTxt}>{AVISO_RECUPERACION}</Text>
+          </View>
+        ) : (
         <View style={s.macroCard}>
           <CalorieRing consumed={totals.calories} target={profile.daily_calories} />
           <View style={{ flex: 1 }}>
@@ -366,6 +375,7 @@ export default function DashboardScreen() {
             <MacroBar name="Grasa" consumed={totals.fat_g} target={profile.daily_fat_g} color={Colors.macroFat} />
           </View>
         </View>
+        )}
 
         {/* Hidratación */}
         <View style={s.waterCard}>
@@ -688,6 +698,13 @@ const s = StyleSheet.create({
   barBg: { height: 5, backgroundColor: Colors.border, borderRadius: 10, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 10 },
   sectionLbl: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginHorizontal: Spacing.lg, marginBottom: 10, marginTop: 4 },
+  recoveryCard: {
+    backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border,
+    padding: Spacing.md, marginHorizontal: Spacing.lg, marginBottom: Spacing.md,
+  },
+  recoveryTxt: {
+    fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 20,
+  },
   waterCard: { marginHorizontal: Spacing.lg, marginBottom: 12, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.xl, padding: Spacing.md },
   waterTitle: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.textMuted, letterSpacing: 0.6 },
   waterCount: { fontFamily: Fonts.headingSemi, fontSize: 14, color: Colors.macroCarbs },

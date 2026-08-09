@@ -258,7 +258,11 @@ begin
       v_macro_counted:=true; v_macro_days:=v_macro_days+1; v_xp:=v_xp+50;
       v_claimed_missions:=array_append(v_claimed_missions,v_key);
     end if;
-  else v_scans:=v_scans+1; v_xp:=40; end if;
+  -- El escaneo corporal ya NO paga XP. Cobrar por mirarse premia la conducta
+  -- que la app le prohíbe a la IA en cuanto alguien declara un trastorno
+  -- alimentario. El contador sigue subiendo (es dato del usuario, y su
+  -- historial se lo puede llevar), pero deja de ser una recompensa.
+  else v_scans:=v_scans+1; v_xp:=0; end if;
   v_derived:=public._derive_badges(v_streak,v_sessions,v_meals,v_macro_days,v_scans);
   select coalesce(array_agg(b),'{}'::text[]) into v_fresh from unnest(v_derived) b where not(b=any(v_old_badges));
   if array_length(v_fresh,1)>0 then select coalesce(sum(c.xp),0) into v_badge_xp from public.badge_catalog c where c.id=any(v_fresh); end if;

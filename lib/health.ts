@@ -80,6 +80,19 @@ export type HealthLoad =
   | { status: 'ok' | 'cached'; profile: HealthProfile | null }
   | { status: 'unknown' };
 
+/**
+ * Publica el modo recuperación en el store. Va AQUÍ, en el único embudo por
+ * el que todas las pantallas leen la salud: si cada una lo hidratara por su
+ * cuenta, alguna se olvidaría y enseñaría el número de la báscula justo donde
+ * no debe. El require es diferido para no crear un ciclo lib→store→lib.
+ */
+function publicarModoRecuperacion(h: HealthProfile | null): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('../store/userStore').useUserStore.getState().setHealthProfile(h);
+  } catch {}
+}
+
 export async function loadHealthSafe(userId: string): Promise<HealthLoad> {
   try {
     const { data, error } = await supabase
@@ -95,15 +108,19 @@ export async function loadHealthSafe(userId: string): Promise<HealthLoad> {
       // Un perfil de salud no desaparece legítimamente: si la caché local
       // recuerda uno, el null del servidor es sospechoso → usar la caché.
       const cached = await cachedHealth(userId);
-      if (cached) return { status: 'cached', profile: cached };
+      if (cached) { publicarModoRecuperacion(cached); return { status: 'cached', profile: cached }; }
+      publicarModoRecuperacion(null);
       return { status: 'ok', profile: null };
     }
     const h = rowToProfile(data);
     cacheHealth(userId, h, data.cleared_at ?? null);
+    publicarModoRecuperacion(h);
     return { status: 'ok', profile: h };
   } catch {
     const cached = await cachedHealth(userId);
-    if (cached) return { status: 'cached', profile: cached };
+    if (cached) { publicarModoRecuperacion(cached); return { status: 'cached', profile: cached }; }
+    // 'unknown' NO toca el modo: esconderle sus datos por un fallo de red le
+    // haría pensar que perdió su historial.
     return { status: 'unknown' };
   }
 }

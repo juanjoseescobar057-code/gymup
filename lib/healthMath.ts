@@ -50,6 +50,15 @@ export const CONDITIONS = [
   { id: 'hernia_discal',    label: 'Hernia discal' },
   { id: 'embarazo',         label: 'Embarazo' },
   { id: 'cirugia_reciente', label: 'Cirugía reciente (<6 meses)' },
+  // Añadidas tras revisar contra los cuestionarios de cribado estándar
+  // (PAR-Q+ y ACSM), que preguntan por ellas y este tamizaje no.
+  { id: 'hipertension_no_controlada', label: 'Hipertensión SIN controlar' },
+  { id: 'epilepsia',        label: 'Epilepsia o convulsiones' },
+  { id: 'cancer_tratamiento', label: 'Cáncer en tratamiento activo' },
+  // La más importante para ESTA app en concreto: fija déficits calóricos,
+  // escanea cuerpos y grafica el peso. Nada de eso es neutral para alguien
+  // con un trastorno activo.
+  { id: 'trastorno_alimentario', label: 'Trastorno de la conducta alimentaria' },
 ] as const;
 
 export type InjuryZone = typeof INJURY_ZONES[number]['id'];
@@ -95,6 +104,10 @@ export function computeRisk(h: HealthProfile, age: number): { level: RiskLevel; 
   if (h.conditions.includes('cardiopatia')) reasons.push('problema cardiaco diagnosticado');
   if (h.conditions.includes('cirugia_reciente')) reasons.push('cirugía reciente');
   if (h.conditions.includes('embarazo')) reasons.push('embarazo');
+  if (h.conditions.includes('hipertension_no_controlada')) reasons.push('hipertensión sin controlar');
+  if (h.conditions.includes('epilepsia')) reasons.push('epilepsia o convulsiones');
+  if (h.conditions.includes('cancer_tratamiento')) reasons.push('tratamiento oncológico activo');
+  if (h.conditions.includes('trastorno_alimentario')) reasons.push('trastorno de la conducta alimentaria');
   if (reasons.length > 0) return { level: 'alto', reasons };
 
   // MODERADO: condiciones controlables, lesiones activas o edad avanzada.
@@ -141,6 +154,21 @@ export function evaluateWorkoutAccess(h: HealthProfile, age: number): WorkoutAcc
       title: 'Primero cuidemos tu salud',
       detail:
         'Tu perfil registra dolor de pecho, mareos o desmayos actuales. No es seguro iniciar esta sesión hasta que un profesional evalúe esos síntomas y actualices tu perfil de salud.',
+      reasons: risk.reasons,
+    };
+  }
+  // El trastorno alimentario necesita su PROPIO mensaje. "Trae una
+  // autorización" convierte en un trámite algo que no lo es, y esta app es
+  // justo la que puede empeorarlo: fija déficits, escanea cuerpos y grafica
+  // el peso. Aquí lo que toca es nombrarlo y apartarse, no negociar acceso.
+  if (h.conditions.includes('trastorno_alimentario') && !h.doctor_cleared) {
+    return {
+      status: 'blocked',
+      level: 'alto',
+      title: 'Esto lo acompañamos distinto',
+      detail:
+        'Marcaste un trastorno de la conducta alimentaria. GymUp fija metas de calorías, analiza fotos de tu cuerpo y grafica tu peso, y eso puede jugar en contra de tu recuperación. ' +
+        'Habla con el equipo que te trata: si te dicen que entrenar te viene bien, márcalo en Mi salud y programamos sin metas de peso ni de estética. Mientras tanto, moverte por gusto —caminar, bailar, estirar— no necesita esta app.',
       reasons: risk.reasons,
     };
   }
@@ -197,6 +225,15 @@ export function highRiskKeys(h: HealthProfile): string[] {
   if (h.conditions.includes('cardiopatia')) keys.push('cardiopatia');
   if (h.conditions.includes('cirugia_reciente')) keys.push('cirugia_reciente');
   if (h.conditions.includes('embarazo')) keys.push('embarazo');
+  // Las nuevas TIENEN que estar aquí: si este conjunto crece respecto al
+  // perfil guardado, la autorización médica previa queda invalidada. Sin
+  // esto, alguien autorizado por su embarazo podría declarar después un
+  // tratamiento oncológico y seguir pasando con un visto bueno que su médico
+  // dio para otra situación completamente distinta.
+  if (h.conditions.includes('hipertension_no_controlada')) keys.push('hipertension_no_controlada');
+  if (h.conditions.includes('epilepsia')) keys.push('epilepsia');
+  if (h.conditions.includes('cancer_tratamiento')) keys.push('cancer_tratamiento');
+  if (h.conditions.includes('trastorno_alimentario')) keys.push('trastorno_alimentario');
   return keys;
 }
 
@@ -207,6 +244,22 @@ export function highRiskKeys(h: HealthProfile): string[] {
 // una firma profesional: ver CLINICAL_REVIEW_STATUS arriba.
 
 const CONDITION_DIRECTIVES: Record<Condition, string> = {
+  // Ref: PAR-Q+ (pregunta específica sobre presión no controlada) + guía de
+  // HTA de AHA/ACC. Sin controlar es una situación distinta de la hipertensión
+  // tratada y estable: por eso es una casilla aparte y de riesgo ALTO.
+  hipertension_no_controlada:
+    'HIPERTENSIÓN SIN CONTROLAR: hasta que su médico confirme cifras controladas, NADA de esfuerzos intensos, isométricos sostenidos, cargas altas ni maniobra de Valsalva. Solo actividad ligera y continua en la que pueda conversar sin esfuerzo. Prohibido cualquier trabajo hasta el fallo o contra reloj. Ante dolor de cabeza intenso, visión borrosa, dolor en el pecho o falta de aire desproporcionada: DETENER y buscar atención médica.',
+  // Ref: PAR-Q+ (pregunta sobre epilepsia/convulsiones).
+  epilepsia:
+    'EPILEPSIA O CONVULSIONES: evita todo lo que convierta una crisis en una lesión grave. Prohibido cargar peso por encima de la cabeza sin alguien que asista, entrenar solo con barra libre, y ejercicios en altura o con riesgo de caída. Prefiere máquinas y mancuernas con apoyo sobre banco. Recomienda no entrenar solo. Vigilar los disparadores conocidos: falta de sueño, calor y deshidratación.',
+  // Ref: ACSM (ejercicio en supervivientes y pacientes oncológicos).
+  cancer_tratamiento:
+    'TRATAMIENTO ONCOLÓGICO ACTIVO: la tolerancia cambia día a día y el plan lo marca su equipo tratante, no esta app. Intensidad ligera-moderada, progresión MUY lenta, y adaptar o suspender según cómo se sienta ese día en concreto. Prohibido entrenar al fallo o a máximos. Precaución especial con el riesgo de fractura (metástasis óseas o pérdida de densidad) y con la fatiga inducida por el tratamiento, que no se combate exigiendo más. Si hay bajo recuento de plaquetas o neutrófilos, anemia, náusea, fiebre o un catéter colocado: no entrena sin indicación de su equipo.',
+  // Esta app fija déficits calóricos, escanea cuerpos y grafica el peso: nada
+  // de eso es neutral para alguien con un trastorno activo. La directiva no
+  // "adapta el plan", quita de en medio todo lo que puede empeorarlo.
+  trastorno_alimentario:
+    'TRASTORNO DE LA CONDUCTA ALIMENTARIA: NO propongas déficit calórico, restricción, pérdida de peso, ayuno, "recomposición" ni objetivos estéticos, aunque el usuario los pida. NO comentes su peso, su composición corporal ni su aspecto. NO recomiendes pesarse ni medir porciones. El ejercicio puede formar parte de un trastorno (uso compensatorio): si aparece cualquier señal de entrenar para "compensar" lo que comió, nómbralo con cuidado y remite a su equipo de tratamiento. Toda la programación queda subordinada a lo que indique el profesional que le trata. Ante cualquier duda: menos volumen, y derivar.',
   // Ref: ACSM (position stand de ejercicio e hipertensión) + guía de HTA de AHA/ACC.
   hipertension:
     'HIPERTENSIÓN: prohibido aguantar la respiración bajo carga (maniobra de Valsalva), isométricos máximos y cargas >80% 1RM. Respiración fluida SIEMPRE (exhalar en el esfuerzo). Descansos completos de 2-3 min. Prefiere más repeticiones con menos peso. Evita cambios bruscos de posición (mareo postural). Si toma betabloqueadores u otros fármacos que controlan el pulso, la frecuencia cardiaca NO sirve como indicador de intensidad: guiarse SIEMPRE por esfuerzo percibido (RPE) y prueba del habla. Si está mareado o con dolor de cabeza inusual: no entrena ese día.',

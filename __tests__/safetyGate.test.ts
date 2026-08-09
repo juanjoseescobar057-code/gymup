@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EMPTY_HEALTH, evaluateWorkoutAccess } from '../lib/healthMath';
+import { EMPTY_HEALTH, evaluateWorkoutAccess, highRiskKeys, healthToPrompt } from '../lib/healthMath';
 import { planChangePreview, summarizePlanChanges } from '../lib/planDiff';
 import type { WeeklyPlan } from '../lib/supabase';
 
@@ -108,4 +108,55 @@ test('cambiar series de un ejercicio reordenado se atribuye al ejercicio correct
   assert.deepEqual(summarizePlanChanges(antes, despues), [
     { day: 'Día 1', exercise: 'Curl bíceps', change: 'series 3 → 5' },
   ]);
+});
+
+// ── Condiciones añadidas tras revisar contra PAR-Q+ y ACSM ──
+
+test('las cuatro condiciones nuevas bloquean sin autorización médica', () => {
+  for (const c of ['hipertension_no_controlada', 'epilepsia', 'cancer_tratamiento', 'trastorno_alimentario'] as const) {
+    const r = evaluateWorkoutAccess({ ...EMPTY_HEALTH, conditions: [c] }, 35);
+    assert.equal(r.status, 'blocked', `${c} debería bloquear`);
+    assert.equal(r.level, 'alto');
+    assert.ok(r.reasons.length > 0, `${c} debe decir por qué`);
+  }
+});
+
+test('la hipertensión CONTROLADA sigue siendo moderada, no bloquea', () => {
+  // Separarlas era el punto: tratada y estable no es lo mismo que sin control.
+  const r = evaluateWorkoutAccess({ ...EMPTY_HEALTH, conditions: ['hipertension'] }, 35);
+  assert.equal(r.status, 'allowed');
+  assert.equal(r.level, 'moderado');
+});
+
+test('el trastorno alimentario NO se trata como un trámite de autorización', () => {
+  // "Trae un papel" es el encuadre equivocado: esta app fija déficits, escanea
+  // cuerpos y grafica el peso. El mensaje tiene que ser suyo.
+  const ta = evaluateWorkoutAccess({ ...EMPTY_HEALTH, conditions: ['trastorno_alimentario'] }, 25);
+  const otro = evaluateWorkoutAccess({ ...EMPTY_HEALTH, conditions: ['cardiopatia'] }, 25);
+  assert.notEqual(ta.title, otro.title);
+  assert.doesNotMatch(ta.title, /autorizaci/i);
+  assert.match(ta.detail, /equipo que te trata|recuperaci/i);
+});
+
+test('con autorización del equipo tratante, el trastorno alimentario permite entrenar', () => {
+  const r = evaluateWorkoutAccess({ ...EMPTY_HEALTH, conditions: ['trastorno_alimentario'], doctor_cleared: true }, 25);
+  assert.equal(r.status, 'allowed');
+});
+
+test('declarar una condición NUEVA de riesgo alto invalida la autorización previa', () => {
+  const antes = highRiskKeys({ ...EMPTY_HEALTH, conditions: ['embarazo'] });
+  const despues = highRiskKeys({ ...EMPTY_HEALTH, conditions: ['embarazo', 'cancer_tratamiento'] });
+  assert.ok(despues.length > antes.length, 'el conjunto tiene que crecer');
+  assert.ok(despues.includes('cancer_tratamiento'));
+});
+
+test('toda condición de riesgo alto tiene su directiva para la IA', () => {
+  // Una condición sin directiva pasa la puerta y luego el modelo programa a
+  // ciegas: el bloqueo sin la directiva es media protección.
+  const conDirectiva = healthToPrompt(
+    { ...EMPTY_HEALTH, conditions: ['trastorno_alimentario'], doctor_cleared: true },
+    30, 'unspecified',
+  );
+  assert.match(conDirectiva, /TRASTORNO DE LA CONDUCTA ALIMENTARIA/);
+  assert.match(conDirectiva, /NO propongas déficit/i);
 });

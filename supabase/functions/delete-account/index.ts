@@ -40,6 +40,11 @@ const TABLES = [
   'food_logs', 'weight_entries', 'transform_photos', 'training_plans',
   'user_stats', 'notification_preferences', 'push_tokens', 'ai_usage',
   'coach_memory', 'ai_telemetry', 'ai_content_reports', 'analytics_events',
+  // workout_readiness faltaba. El cascade de auth.users la habría borrado al
+  // final, pero el contrato de esta función es borrar TODOS los datos primero
+  // y la identidad después: si el borrado de identidad falla, esas filas
+  // sobreviven a un borrado que se anunció como completo.
+  'workout_readiness',
   'health_profile', 'user_profiles',
 ];
 

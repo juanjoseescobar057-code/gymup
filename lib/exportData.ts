@@ -25,10 +25,19 @@ const TABLAS = [
   'body_scans',
   'weight_entries',
   'user_stats',
-  'health_profiles',
+  // SINGULAR. Lo escribí en plural y la tabla real es `health_profile`, así
+  // que el error "no existe" caía en la rama de "tabla opcional", se saltaba
+  // en silencio y el export se declaraba COMPLETO sin el perfil de salud.
+  // Alguien podía exportar, creer que ya tenía todo lo suyo y borrar la
+  // cuenta a continuación.
+  'health_profile',
   'workout_readiness',
   'transform_photos',
   'notification_preferences',
+  // Faltaban y son contenido del usuario, no telemetría: los análisis de su
+  // técnica y lo que el coach recuerda de él.
+  'posture_feedback',
+  'coach_memory',
 ] as const;
 
 export type ResultadoExport =

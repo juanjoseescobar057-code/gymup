@@ -21,6 +21,7 @@ import {
   DMSans_600SemiBold,
 } from '@expo-google-fonts/dm-sans';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../constants/theme';
 import { initMonitoring } from '../lib/monitoring';
 
@@ -92,6 +93,13 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* SafeAreaProvider FALTABA. Sin él, useSafeAreaInsets() devuelve ceros y
+          el componente SafeAreaView cae a un valor estimado por su cuenta: 19
+          pantallas usan el componente y 2 el hook, así que cada una se
+          posicionaba con una referencia distinta. De ahí que unas empezaran
+          arriba y otras no, y que dependiera del teléfono. Tiene que envolver
+          al Stack para que TODAS midan lo mismo. */}
+      <SafeAreaProvider>
       <StatusBar style="light" backgroundColor={Colors.bg} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
         <Stack.Screen name="index" />
@@ -112,6 +120,7 @@ export default function RootLayout() {
         <Stack.Screen name="legal" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="workout-complete" options={{ animation: 'fade', gestureEnabled: false }} />
       </Stack>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

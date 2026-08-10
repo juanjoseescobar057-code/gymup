@@ -13,6 +13,7 @@ import { generateTrainingPlan, calculateDailyMacros } from '../../lib/openai';
 import { captureError } from '../../lib/monitoring';
 import { useUserStore } from '../../store/userStore';
 import AuthSheet from '../../Components/AuthSheet';
+import { linkEmailPassword } from '../../lib/account';
 import HealthForm from '../../Components/HealthForm';
 import { EMPTY_HEALTH, computeRisk, type HealthProfile } from '../../lib/healthMath';
 import { type AIShapeError } from '../../lib/schemas';
@@ -101,6 +102,8 @@ export default function OnboardingScreen() {
   const [goalWhy, setGoalWhy] = useState('');
   const [health, setHealth] = useState<HealthProfile>(EMPTY_HEALTH);
   const [signInSheet, setSignInSheet] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const ageRef = useRef<TextInput>(null);
   const weightRef = useRef<TextInput>(null);
@@ -180,6 +183,26 @@ export default function OnboardingScreen() {
         if (authError) throw new Error('Auth: ' + authError.message);
         if (!authData?.user) throw new Error('Sin usuario de auth');
         userId = authData.user.id;
+      }
+
+      // Vincular el correo si lo dio. Va DESPUÉS de tener sesión y ANTES de
+      // guardar nada: así el perfil y el plan nacen ya ligados a una cuenta
+      // recuperable. Si falla (correo ya en uso, contraseña corta) NO se aborta
+      // el onboarding: se avisa y se sigue en anónimo — perder el registro
+      // entero por un correo repetido sería peor que quedarse sin correo.
+      if (email.trim()) {
+        const link = await linkEmailPassword(email, password);
+        if (!link.ok) {
+          Alert.alert(
+            'No pudimos vincular tu correo',
+            `${link.error ?? 'Intenta de nuevo.'}\n\nSeguimos con tu registro. Puedes añadirlo más tarde desde Perfil.`
+          );
+        } else {
+          track('account_linked', { origen: 'onboarding' });
+          if ('needsEmailConfirm' in link && link.needsEmailConfirm) {
+            Alert.alert('Revisa tu correo', 'Te enviamos un email para confirmar tu cuenta. Tu progreso ya está vinculado.');
+          }
+        }
       }
 
       // Guardar el tamizaje de salud ANTES de generar: el plan nace ya adaptado
@@ -691,6 +714,47 @@ export default function OnboardingScreen() {
                   </Text>
 
                   <HealthForm value={health} onChange={setHealth} age={+age || 30} />
+
+                  {/* CORREO EN EL ONBOARDING. Antes la cuenta se creaba anónima
+                      y el correo se pedía después, desde Perfil — con lo que
+                      casi nadie llegaba a ponerlo. Sin correo no hay forma de
+                      recuperar la cuenta: si pierdes el teléfono, pierdes el
+                      plan, el historial y las fotos. Y la recuperación de
+                      contraseña que acabamos de añadir no sirve de nada.
+                      Se pide aquí, y se puede omitir: obligarlo en el primer
+                      minuto es la forma más rápida de perder a alguien que
+                      todavía no sabe si la app le sirve. */}
+                  <Text style={s.lbl}>Tu correo (opcional, muy recomendado)</Text>
+                  <Text style={[s.actDesc, { marginBottom: 10 }]}>
+                    Es lo único que te permite recuperar tu cuenta si cambias de teléfono o
+                    pierdes este. Sin correo, tu plan y tu historial viven solo en este dispositivo.
+                  </Text>
+                  <TextInput
+                    style={s.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="tu@correo.com"
+                    placeholderTextColor={Colors.textDisabled}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoComplete="email"
+                    accessibilityLabel="Tu correo electrónico, opcional"
+                  />
+                  {email.trim().length > 0 && (
+                    <>
+                      <Text style={[s.lbl, { marginTop: Spacing.md }]}>Contraseña</Text>
+                      <TextInput
+                        style={s.input}
+                        value={password}
+                        onChangeText={setPassword}
+                        placeholder="Mínimo 8 caracteres"
+                        placeholderTextColor={Colors.textDisabled}
+                        secureTextEntry
+                        autoCapitalize="none"
+                        accessibilityLabel="Contraseña para tu cuenta"
+                      />
+                    </>
+                  )}
 
                   <TouchableOpacity style={[s.actRow, legalConsent && s.actSel]} onPress={() => setLegalConsent((v) => !v)}
                     accessibilityRole="checkbox" accessibilityState={{ checked: legalConsent }}

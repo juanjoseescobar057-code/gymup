@@ -3,7 +3,8 @@ import type {
 } from './supabase';
 import { AI_SAFETY_RULES, SLEEP_RECOVERY_GUIDANCE } from './safety';
 import { imageToOptimizedBase64 } from './image';
-import { parseAI, WeeklyPlanSchema, FoodResultSchema } from './schemas';
+import { parseAI, WeeklyPlanSchema, FoodResultSchema, AIShapeError } from './schemas';
+import { captureError } from './monitoring';
 import { aiChatContent as chat } from './aiClient';
 import { evaluateWorkoutAccess, healthToPrompt, type HealthProfile } from './healthMath';
 
@@ -130,11 +131,16 @@ export async function generateTrainingPlan(
     ? ''
     : `\n${SLEEP_RECOVERY_GUIDANCE}\n`;
 
-  const content = await chat({
-    model: 'gpt-4o',
-    messages: [{
-      role: 'user',
-      content: `Entrenador personal élite. ${AI_SAFETY_RULES}
+  // La ORDEN va primero y el muro de reglas después. El prompt son ~2.600
+  // tokens de prohibiciones, y con la instrucción sepultada al final el modelo
+  // devolvía un JSON vacío —10-12 tokens de salida contra los ~1.000 de un
+  // plan real—: cumplía el formato sin hacer la tarea. Ponerlo delante no es
+  // cosmética, es lo que el modelo lee como su trabajo.
+  const prompt = `TAREA: crea un plan de entrenamiento de 7 días y devuélvelo como JSON.
+Es OBLIGATORIO que el JSON traiga los 7 días CON CONTENIDO. Un objeto vacío, sin "days",
+o con "days" vacío NO sirve: deja a la persona sin plan.
+
+Entrenador personal élite. ${AI_SAFETY_RULES}
 ${recoveryBlock}${healthBlock ? `\n${healthBlock}\n` : ''}
 Crea plan de entrenamiento 7 días para:
 - Edad: ${profile.age} años
@@ -203,13 +209,50 @@ Si algo del tamizaje de salud te preocupa (una molestia descrita, una condición
 lesión), NO te niegues ni respondas con texto: eso deja a la persona sin plan y sin tu
 advertencia. Devuelve el JSON con el plan MÁS conservador que se te ocurra —movilidad,
 caminata suave, nada que cargue la zona afectada— y escribe la recomendación de
-consultar a un profesional en el campo "notes" de los días correspondientes.`,
-    }],
-    response_format: { type: 'json_object' },
-    temperature: 0.7,
-  }, 'plan');
+consultar a un profesional en el campo "notes" de los días correspondientes.`;
 
-  return parseAI(WeeklyPlanSchema, content, 'plan de entrenamiento') as WeeklyPlan;
+  // REINTENTO AUTOMÁTICO. El modelo devuelve un JSON vacío de vez en cuando —lo
+  // vimos en la telemetría: cuatro intentos de 10-12 tokens de salida contra
+  // uno bueno de 1.027— y hasta ahora eso dejaba a la persona sin plan justo al
+  // terminar el onboarding, con un botón para reintentar A MANO. Reintentarlo
+  // nosotros es lo mismo que ella iba a hacer, sin el mal trago.
+  //
+  // La temperatura baja en cada intento: si a 0.7 salió vacío, insistir con la
+  // misma aleatoriedad es esperar suerte. Y el recordatorio se hace más
+  // explícito, porque lo que falla no es el formato sino hacer la tarea.
+  const INTENTOS = 3;
+  let ultimoError: unknown = null;
+
+  for (let intento = 1; intento <= INTENTOS; intento++) {
+    const refuerzo = intento === 1 ? '' :
+      `\n\nAVISO: en el intento anterior devolviste un JSON sin los 7 días. ` +
+      `Devuelve AHORA el objeto completo con "overview" y "days" de 7 elementos.`;
+    try {
+      const content = await chat({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: prompt + refuerzo }],
+        response_format: { type: 'json_object' },
+        temperature: intento === 1 ? 0.7 : 0.2,
+      }, 'plan');
+      return parseAI(WeeklyPlanSchema, content, 'plan de entrenamiento') as WeeklyPlan;
+    } catch (e) {
+      ultimoError = e;
+      // Solo se reintenta si el fallo es de FORMA. Un 402, un 429 o un corte de
+      // red no mejoran repitiendo: se propagan tal cual y con su mensaje.
+      if (!(e instanceof AIShapeError)) throw e;
+      // La forma del fallo se registra SIEMPRE: hasta ahora ese diagnóstico se
+      // construía y se tiraba, y por eso llevábamos días adivinando.
+      captureError(e, {
+        scope: 'generateTrainingPlan.forma',
+        intento,
+        es_json: e.forma.esJson,
+        largo: e.forma.largo,
+        claves_raiz: e.forma.clavesRaiz.join(','),
+        rutas_fallidas: e.forma.rutasFallidas.slice(0, 5).join(' | '),
+      });
+    }
+  }
+  throw ultimoError;
 }
 
 // calculateDailyMacros vive en lib/macros.ts (módulo puro, testeable).

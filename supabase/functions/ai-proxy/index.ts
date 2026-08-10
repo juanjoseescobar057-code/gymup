@@ -32,7 +32,12 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const ALLOWED_MODELS = new Set(['gpt-4o', 'gpt-4o-mini']);
+// Se admite el SNAPSHOT además del alias. El alias mueve el comportamiento del
+// modelo sin avisar, y esta app da recomendaciones de salud: la generación de
+// planes usa el snapshot fijo para que un cambio de OpenAI no altere en
+// silencio lo que se le programa a alguien con una hernia. El alias se
+// conserva para el resto de funciones, menos sensibles.
+const ALLOWED_MODELS = new Set(['gpt-4o', 'gpt-4o-mini', 'gpt-4o-2024-08-06']);
 
 type FeaturePolicy = { premiumOnly: boolean; freeLimit: number; premiumLimit: number };
 

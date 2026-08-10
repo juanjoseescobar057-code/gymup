@@ -5,6 +5,7 @@ import { AI_SAFETY_RULES, SLEEP_RECOVERY_GUIDANCE } from './safety';
 import { imageToOptimizedBase64 } from './image';
 import { parseAI, WeeklyPlanSchema, FoodResultSchema, AIShapeError } from './schemas';
 import { captureError } from './monitoring';
+import { PLAN_JSON_SCHEMA } from './planJsonSchema';
 import { aiChatContent as chat } from './aiClient';
 import { evaluateWorkoutAccess, healthToPrompt, type HealthProfile } from './healthMath';
 
@@ -229,9 +230,16 @@ consultar a un profesional en el campo "notes" de los días correspondientes.`;
       `Devuelve AHORA el objeto completo con "overview" y "days" de 7 elementos.`;
     try {
       const content = await chat({
-        model: 'gpt-4o',
+        // Snapshot FIJO, no el alias. El alias mueve el comportamiento del
+        // modelo sin avisar y esta llamada decide lo que se le programa a
+        // alguien con una hernia o un problema cardiaco.
+        model: 'gpt-4o-2024-08-06',
         messages: [{ role: 'user', content: prompt + refuerzo }],
-        response_format: { type: 'json_object' },
+        // Salida ESTRUCTURADA: la forma la impone la API, no una frase del
+        // prompt. Antes se pedía en prosa y el modelo podía devolver `{}` —y
+        // lo hacía—, porque el mismo prompt le ordenaba negarse en texto ante
+        // cualquier duda de salud y el formato JSON le prohibía el texto.
+        response_format: { type: 'json_schema', json_schema: PLAN_JSON_SCHEMA },
         temperature: intento === 1 ? 0.7 : 0.2,
       }, 'plan');
       return parseAI(WeeklyPlanSchema, content, 'plan de entrenamiento') as WeeklyPlan;

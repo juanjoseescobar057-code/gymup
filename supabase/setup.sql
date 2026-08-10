@@ -1677,3 +1677,29 @@ begin
 end $$;
 revoke all on function public.apply_rc_event(text,uuid,text,bigint,text,boolean,boolean) from anon, authenticated;
 revoke all on function public.apply_rc_event(text,uuid,text,bigint,text,boolean,boolean) from public;
+
+-- Devuelve un uso de IA cuando el servidor NO entregó nada útil.
+--
+-- El contador sube ANTES de llamar a OpenAI (para no gastar IA si la base
+-- falla), pero eso hacía que una respuesta inservible costara igual que una
+-- buena: la generación de planes devolvía un JSON vacío, la persona
+-- reintentaba, y al tercer intento se quedaba sin plan Y sin cupo.
+--
+-- OJO CON LOS PERMISOS. increment_ai_usage deriva el usuario de auth.uid()
+-- porque la llama el proxy con el JWT de la persona. Esta NO puede hacer lo
+-- mismo: si fuera ejecutable por 'authenticated', un cliente modificado se
+-- devolvería cupo indefinidamente y tendría IA gratis ilimitada. Por eso
+-- recibe el user_id y queda reservada al service_role, que solo tiene el
+-- servidor. El proxy la llama con el id YA verificado del JWT.
+create or replace function public.refund_ai_usage(p_user_id uuid, p_feature text)
+returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_user_id is null then return false; end if;
+  update public.ai_usage
+    set count = greatest(count - 1, 0)
+  where user_id = p_user_id and feature = p_feature and date = current_date;
+  return found;
+end $$;
+revoke all on function public.refund_ai_usage(uuid, text) from public, anon, authenticated;
+grant execute on function public.refund_ai_usage(uuid, text) to service_role;

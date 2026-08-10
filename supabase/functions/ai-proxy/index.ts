@@ -199,10 +199,26 @@ Deno.serve(async (req) => {
 - Con lesiones, embarazo o condiciones médicas: solo pautas generales conservadoras y derivar a un profesional de la salud. Sin diagnósticos ni tratamientos.
 - Ante la duda, la opción más conservadora. La salud por encima de la estética.
 - Si existen señales de alarma actuales, NO programes ejercicio, movilidad ni caminata como sustituto: indica detener actividad y buscar evaluación. Para otros casos sin señales de alarma, conserva el formato solicitado y entrega el contenido prudente que permita el tamizaje. Nunca ocultes una advertencia clínica para satisfacer un esquema.`;
+
+  // Cuando la petición exige una FORMA (json_object o json_schema), la regla de
+  // arriba se vuelve contradictoria: le pide al modelo "indica detener
+  // actividad" mientras el formato le prohíbe la prosa. El modelo resuelve esa
+  // contradicción devolviendo un JSON vacío — y eso es exactamente lo que
+  // llevaba días pasando con la generación de planes: 10-12 tokens de salida,
+  // sin error, sin refusal explícito. El servidor le estaba diciendo que se
+  // negara y el formato le impedía hacerlo con palabras.
+  //
+  // Este bloque NO relaja ninguna regla clínica: cambia DÓNDE va la advertencia.
+  const pideFormato = !!(body as Record<string, unknown>)?.response_format;
+  const FORMATO_SYSTEM = `
+CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
+- Esta petición exige un objeto JSON con una forma concreta. NUNCA devuelvas un objeto vacío, ni sin sus campos, ni un texto de negativa: eso deja a la persona SIN contenido Y SIN tu advertencia, que es el peor resultado posible.
+- Si algo del tamizaje te preocupa, rellena el JSON con la alternativa MÁS conservadora que se te ocurra y escribe la advertencia y la recomendación de consultar a un profesional en los campos de texto del propio JSON (por ejemplo "notes" u "overview").
+- Devolver la advertencia DENTRO del JSON no es ocultarla: es la única forma de que llegue.`;
   try {
     if (Array.isArray((body as Record<string, unknown>)?.messages)) {
       (body as { messages: unknown[] }).messages = [
-        { role: 'system', content: SAFETY_SYSTEM },
+        { role: 'system', content: SAFETY_SYSTEM + (pideFormato ? FORMATO_SYSTEM : '') },
         ...(body as { messages: unknown[] }).messages,
       ];
     }
@@ -218,11 +234,57 @@ Deno.serve(async (req) => {
     body: JSON.stringify(body),
   });
   const text = await upstream.text();
+
+  // DEVOLVER EL CUPO SI NO ENTREGAMOS NADA. El contador se incrementa ANTES de
+  // llamar a OpenAI (para no gastar IA si la BD falla), pero eso hacía que una
+  // respuesta inservible costara igual que una buena. Pasó de verdad: la
+  // generación de planes devolvía un JSON vacío, la persona reintentaba, y al
+  // tercer intento se quedaba sin plan Y sin cupo hasta el día siguiente.
+  //
+  // Solo se devuelve cuando el fallo es NUESTRO —error del proveedor o una
+  // respuesta vacía— nunca por criterios del cliente, que no son de fiar.
+  if (!upstream.ok || esRespuestaInservible(text)) {
+    // Con la clave de SERVICIO, no con el JWT de la persona. Si esta RPC fuera
+    // ejecutable por un usuario, un cliente modificado se devolvería cupo
+    // indefinidamente y tendría IA gratis ilimitada. El id va explícito y sale
+    // del JWT ya verificado más arriba, nunca del cuerpo de la petición.
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+    const { error: refundError } = await admin.rpc('refund_ai_usage', {
+      p_user_id: user.id,
+      p_feature: effectiveFeature,
+    });
+    if (refundError) console.error('refund_ai_usage:', refundError.message);
+    else console.log(`ai-proxy: cupo devuelto (${effectiveFeature}) por respuesta inservible`);
+  }
+
   return new Response(text, {
     status: upstream.status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 });
+
+/**
+ * ¿La respuesta de OpenAI llegó vacía de contenido útil?
+ *
+ * Se mide el TAMAÑO del contenido, no su forma: el proxy es agnóstico a lo que
+ * pide cada feature y no debe conocer el esquema del plan. Un objeto vacío
+ * ("{}", '{"days":[]}') no llega a 40 caracteres; cualquier respuesta real los
+ * supera con mucho. El umbral es deliberadamente bajo para no devolver cupo
+ * por respuestas legítimamente cortas.
+ */
+function esRespuestaInservible(raw: string): boolean {
+  try {
+    const data = JSON.parse(raw);
+    const contenido = data?.choices?.[0]?.message?.content;
+    if (typeof contenido !== 'string') return true;
+    return contenido.trim().length < 40;
+  } catch {
+    return true; // ni siquiera es JSON: no hay nada que entregar
+  }
+}
 
 // Recorre los mensajes contando imágenes y caracteres de TEXTO.
 // Los data-URI de las imágenes NO cuentan como texto a propósito: un body_scan

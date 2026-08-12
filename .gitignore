@@ -13,6 +13,9 @@ expo-env.d.ts
 .kotlin/
 *.orig.*
 *.jks
+# `eas credentials` puede escribirlo en la raíz del repo, y lleva las
+# contraseñas de la keystore en texto plano.
+credentials.json
 *.p8
 *.p12
 *.key

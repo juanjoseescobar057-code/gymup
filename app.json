@@ -68,7 +68,8 @@
         }
       ],
       "@sentry/react-native",
-      "expo-localization"
+      "expo-localization",
+      "./plugins/withFirmaRelease"
     ],
     "experiments": {
       "typedRoutes": true

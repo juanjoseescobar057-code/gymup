@@ -10,9 +10,11 @@
     "test": "node --require ./scripts/node-userinfo-shim.cjs --import tsx --test --test-concurrency=1 __tests__/*.test.ts",
     "typecheck": "tsc --noEmit",
     "check:secrets": "node scripts/check-secrets.mjs",
+    "check:syntax": "node scripts/check-syntax.mjs",
     "release:check": "node scripts/check-release-readiness.mjs",
     "eas-build-pre-install": "node scripts/check-release-readiness.mjs --eas-hook",
-    "verify": "npm run check:secrets && npm run typecheck && npm test"
+    "verify": "npm run check:secrets && npm run check:syntax && npm run typecheck && npm test",
+    "build:android": "node scripts/build-android.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/barlow-condensed": "^0.4.1",

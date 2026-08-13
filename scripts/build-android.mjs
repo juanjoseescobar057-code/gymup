@@ -30,7 +30,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { revisarEnv } from './envConsistencia.mjs';
-import { versionesRequeridas, revisarSdk, mensajeFaltantes } from './entornoAndroid.mjs';
+import { versionesRequeridas, revisarSdk, mensajeFaltantes, rutaConEspacios } from './entornoAndroid.mjs';
 import { PLANTILLA_NATIVA } from './plantillaNativa.mjs';
 
 const raiz = process.cwd();
@@ -66,6 +66,11 @@ if (!androidHome) {
 if (!fs.existsSync(androidHome)) {
   morir(`ANDROID_HOME apunta a una carpeta que no existe:\n  ${androidHome}`);
 }
+
+// Antes que nada: un espacio aquí no falla hasta el minuto 30, y el error que
+// da entonces no menciona la ruta por ningún lado. Ver rutaConEspacios().
+const problemaEspacios = rutaConEspacios(androidHome);
+if (problemaEspacios) morir(problemaEspacios);
 
 const catalogoRn = path.join(raiz, 'node_modules', 'react-native', 'gradle', 'libs.versions.toml');
 if (!fs.existsSync(catalogoRn)) {

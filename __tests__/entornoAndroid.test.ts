@@ -8,7 +8,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { versionesRequeridas, revisarSdk, mensajeFaltantes } from '../scripts/entornoAndroid.mjs';
+import {
+  versionesRequeridas,
+  revisarSdk,
+  mensajeFaltantes,
+  rutaConEspacios,
+} from '../scripts/entornoAndroid.mjs';
 
 const CATALOGO = `[versions]
 # Android versions
@@ -93,6 +98,37 @@ test('sin CMake avisa: es lo que dispara la compilación nativa', () => {
 test('un SDK vacío no revienta: enumera todo lo que falta', () => {
   const faltan = revisarSdk(versionesRequeridas(CATALOGO)!, {});
   assert.equal(faltan.length, 5);
+});
+
+// ── El espacio en la ruta del SDK ──
+// Costó 32 minutos de compilación descubrirlo, y el error final no mencionaba
+// la ruta por ningún lado: cientos de "undefined symbol" de la STL.
+
+test('una ruta con espacios se rechaza', () => {
+  const m = rutaConEspacios('C:\\Users\\Juan Escobar\\AppData\\Local\\Android\\Sdk');
+  assert.ok(m, 'un espacio en la ruta del SDK rompe la compilación de C++ en Windows');
+});
+
+test('una ruta sin espacios pasa', () => {
+  assert.equal(rutaConEspacios('C:\\Android\\Sdk'), null);
+  assert.equal(rutaConEspacios('/home/juan/Android/Sdk'), null);
+});
+
+test('el mensaje explica el mecanismo, no solo "hay un espacio"', () => {
+  // Sin el porqué, la reacción natural es pensar que es una manía y saltárselo.
+  const m = rutaConEspacios('C:\\Users\\Juan Escobar\\Sdk')!;
+  assert.match(m, /CLANG_~1/);          // el nombre corto que pierde los ++
+  assert.match(m, /clang\+\+/);
+  assert.match(m, /undefined symbol/);   // el error que verá si lo ignora
+  assert.match(m, /ANDROID_HOME/);       // y qué hacer
+});
+
+test('el mensaje propone la ruta concreta a mover, no una genérica', () => {
+  // Un mensaje que diga "muévelo a una ruta sin espacios" obliga a componer el
+  // comando a mano, con la ruta que precisamente tiene espacios y hay que
+  // entrecomillar. Mejor darlo hecho.
+  const sdk = 'C:\\Users\\Juan Escobar\\AppData\\Local\\Android\\Sdk';
+  assert.ok(rutaConEspacios(sdk)!.includes(`Move-Item "${sdk}" "C:\\Android\\Sdk"`));
 });
 
 test('el mensaje dice dónde se instala cada cosa', () => {

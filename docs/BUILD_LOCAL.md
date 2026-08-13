@@ -18,6 +18,23 @@ Instala [Android Studio](https://developer.android.com/studio). Ocupa unos
 10 GB, y el asistente por defecto NO deja el proyecto compilable: faltan el NDK
 y CMake.
 
+> ⚠️ **En Windows, el SDK NO puede vivir en una ruta con espacios.** El
+> asistente propone `C:\Users\<tu-usuario>\AppData\Local\Android\Sdk`, que
+> lleva espacios si tu usuario los tiene. **Instálalo en `C:\Android\Sdk`.**
+>
+> El motivo, que costó una compilación de 32 minutos descubrir: cuando la ruta
+> lleva espacios, CMake invoca al compilador por su nombre corto 8.3, y
+> `clang++.exe` se convierte en `CLANG_~1.EXE`. Clang decide si actúa como
+> compilador de C o de C++ **por el nombre con el que lo llaman**, así que al
+> perder los `++` enlaza en modo C y deja fuera la biblioteca estándar de C++.
+> El build muere al final con cientos de `undefined symbol: operator new`,
+> `__cxa_throw`, `std::__ndk1::...` — un error que no menciona la ruta por
+> ningún lado y que parece un problema de la librería que estabas compilando.
+>
+> En EAS no pasaba porque es Linux y no hay nombres 8.3.
+>
+> `npm run build:android` lo comprueba antes de empezar.
+
 Abre **More Actions → SDK Manager** e instala, marcando antes
 **Show Package Details** para poder elegir versiones exactas:
 

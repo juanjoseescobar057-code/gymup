@@ -72,6 +72,42 @@ export function revisarSdk(requeridas, instalado) {
   return faltan;
 }
 
+/**
+ * Un espacio en la ruta del SDK rompe la compilación de C++ en Windows, y lo
+ * hace de una forma que no se parece en nada a su causa.
+ *
+ * CMake, para no pelearse con las comillas, invoca al compilador por su nombre
+ * corto 8.3 cuando la ruta lleva espacios. Y `clang++.exe` en 8.3 es
+ * `CLANG_~1.EXE`: pierde los `++`. Clang decide si actúa como compilador de C
+ * o de C++ POR EL NOMBRE con el que lo llaman, así que enlaza en modo C y no
+ * añade la biblioteca estándar de C++.
+ *
+ * El resultado son cientos de `undefined symbol: operator new`,
+ * `__cxa_throw`, `std::__ndk1::...` al enlazar — que parecen un problema de
+ * la librería que estés compilando, no de dónde está instalado el SDK.
+ *
+ * Comprobado en esta máquina: invocando `clang++.exe` por su ruta larga
+ * enlaza; por la corta falla con 16 símbolos indefinidos. En Linux (EAS) no
+ * pasa porque no hay nombres 8.3.
+ *
+ * Aparece al final de la compilación, cuando ya se han gastado 30 minutos.
+ */
+export function rutaConEspacios(androidHome) {
+  if (!androidHome.includes(' ')) return null;
+  return (
+    `El SDK de Android está en una ruta con espacios:\n  ${androidHome}\n\n` +
+    `  En Windows eso rompe la compilación de C++: CMake invoca al compilador\n` +
+    `  por su nombre corto 8.3, y "clang++.exe" se convierte en "CLANG_~1.EXE".\n` +
+    `  Al perder los "++", clang enlaza como si fuera C y deja fuera la\n` +
+    `  biblioteca estándar de C++. El build muere al final con cientos de\n` +
+    `  "undefined symbol: operator new", "__cxa_throw"...\n\n` +
+    `  Mueve el SDK a una ruta sin espacios y apunta ANDROID_HOME ahí:\n\n` +
+    `    Move-Item "${androidHome}" "C:\\Android\\Sdk"\n` +
+    `    [Environment]::SetEnvironmentVariable('ANDROID_HOME', 'C:\\Android\\Sdk', 'User')\n\n` +
+    `  Después abre una terminal nueva. Ver docs/BUILD_LOCAL.md.`
+  );
+}
+
 /** Mensaje único, con el sitio donde se instala todo esto. */
 export function mensajeFaltantes(faltan) {
   return (

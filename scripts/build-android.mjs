@@ -202,10 +202,22 @@ paso('Generando el proyecto nativo');
 // __tests__/firmaRelease.test.ts.
 // Al subir de SDK hay que cambiar este número a mano, que es justo lo que se
 // quiere: un cambio del proyecto nativo debe verse en un commit.
+// prebuild reescribe los scripts de package.json ("expo start --android" pasa
+// a "expo run:android") en CADA pasada. Es un efecto secundario suyo sobre un
+// archivo versionado, así que cada build dejaría el repositorio sucio y
+// tocaría acordarse de descartarlo antes de commitear.
+const rutaPackage = path.join(raiz, 'package.json');
+const packageAntes = fs.readFileSync(rutaPackage, 'utf8');
+
 correr('npx', [
   'expo', 'prebuild', '--platform', 'android', '--clean',
   '--template', `expo-template-bare-minimum@${PLANTILLA_NATIVA}`,
 ]);
+
+if (fs.readFileSync(rutaPackage, 'utf8') !== packageAntes) {
+  fs.writeFileSync(rutaPackage, packageAntes);
+  console.log('  (package.json restaurado: prebuild lo reescribe en cada pasada)');
+}
 
 paso('Compilando el AAB');
 // Solo las dos arquitecturas ARM. x86 y x86_64 son para emuladores: ningún
@@ -214,7 +226,12 @@ paso('Compilando el AAB');
 // Pasarlo por línea de comandos y no en gradle.properties es deliberado: así
 // `expo run:android` sigue pudiendo compilar para un emulador.
 // El AAB reparte por ABI, así que al usuario no le cambia nada.
-correr(esWindows ? 'gradlew.bat' : './gradlew', [
+// Ruta ABSOLUTA y entre comillas. Con `shell: true` en Windows, cmd resuelve
+// el comando por PATH y no mira el directorio de trabajo, así que un
+// "gradlew.bat" suelto falla con "no se reconoce como un comando" aunque el
+// cwd sea el correcto y el archivo esté justo ahí.
+const gradlew = path.join(raiz, 'android', esWindows ? 'gradlew.bat' : 'gradlew');
+correr(`"${gradlew}"`, [
   'bundleRelease',
   '-PreactNativeArchitectures=armeabi-v7a,arm64-v8a',
 ], {

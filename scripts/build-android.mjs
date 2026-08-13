@@ -208,7 +208,16 @@ correr('npx', [
 ]);
 
 paso('Compilando el AAB');
-correr(esWindows ? 'gradlew.bat' : './gradlew', ['bundleRelease'], {
+// Solo las dos arquitecturas ARM. x86 y x86_64 son para emuladores: ningún
+// teléfono de la tienda las usa, y cada una multiplica la compilación de los
+// cinco módulos C++ (vision-camera, fast-tflite, worklets, nitro, resize).
+// Pasarlo por línea de comandos y no en gradle.properties es deliberado: así
+// `expo run:android` sigue pudiendo compilar para un emulador.
+// El AAB reparte por ABI, así que al usuario no le cambia nada.
+correr(esWindows ? 'gradlew.bat' : './gradlew', [
+  'bundleRelease',
+  '-PreactNativeArchitectures=armeabi-v7a,arm64-v8a',
+], {
   cwd: path.join(raiz, 'android'),
   env: {
     ...process.env,

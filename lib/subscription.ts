@@ -24,18 +24,20 @@ export const FREE_LIMITS = {
 // y devuelve 429 al pasarse. Prometer "ilimitado" o "sin límites" en el paywall
 // era publicidad engañosa: motivo de rechazo en tienda y de reembolsos.
 //
-// ⚠️ SINCRONIZACIÓN MANUAL con FEATURE_POLICY.premiumLimit del ai-proxy: si un
-// tope cambia allí, HAY QUE cambiarlo aquí (y viceversa). Nada en CI lo verifica
-// porque el proxy corre en Deno y esto en el bundle de la app. Lo correcto a
-// futuro es que el servidor exponga los topes y el paywall los pinte, en vez de
-// duplicar los números en dos repos de código que se despliegan por separado.
+// ⚠️ SINCRONIZACIÓN con FEATURE_POLICY.premiumLimit del ai-proxy: si un tope
+// cambia allí, HAY QUE cambiarlo aquí (y viceversa). El proxy corre en Deno y
+// esto va en el bundle de la app, así que no pueden compartir el módulo — pero
+// __tests__/topesIA.test.ts lee LOS DOS ARCHIVOS y falla si dejan de coincidir.
+// Antes esto era un comentario pidiendo cuidado, y un comentario no detiene
+// nada: prometer en el paywall más de lo que el servidor concede es publicidad
+// engañosa, motivo de rechazo en tienda y de reembolsos.
 export const PREMIUM_LIMITS = {
-  bodyScansPerDay: 5,      // ai-proxy: body_scan.premiumLimit
-  coachPosturePerDay: 30,  // ai-proxy: coach.premiumLimit
-  coachMessagesPerDay: 60, // ai-proxy: coach_chat.premiumLimit
-  foodScansPerDay: 30,     // ai-proxy: food_scan.premiumLimit
-  fridgeScansPerDay: 10,   // ai-proxy: fridge_scan.premiumLimit
-  planRegensPerDay: 5,     // ai-proxy: plan.premiumLimit (regenerar plan)
+  bodyScansPerDay: 1,      // ai-proxy: body_scan.premiumLimit
+  coachPosturePerDay: 10,  // ai-proxy: coach.premiumLimit
+  coachMessagesPerDay: 10, // ai-proxy: coach_chat.premiumLimit
+  foodScansPerDay: 4,      // ai-proxy: food_scan.premiumLimit
+  fridgeScansPerDay: 1,    // ai-proxy: fridge_scan.premiumLimit
+  planRegensPerDay: 1,     // ai-proxy: plan.premiumLimit (regenerar plan)
 };
 
 // `price` es solo un RESPALDO VISUAL en USD para mientras cargan las ofertas de

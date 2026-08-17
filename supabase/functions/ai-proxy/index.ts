@@ -39,25 +39,83 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 // conserva para el resto de funciones, menos sensibles.
 const ALLOWED_MODELS = new Set(['gpt-4o', 'gpt-4o-mini', 'gpt-4o-2024-08-06']);
 
-type FeaturePolicy = { premiumOnly: boolean; freeLimit: number; premiumLimit: number };
+type FeaturePolicy = {
+  premiumOnly: boolean;
+  freeLimit: number;
+  trialLimit: number;
+  premiumLimit: number;
+};
 
 // Política por feature. premiumOnly => bloqueada para free.
-// freeLimit / premiumLimit => topes diarios. El premium es GENEROSO para un
-// humano real pero protege el margen contra abuso/bots (ver PRICING.md:
-// con estos topes el costo máximo absoluto por premium ronda ~$1.7 USD/día;
-// el uso realista es ~$0.10-0.15/día).
+// Los tres números son topes DIARIOS de llamadas.
+//
+// Los topes anteriores (60 chats, 30 escaneos de comida) daban un peor caso de
+// ~$24 USD/mes por usuario contra ~$5 de ingreso neto. Se recortaron a partir
+// del costo real medido por llamada:
+//
+//   escaneo de comida  $0.0079    chat con el coach  $0.0080
+//   escaneo de nevera  $0.0105    coach de postura   $0.0080
+//   escaneo corporal   $0.0092    generar plan       $0.0338
+//
+// Aun así, estos topes NO son el techo del gasto: contar llamadas no distingue
+// un chat de un plan, que cuesta cuatro veces más. El techo de verdad es el
+// presupuesto en dólares de más abajo. Estos números están para que nadie
+// queme el mes en dos días y para que la experiencia sea predecible.
 const FEATURE_POLICY: Record<string, FeaturePolicy> = {
-  body_scan:   { premiumOnly: true,  freeLimit: 0,  premiumLimit: 5 },
-  coach:       { premiumOnly: true,  freeLimit: 0,  premiumLimit: 30 },
-  coach_chat:  { premiumOnly: false, freeLimit: 5,  premiumLimit: 60 },  // chat: prueba gratis
-  scoring:     { premiumOnly: false, freeLimit: 40, premiumLimit: 80 },  // juez de calidad (telemetría)
-  food_scan:   { premiumOnly: false, freeLimit: 3,  premiumLimit: 30 },
-  fridge_scan: { premiumOnly: false, freeLimit: 1,  premiumLimit: 10 },
-  plan:        { premiumOnly: false, freeLimit: 3,  premiumLimit: 5 },
-  suggestion:  { premiumOnly: false, freeLimit: 10, premiumLimit: 20 },
-  notification:{ premiumOnly: false, freeLimit: 10, premiumLimit: 20 },
-  general:     { premiumOnly: false, freeLimit: 20, premiumLimit: 60 }, // incluye destilados de memoria
+  body_scan:   { premiumOnly: true,  freeLimit: 0,  trialLimit: 1,  premiumLimit: 1 },
+  coach:       { premiumOnly: true,  freeLimit: 0,  trialLimit: 10, premiumLimit: 10 },
+  coach_chat:  { premiumOnly: false, freeLimit: 5,  trialLimit: 10, premiumLimit: 10 },
+  scoring:     { premiumOnly: false, freeLimit: 40, trialLimit: 80, premiumLimit: 80 }, // juez de calidad (telemetría)
+  food_scan:   { premiumOnly: false, freeLimit: 2,  trialLimit: 3,  premiumLimit: 4 },
+  fridge_scan: { premiumOnly: false, freeLimit: 0,  trialLimit: 1,  premiumLimit: 1 },
+  plan:        { premiumOnly: false, freeLimit: 1,  trialLimit: 1,  premiumLimit: 1 },
+  suggestion:  { premiumOnly: false, freeLimit: 10, trialLimit: 20, premiumLimit: 20 },
+  notification:{ premiumOnly: false, freeLimit: 10, trialLimit: 20, premiumLimit: 20 },
+  general:     { premiumOnly: false, freeLimit: 20, trialLimit: 40, premiumLimit: 40 }, // incluye destilados de memoria
 };
+
+// Durante la prueba gratis, los tres escaneos de imagen COMPARTEN un solo cupo
+// diario. Con un tope por función, "3 al día" se convertían en 3 de comida + 1
+// de nevera + 1 corporal = 5 imágenes, que es justo lo caro. Comparten
+// contador, así que da igual cómo los reparta.
+const ESCANEOS_DE_IMAGEN = new Set(['body_scan', 'food_scan', 'fridge_scan']);
+const PRUEBA_ESCANEOS_DIA = 3;
+const CLAVE_ESCANEOS_PRUEBA = 'trial_scans';
+
+// ─── PRESUPUESTO EN DINERO: el techo de verdad ───────────
+// Ingreso neto por premium: 24.900 COP menos ~15% de Play ≈ $5.00 USD/mes.
+// El presupuesto de IA es el 40% de eso. Un tope en llamadas siempre se puede
+// burlar eligiendo las caras; este no, porque está en la misma unidad que la
+// pérdida.
+const PRESUPUESTO_PREMIUM_USD = 2.00;
+
+// La prueba de 7 días no paga nada, así que su techo es lo que estamos
+// dispuestos a invertir en adquirir a esa persona. Con 3 escaneos y 10 chats
+// diarios, agotarlo del todo cuesta ~$0.21 en los siete días.
+const PRESUPUESTO_PRUEBA_USD = 0.25;
+
+// El plan gratis también cuesta dinero. Es costo de adquisición, no pérdida,
+// pero necesita techo: sin él, crear cuentas es una fuente infinita de IA.
+const PRESUPUESTO_GRATIS_USD = 0.50;
+
+// Precio USD por 1M de tokens. DUPLICADO A PROPÓSITO de lib/aiMetrics.ts: esto
+// es Deno y aquello es React Native, y no comparten módulos. __tests__/
+// aiPreciosSincronizados.test.ts falla si las dos tablas dejan de coincidir.
+const MODEL_PRICING: Record<string, { inPerM: number; outPerM: number }> = {
+  'gpt-4o': { inPerM: 2.5, outPerM: 10 },
+  'gpt-4o-mini': { inPerM: 0.15, outPerM: 0.6 },
+};
+
+/** Costo real de una llamada. Mismo criterio que lib/aiMetrics.ts: gana el prefijo MÁS LARGO. */
+function costoUsd(model: string | null, inTok: number, outTok: number): number {
+  if (!model) return 0;
+  const key = Object.keys(MODEL_PRICING)
+    .filter((k) => model.startsWith(k))
+    .sort((a, b) => b.length - a.length)[0];
+  if (!key) return 0;
+  const p = MODEL_PRICING[key];
+  return (inTok * p.inPerM + outTok * p.outPerM) / 1_000_000;
+}
 
 // Ranking de COSTO por feature (mayor = más cara = más restrictiva). Se usa
 // cuando lo que declara el cliente y lo que se deriva del payload no coinciden:
@@ -162,24 +220,72 @@ Deno.serve(async (req) => {
     ? strictestPolicy(FEATURE_POLICY[declaredFeature], FEATURE_POLICY[derivedFeature])
     : FEATURE_POLICY[declaredFeature];
 
-  // 4. Entitlement: ¿es premium?
+  // 4. Entitlement: ¿es premium? ¿está en la prueba gratis?
+  // is_trial lo escribe rc-webhook desde period_type. Durante la prueba
+  // is_premium TAMBIÉN es true —RevenueCat concede el entitlement desde el
+  // primer día— así que sin esta segunda columna quien no ha pagado nada entra
+  // con los topes y el presupuesto de quien sí paga.
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('is_premium')
+    .select('is_premium, is_trial')
     .eq('user_id', user.id)
     .single();
   const isPremium = profile?.is_premium === true;
+  const esPrueba = isPremium && profile?.is_trial === true;
 
   if (policy.premiumOnly && !isPremium) {
     return json({ error: 'Esta función es Premium.', code: 'premium_required' }, 402);
   }
 
+  // 4-bis. PRESUPUESTO DEL MES, en dinero. Va antes del contador de llamadas
+  // porque es el límite que de verdad protege el margen: los topes diarios
+  // cuentan llamadas y no distinguen un chat de un plan, que cuesta cuatro
+  // veces más.
+  //
+  // Fail-CLOSED igual que el rate limit: si la BD no responde, no se gasta IA.
+  const presupuesto = esPrueba
+    ? PRESUPUESTO_PRUEBA_USD
+    : isPremium
+      ? PRESUPUESTO_PREMIUM_USD
+      : PRESUPUESTO_GRATIS_USD;
+
+  const { data: restante, error: budgetError } = await supabase.rpc('ai_budget_restante', {
+    p_budget_usd: presupuesto,
+  });
+  if (budgetError) {
+    console.error('ai_budget_restante:', budgetError.message);
+    return json({ error: 'No se pudo verificar el presupuesto. Intenta luego.' }, 503);
+  }
+  if (typeof restante === 'number' && restante <= 0) {
+    console.log(`ai-proxy: presupuesto agotado (${user.id}, ${esPrueba ? 'prueba' : isPremium ? 'premium' : 'gratis'})`);
+    return json({
+      error: esPrueba
+        ? 'Agotaste la IA incluida en la prueba. Al activar Premium se renueva.'
+        : 'Alcanzaste el máximo de IA de este mes. Se renueva el día 1.',
+      code: 'budget_reached',
+    }, 429);
+  }
+
   // 5. Rate limit por feature EFECTIVA (fail-CLOSED: si la BD falla, no
   // gastamos IA). La RPC ya no recibe p_user_id: lo deriva del JWT (auth.uid()),
   // así el proxy no puede cobrarle el consumo a otro usuario ni por error.
-  const limit = isPremium ? policy.premiumLimit : policy.freeLimit;
+  // Durante la prueba los tres escaneos de imagen comparten un único cupo: si
+  // tuvieran uno cada uno, "3 al día" serían 5 imágenes. La clave del contador
+  // cambia, y el reembolso de más abajo tiene que usar ESTA MISMA clave o
+  // devolvería el cupo a un contador que nadie está mirando.
+  const esEscaneoDePrueba = esPrueba && ESCANEOS_DE_IMAGEN.has(effectiveFeature);
+  const claveContador = esEscaneoDePrueba ? CLAVE_ESCANEOS_PRUEBA : effectiveFeature;
+
+  const limit = esEscaneoDePrueba
+    ? PRUEBA_ESCANEOS_DIA
+    : esPrueba
+      ? policy.trialLimit
+      : isPremium
+        ? policy.premiumLimit
+        : policy.freeLimit;
+
   const { data: allowed, error: rlError } = await supabase.rpc('increment_ai_usage', {
-    p_feature: effectiveFeature, p_limit: limit,
+    p_feature: claveContador, p_limit: limit,
   });
   if (rlError) {
     console.error('rate-limit error:', rlError.message);
@@ -254,10 +360,46 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
     );
     const { error: refundError } = await admin.rpc('refund_ai_usage', {
       p_user_id: user.id,
-      p_feature: effectiveFeature,
+      p_feature: claveContador,
     });
     if (refundError) console.error('refund_ai_usage:', refundError.message);
-    else console.log(`ai-proxy: cupo devuelto (${effectiveFeature}) por respuesta inservible`);
+    else console.log(`ai-proxy: cupo devuelto (${claveContador}) por respuesta inservible`);
+  } else {
+    // COBRAR EL COSTO REAL AL PRESUPUESTO. Solo se puede hacer aquí, después
+    // de responder el proveedor, porque hasta ahora no se sabía cuántos tokens
+    // costaba: por eso el presupuesto se comprueba antes y se apunta después.
+    //
+    // El desbordamiento máximo es una llamada: alguien con $0.001 de saldo
+    // pasa el control y gasta $0.034 generando un plan. Acotado y aceptable —
+    // la alternativa sería estimar el costo antes, y una estimación que se
+    // quede corta deja de ser un techo.
+    //
+    // Con la clave de SERVICIO: si esta RPC fuera ejecutable por un usuario,
+    // se le podría inflar el gasto a otra persona hasta dejarla sin IA.
+    try {
+      const uso = JSON.parse(text)?.usage ?? {};
+      const costo = costoUsd(
+        JSON.parse(text)?.model ?? body?.model ?? null,
+        uso.prompt_tokens ?? 0,
+        uso.completion_tokens ?? 0,
+      );
+      if (costo > 0) {
+        const admin = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        );
+        const { error: costError } = await admin.rpc('record_ai_cost', {
+          p_user_id: user.id,
+          p_cost_usd: costo,
+        });
+        if (costError) console.error('record_ai_cost:', costError.message);
+      }
+    } catch (e) {
+      // Nunca romper la respuesta del usuario por no haber podido contabilizar.
+      // Se pierde el apunte de UNA llamada, no el techo: el resto del mes sigue
+      // contando.
+      console.error('ai-proxy: no se pudo registrar el costo:', e instanceof Error ? e.message : String(e));
+    }
   }
 
   return new Response(text, {

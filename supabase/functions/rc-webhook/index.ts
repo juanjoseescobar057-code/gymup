@@ -103,6 +103,19 @@ Deno.serve(async (req) => {
    * un solo event_id para varias personas dejaba a todas menos a una fuera
    * del control de orden, porque el cerrojo de idempotencia es por event_id.
    */
+  // ¿Está esta persona dentro de los 7 días gratis?
+  //
+  // Sin esto, quien prueba es indistinguible de quien paga: RevenueCat concede
+  // el entitlement desde el primer día de la prueba, así que is_premium ya es
+  // true. El proxy usaría con él los topes y el presupuesto de un cliente que
+  // paga ~$5 al mes, cuando puede cancelar el día 7 sin pagar nada — y abrir
+  // otra prueba solo cuesta otra cuenta de Google.
+  //
+  // Solo TRIAL cuenta como prueba. INTRO es un precio introductorio: paga
+  // menos, pero paga, así que va con presupuesto de premium.
+  const esPeriodoDePrueba: boolean | null =
+    typeof event.period_type === 'string' ? event.period_type === 'TRIAL' : null;
+
   async function aplicar(
     lockKey: string,
     userId: string | null,
@@ -118,6 +131,7 @@ Deno.serve(async (req) => {
       p_environment: environment,
       p_is_premium: isPremium,
       p_state_changing: stateChanging,
+      p_is_trial: esPeriodoDePrueba,
     });
     if (error) {
       console.error('rc-webhook apply_rc_event:', error.message);

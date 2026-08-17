@@ -10,10 +10,18 @@ export type Feature = 'body_scan' | 'coach' | 'coach_chat' | 'food_scan' | 'rege
 
 // Qué puede hacer el plan GRATIS. Todo tiene tope diario; lo que está en false
 // es exclusivo de Premium.
+// El plan gratis NO consume IA salvo para generar su plan de entrenamiento, y
+// aun así es una app completa: progresión automática, calentamiento filtrado
+// por lesiones, registro de series, récords, macros a mano, rachas y el coach
+// de reglas de lib/coachReglas.ts. Nada de eso necesita un token.
+//
+// Antes había 3 escaneos y 5 mensajes de chat gratis al día. Costaban ~$0.72
+// al mes por alguien que no paga nada — más que todo el presupuesto del plan
+// gratis. La degustación de la IA es la prueba de 7 días, no un goteo perpetuo.
 export const FREE_LIMITS = {
-  foodScansPerDay: 3,
-  fridgeScansPerDay: 1,
-  coachMessagesPerDay: 5, // el chat con el coach IA se prueba gratis (5/día)
+  foodScansPerDay: 0,     // premium
+  fridgeScansPerDay: 0,   // premium
+  coachMessagesPerDay: 0, // premium
   bodyScan: false,        // premium
   coach: false,           // premium (coach de postura)
   regeneratePlan: false,  // premium

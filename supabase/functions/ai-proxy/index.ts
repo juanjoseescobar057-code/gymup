@@ -62,16 +62,30 @@ type FeaturePolicy = {
 // presupuesto en dólares de más abajo. Estos números están para que nadie
 // queme el mes en dos días y para que la experiencia sea predecible.
 const FEATURE_POLICY: Record<string, FeaturePolicy> = {
+// El plan GRATIS no consume IA salvo para generar su plan de entrenamiento.
+// No es tacañería: es que el valor del plan gratis no está en la IA. La
+// progresión (progressionEngine), el calentamiento filtrado por lesiones
+// (warmupMath), los récords, las rachas y el coach de reglas
+// (lib/coachReglas.ts) son deterministas y no cuestan un token. La IA es la
+// capa de más, y esa se paga.
+//
+// premiumOnly en vez de freeLimit: 0 a propósito. Un tope de cero devuelve 429
+// "alcanzaste el límite de hoy", que es mentira y encima sugiere que mañana
+// podrá. premiumOnly devuelve 402 y el cliente abre el paywall, que es lo
+// honesto y además lo que convierte.
+const FEATURE_POLICY: Record<string, FeaturePolicy> = {
   body_scan:   { premiumOnly: true,  freeLimit: 0,  trialLimit: 1,  premiumLimit: 1 },
   coach:       { premiumOnly: true,  freeLimit: 0,  trialLimit: 10, premiumLimit: 10 },
-  coach_chat:  { premiumOnly: false, freeLimit: 5,  trialLimit: 10, premiumLimit: 10 },
+  coach_chat:  { premiumOnly: true,  freeLimit: 0,  trialLimit: 10, premiumLimit: 10 },
+  food_scan:   { premiumOnly: true,  freeLimit: 0,  trialLimit: 3,  premiumLimit: 4 },
+  fridge_scan: { premiumOnly: true,  freeLimit: 0,  trialLimit: 1,  premiumLimit: 1 },
   scoring:     { premiumOnly: false, freeLimit: 40, trialLimit: 80, premiumLimit: 80 }, // juez de calidad (telemetría)
-  food_scan:   { premiumOnly: false, freeLimit: 2,  trialLimit: 3,  premiumLimit: 4 },
-  fridge_scan: { premiumOnly: false, freeLimit: 0,  trialLimit: 1,  premiumLimit: 1 },
+  // El plan SÍ es gratis: sin él la app está vacía y no hay nada que probar.
+  // Es costo de adquisición (~$0.034 por generación), no pérdida.
   plan:        { premiumOnly: false, freeLimit: 1,  trialLimit: 1,  premiumLimit: 1 },
-  suggestion:  { premiumOnly: false, freeLimit: 10, trialLimit: 20, premiumLimit: 20 },
-  notification:{ premiumOnly: false, freeLimit: 10, trialLimit: 20, premiumLimit: 20 },
-  general:     { premiumOnly: false, freeLimit: 20, trialLimit: 40, premiumLimit: 40 }, // incluye destilados de memoria
+  suggestion:  { premiumOnly: false, freeLimit: 3,  trialLimit: 20, premiumLimit: 20 },
+  notification:{ premiumOnly: false, freeLimit: 3,  trialLimit: 20, premiumLimit: 20 },
+  general:     { premiumOnly: false, freeLimit: 5,  trialLimit: 40, premiumLimit: 40 }, // incluye destilados de memoria
 };
 
 // Durante la prueba gratis, los tres escaneos de imagen COMPARTEN un solo cupo
@@ -94,9 +108,10 @@ const PRESUPUESTO_PREMIUM_USD = 2.00;
 // diarios, agotarlo del todo cuesta ~$0.21 en los siete días.
 const PRESUPUESTO_PRUEBA_USD = 0.25;
 
-// El plan gratis también cuesta dinero. Es costo de adquisición, no pérdida,
-// pero necesita techo: sin él, crear cuentas es una fuente infinita de IA.
-const PRESUPUESTO_GRATIS_USD = 0.50;
+// El plan gratis casi no toca la IA (solo genera su plan de entrenamiento),
+// así que su techo es pequeño. Sigue haciendo falta: sin él, crear cuentas
+// sería una fuente infinita de generaciones de plan a $0.034 cada una.
+const PRESUPUESTO_GRATIS_USD = 0.15;
 
 // Precio USD por 1M de tokens. DUPLICADO A PROPÓSITO de lib/aiMetrics.ts: esto
 // es Deno y aquello es React Native, y no comparten módulos. __tests__/

@@ -16,6 +16,7 @@ import { getWaterCount } from './water';
 import { loadHealthSafe } from './health';
 import { healthToPrompt, HEALTH_UNKNOWN_DIRECTIVE } from './healthMath';
 import { projectGoal, type WeightPoint, type GoalProjection } from './goalMath';
+import { estadoDelDia, type Reincorporacion } from './planCalendario';
 
 export const GOAL_LABELS: Record<string, string> = {
   muscle_gain: 'ganar músculo',
@@ -66,6 +67,14 @@ export type CoachSnapshot = {
   } | null;
   topLifts: TopLift[];
   lastBodyScan: { score: number | null; fatPct: number | null; focus: string[] } | null;
+  /**
+   * Qué hacer con las cargas si vuelve de una pausa. null = no viene de una.
+   * Es la diferencia entre un coach que le propone a alguien las mismas series
+   * de hace tres semanas y uno que sabe que el cuerpo se desentrena.
+   */
+  reincorporacion: Reincorporacion | null;
+  /** El día de hoy era descanso y se saltó porque venía de una pausa. */
+  saltoDescanso: boolean;
   // ── Actividad reciente EN LA APP (el coach ve lo que la persona hace) ──
   daysSinceLastWorkout: number | null;   // null = sin entrenos registrados
   workoutsLast7Days: number;
@@ -242,7 +251,17 @@ export async function fetchCoachSnapshot(args: {
     : null;
 
   // ── Plan de hoy ──
-  const todayIndex = Math.min(profile.current_plan_day ?? 0, 6);
+  // El día NO sale de current_plan_day directamente: ese contador solo avanza
+  // al completar un entrenamiento, así que a quien vuelve tras diez días le
+  // proponía el mismo día que dejó, descanso incluido. estadoDelDia lo deriva
+  // del calendario y, si vuelve de una pausa, se salta el descanso.
+  const estadoHoy = estadoDelDia({
+    hoyISO: new Date().toISOString().slice(0, 10),
+    ultimoEntrenoISO: sessions[0]?.started_at ?? null,
+    diaGuardado: profile.current_plan_day ?? 0,
+    dias: (trainingPlan?.plan_data?.days ?? []).map((d: any) => (d?.type === 'rest' ? 'rest' : 'workout')),
+  });
+  const todayIndex = estadoHoy.diaDelPlan;
   const day = trainingPlan?.plan_data?.days?.[todayIndex];
   const todayPlan = day
     ? {
@@ -286,6 +305,8 @@ export async function fetchCoachSnapshot(args: {
     todayPlan,
     topLifts,
     lastBodyScan,
+    reincorporacion: estadoHoy.reincorporacion,
+    saltoDescanso: estadoHoy.saltoDescanso,
     daysSinceLastWorkout,
     workoutsLast7Days,
     lastSessionTopSets: lastSessionTopSets.slice(0, 8),
@@ -387,6 +408,29 @@ export function snapshotToPrompt(s: CoachSnapshot): string {
     L.push(`- Hoy ya entrenó${s.workoutsLast7Days > 1 ? ` (${s.workoutsLast7Days} entrenos en los últimos 7 días)` : ''}.`);
   } else {
     L.push(`- Último entreno: hace ${s.daysSinceLastWorkout} día${s.daysSinceLastWorkout === 1 ? '' : 's'} · ${s.workoutsLast7Days} entreno${s.workoutsLast7Days === 1 ? '' : 's'} en los últimos 7 días.`);
+  }
+
+  // Volver de una pausa cambia lo que hay que recomendar. Sin esto, el coach
+  // le proponía a alguien que estuvo tres semanas fuera las mismas cargas que
+  // movía antes de parar, que es como se lesiona la gente al reincorporarse.
+  if (s.reincorporacion) {
+    L.push(
+      `- VUELVE DE UNA PAUSA de ${s.reincorporacion.diasFuera} días. Ajusta las cargas al ` +
+        `${Math.round(s.reincorporacion.factorCarga * 100)}% de lo que movía y prioriza la técnica ` +
+        `sobre el peso. No le propongas sus marcas anteriores.` +
+        (s.reincorporacion.sugerirReplanificar
+          ? ' Tras tanto tiempo, sugiérele rehacer el plan si te lo pregunta.'
+          : ''),
+    );
+    L.push(
+      `- Al hablar de la pausa: sin reproche y sin dramatizar. Volvió, que es lo difícil.`,
+    );
+  }
+  if (s.saltoDescanso) {
+    L.push(
+      `- Hoy tocaba descanso por calendario, pero se le propone entrenar porque venía de días parado. ` +
+        `Si pregunta por qué, explícaselo así.`,
+    );
   }
   if (s.lastSessionTopSets.length) {
     L.push(

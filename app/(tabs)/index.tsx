@@ -23,6 +23,8 @@ import { captureError } from '../../lib/monitoring';
 import { track } from '../../lib/analytics';
 import { getWaterCount, addWater, WATER_GOAL } from '../../lib/water';
 import { AVISO_RECUPERACION } from '../../lib/recoveryMode';
+import { calcularDiaDeHoy, type EstadoDelDia } from '../../lib/diaDeHoy';
+import { mensajeDeRegreso } from '../../lib/motivacion';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
@@ -136,9 +138,50 @@ export default function DashboardScreen() {
   // Recalcula cuando cambian los logs del día (reactivo).
   const totals = useMemo(() => getDailyTotals(), [todayFoodLogs, getDailyTotals]);
 
-  // Día actual del plan — basado en progreso real del usuario
-  const todayIndex = Math.min(profile?.current_plan_day ?? 0, 6);
+  // Día actual del plan — POR CALENDARIO, no por el contador guardado.
+  //
+  // Antes esto era `Math.min(profile?.current_plan_day ?? 0, 6)`, y ese
+  // contador solo avanzaba al terminar un entrenamiento. Quien paraba diez
+  // días volvía al mismo día que dejó, descanso incluido: la app le proponía
+  // descansar después de diez días parado.
+  //
+  // Mientras llega la consulta se usa el contador viejo: es lo que se veía
+  // antes, así que en el peor caso la pantalla no empeora.
+  const [estadoHoy, setEstadoHoy] = useState<EstadoDelDia | null>(null);
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    let vivo = true;
+    calcularDiaDeHoy({
+      userId: profile.user_id,
+      currentPlanDay: profile.current_plan_day,
+      dias: trainingPlan?.plan_data?.days,
+    })
+      .then((e) => { if (vivo) setEstadoHoy(e); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [profile?.user_id, profile?.current_plan_day, trainingPlan]);
+
+  const todayIndex = estadoHoy?.diaDelPlan ?? Math.min(profile?.current_plan_day ?? 0, 6);
   const todayPlan = trainingPlan?.plan_data?.days?.[todayIndex];
+
+  // El saludo de quien vuelve.
+  //
+  // El pique se apaga en modo recuperación y solo ahí. Los mensajes ya están
+  // construidos para hablar de constancia y nunca de cuerpos —hay tests que lo
+  // barren—, así que son seguros para quien no completó el tamizaje. Pero para
+  // quien SÍ lo completó y salió señal de trastorno de la conducta
+  // alimentaria, hasta "tu ex ha sido más constante" sobra.
+  //
+  // La semilla es el día del mes: el texto no parpadea al repintar la pantalla,
+  // pero cambia de un día para otro.
+  const regreso = useMemo(() => {
+    if (estadoHoy?.diasSinEntrenar == null) return null;
+    return mensajeDeRegreso({
+      dias: estadoHoy.diasSinEntrenar,
+      sinComparaciones: recuperacion.activo,
+      semilla: new Date().getDate(),
+    });
+  }, [estadoHoy?.diasSinEntrenar, recuperacion.activo]);
 
   // Qué es lo que realmente muestra la tarjeta de abajo. Antes la cabecera
   // decía "DÍA 2 DE 7", un número de índice que no le dice nada a nadie: ni
@@ -358,6 +401,24 @@ export default function DashboardScreen() {
 
         {/* Sin conexión: informar, no bloquear. Lo de abajo sigue usable. */}
         <OfflineBanner disponible="Puedes entrenar y registrar tus series. El coach IA y la sincronización vuelven con la señal." />
+
+        {/* Quien vuelve tras días parado. Va ARRIBA porque es lo primero que
+            hay que reconocer: sin esto la app hacía como si no hubieran pasado
+            dos semanas, y esa indiferencia es la que hace desinstalar.
+            El pique se apaga solo en modo recuperación (ver `regreso`). */}
+        {regreso && (
+          <View
+            style={s.regresoCard}
+            accessible
+            accessibilityLabel={`${regreso.titulo}. ${regreso.cuerpo}`}
+          >
+            <Text style={s.regresoTitulo}>{regreso.titulo}</Text>
+            <Text style={s.regresoCuerpo}>{regreso.cuerpo}</Text>
+            {estadoHoy?.reincorporacion && (
+              <Text style={s.regresoNota}>{estadoHoy.reincorporacion.nota}</Text>
+            )}
+          </View>
+        )}
 
         {/* Macros del día. En modo recuperación NO se muestran: la app
             promete programar sin metas de peso ni estética y luego enseñaba
@@ -702,6 +763,15 @@ const s = StyleSheet.create({
     backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border,
     padding: Spacing.md, marginHorizontal: Spacing.lg, marginBottom: Spacing.md,
   },
+  // Borde de acento: es una tarjeta de bienvenida, no una advertencia. Con el
+  // borde de error parecería un regaño, que es justo lo que no queremos.
+  regresoCard: {
+    backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.accent,
+    padding: Spacing.md, marginHorizontal: Spacing.lg, marginBottom: Spacing.md, gap: 4,
+  },
+  regresoTitulo: { fontFamily: Fonts.headingSemi, fontSize: 16, color: Colors.accent },
+  regresoCuerpo: { fontFamily: Fonts.bodyMedium, fontSize: 15, color: Colors.textPrimary },
+  regresoNota: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
   recoveryTxt: {
     fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 20,
   },

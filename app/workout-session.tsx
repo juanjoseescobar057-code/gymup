@@ -25,6 +25,7 @@ import { calentamientoPara, minutosEstimados, seriesDeAproximacion } from '../li
 import { uuidV4 } from '../lib/ids';
 import { completeWorkout } from '../lib/workoutCompletion';
 import { adaptSessionExercises, sessionAdaptationMessage } from '../lib/sessionAdaptation';
+import { calcularDiaDeHoy, olvidarUltimoEntreno, type EstadoDelDia } from '../lib/diaDeHoy';
 import { exercisesForGroup, EXERCISE_LIBRARY, type LibraryExercise } from '../constants/exercises';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../constants/theme';
 
@@ -39,7 +40,24 @@ export default function WorkoutSessionScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const todayIndex = Math.min(profile?.current_plan_day ?? 0, 6);
+  // Por calendario. Es la pantalla donde más importa: abrir el entrenamiento
+  // del día que se dejó hace dos semanas significa proponer las cargas de
+  // entonces. Ver lib/planCalendario.ts.
+  const [estadoHoy, setEstadoHoy] = useState<EstadoDelDia | null>(null);
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    let vivo = true;
+    calcularDiaDeHoy({
+      userId: profile.user_id,
+      currentPlanDay: profile.current_plan_day,
+      dias: trainingPlan?.plan_data?.days,
+    })
+      .then((e) => { if (vivo) setEstadoHoy(e); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [profile?.user_id, profile?.current_plan_day, trainingPlan]);
+
+  const todayIndex = estadoHoy?.diaDelPlan ?? Math.min(profile?.current_plan_day ?? 0, 6);
   const todayPlan = trainingPlan?.plan_data?.days?.[todayIndex];
   const planExercises = todayPlan?.exercises ?? [];
   const [sessionConfig, setSessionConfig] = useState<{ minutes: number; energy: number; soreness: number } | null>(null);
@@ -463,6 +481,12 @@ export default function WorkoutSessionScreen() {
       // reporta pero no puede tumbar la celebración ni pedir reintento.
       if (profile) {
         try {
+          // La caché de "último entrenamiento" guarda la fecha ANTERIOR a esta
+          // sesión. Sin invalidarla, durante los siguientes segundos la app
+          // seguiría creyendo que la persona lleva días sin entrenar y le
+          // enseñaría el mensaje de bienvenida justo después de entrenar.
+          olvidarUltimoEntreno();
+
           const nextDay = ((profile.current_plan_day ?? 0) + 1) % 7;
           const { data: updatedProfile, error: updateError } = await supabase
             .from('user_profiles')

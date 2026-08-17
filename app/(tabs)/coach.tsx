@@ -21,6 +21,7 @@ import ReportContentButton from '../../Components/ReportContentButton';
 import CameraDisclosureModal from '../../Components/CameraDisclosureModal';
 import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../../lib/cameraConsent';
 import { isPoseCameraMarkedUnsupported } from '../../lib/pose/cameraSupport';
+import { calcularDiaDeHoy, type EstadoDelDia } from '../../lib/diaDeHoy';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
 import OfflineBanner from '../../Components/OfflineBanner';
@@ -186,7 +187,24 @@ export default function CoachScreen() {
       .catch(() => {});
   }, []));
 
-  const todayIndex = Math.min(profile?.current_plan_day ?? 0, 6);
+  // Por calendario, no por el contador guardado: ver lib/planCalendario.ts.
+  // Si esta pantalla y la portada usaran criterios distintos, el coach
+  // preseleccionaría ejercicios de un día que la portada no muestra.
+  const [estadoHoy, setEstadoHoy] = useState<EstadoDelDia | null>(null);
+  useEffect(() => {
+    if (!profile?.user_id) return;
+    let vivo = true;
+    calcularDiaDeHoy({
+      userId: profile.user_id,
+      currentPlanDay: profile.current_plan_day,
+      dias: trainingPlan?.plan_data?.days,
+    })
+      .then((e) => { if (vivo) setEstadoHoy(e); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [profile?.user_id, profile?.current_plan_day, trainingPlan]);
+
+  const todayIndex = estadoHoy?.diaDelPlan ?? Math.min(profile?.current_plan_day ?? 0, 6);
   const todayPlan = trainingPlan?.plan_data?.days?.[todayIndex];
   const todayExercises: string[] = todayPlan?.exercises?.map((e: any) => e.name) ?? [];
 

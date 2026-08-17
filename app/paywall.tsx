@@ -5,7 +5,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'rea
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { PLANS, PREMIUM_BENEFITS } from '../lib/subscription';
+import { PLANS, PREMIUM_BENEFITS, FREE_HIGHLIGHTS } from '../lib/subscription';
 import { purchasePlan, restorePurchases, checkPremium } from '../lib/purchases';
 import { track } from '../lib/analytics';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../constants/theme';
@@ -128,11 +128,23 @@ export default function PaywallScreen() {
 
       <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
         <Text style={s.title} accessibilityRole="header">GymUp <Text style={{ color: Colors.accent }}>Premium</Text></Text>
-        <Text style={s.sub}>Desbloquea todo GymUp. Estos son los cupos diarios reales de cada función.</Text>
+        <Text style={s.sub}>Lo que Premium añade a lo que ya tienes. Estos son los cupos diarios reales.</Text>
 
         <View style={s.benefits}>
           {PREMIUM_BENEFITS.map((b, i) => (
             <Text key={i} style={s.benefit}>{b}</Text>
+          ))}
+        </View>
+
+        {/* Qué conserva si NO paga. Enseñarlo parece ir contra la conversión y
+            es al revés: sin esto, el paywall se lee como "la app no sirve sin
+            pagar", y de ahí se sale desinstalando, no comprando. Todo lo de esta
+            lista es determinista y no cuesta un token, así que se puede
+            prometer sin letra pequeña. */}
+        <View style={s.freeBox}>
+          <Text style={s.freeTitle}>Esto es tuyo sin pagar nada</Text>
+          {FREE_HIGHLIGHTS.map((b, i) => (
+            <Text key={i} style={s.freeItem}>{b}</Text>
           ))}
         </View>
 
@@ -211,6 +223,20 @@ const s = StyleSheet.create({
   sub: { fontFamily: Fonts.body, fontSize: 15, color: Colors.textSecondary, marginBottom: Spacing.xl },
   benefits: { backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: 12, marginBottom: Spacing.xl },
   benefit: { fontFamily: Fonts.bodyMedium, fontSize: 15, color: Colors.textPrimary },
+  // La caja de lo gratuito va deliberadamente en segundo plano: informa sin
+  // competir con lo que se está vendiendo. Aun así respeta el piso legible de
+  // 13px y el contraste AA de Colors.textSecondary (ver __tests__/contrast).
+  freeBox: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radii.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: 6,
+  },
+  freeTitle: { fontFamily: Fonts.headingSemi, fontSize: 15, color: Colors.textSecondary, marginBottom: 2 },
+  freeItem: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary },
   planCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1.5, borderColor: Colors.border, padding: Spacing.md, marginBottom: 10 },
   planSel: { borderColor: Colors.accent, backgroundColor: Colors.bgSelected },
   planName: { fontFamily: Fonts.headingSemi, fontSize: 18, color: Colors.textPrimary },

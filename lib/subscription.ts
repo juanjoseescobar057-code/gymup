@@ -58,17 +58,47 @@ export const PLANS = {
 
 // Los beneficios se arman con los números reales para que no puedan desviarse
 // del texto: si alguien toca PREMIUM_LIMITS, el paywall cambia con él.
+// Lo que Premium AÑADE. Ni una línea de aquí puede describir algo que el plan
+// gratis ya tenga: eso es publicidad engañosa y además decepciona justo cuando
+// la persona acaba de pagar.
+//
+// Ya pasó dos veces:
+//   • "📈 Predicción de resultados" — goalMath.projectGoal es lógica pura y se
+//     pinta en app/(tabs)/progress.tsx sin mirar el plan. El plan gratis
+//     SIEMPRE la tuvo.
+//   • "🧠 Coach de postura" compitiendo con un "coach" que el plan gratis
+//     también tiene ahora (lib/coachReglas.ts), solo que de reglas. Dos cosas
+//     distintas con el mismo nombre confunden a quien intenta decidir.
+//
+// Y nada de "(gratis: 0)": comparar contra cero no vende, solo suena a castigo.
+//
+// NO poner "sin anuncios": la app no tiene anuncios en ninguna versión, así
+// que sería cobrar por quitar algo que no existe. Si algún día se meten
+// anuncios en el plan gratis, vuelve esa línea — no antes.
+//
+// Los números salen de PREMIUM_LIMITS y no se escriben a mano: prometer más de
+// lo que el servidor concede es motivo de rechazo en tienda y de reembolsos.
+// __tests__/topesIA.test.ts comprueba que esos topes son los que aplica el proxy.
 export const PREMIUM_BENEFITS = [
-  `📷 Análisis corporal con IA: hasta ${PREMIUM_LIMITS.bodyScansPerDay} al día`,
-  `🧠 Coach de postura: ${PREMIUM_LIMITS.coachPosturePerDay} análisis diarios`,
-  `💬 Chat con tu coach: ${PREMIUM_LIMITS.coachMessagesPerDay} mensajes al día (gratis: ${FREE_LIMITS.coachMessagesPerDay})`,
-  `🍽️ Escaneo de comida: hasta ${PREMIUM_LIMITS.foodScansPerDay} al día (gratis: ${FREE_LIMITS.foodScansPerDay})`,
-  `🥗 Escaneo de nevera: hasta ${PREMIUM_LIMITS.fridgeScansPerDay} al día (gratis: ${FREE_LIMITS.fridgeScansPerDay})`,
-  `🔄 Regenera tu plan hasta ${PREMIUM_LIMITS.planRegensPerDay} veces al día`,
-  '📈 Predicción de resultados',
-  // NO poner "sin anuncios": la app no tiene anuncios en ninguna versión, así
-  // que sería cobrar por quitar algo que no existe. Si algún día se meten
-  // anuncios en el plan gratis, vuelve esta línea — no antes.
+  `💬 Pregúntale lo que quieras a tu coach: ${PREMIUM_LIMITS.coachMessagesPerDay} mensajes al día`,
+  `🎥 Coach en vivo: te cuenta las repeticiones y te corrige la técnica con la cámara, ${PREMIUM_LIMITS.coachPosturePerDay} veces al día`,
+  `🍽️ Apunta la comida con una foto en vez de escribirla: ${PREMIUM_LIMITS.foodScansPerDay} escaneos al día`,
+  `🥗 Fotografía tu nevera y te dice qué cocinar: ${PREMIUM_LIMITS.fridgeScansPerDay} al día`,
+  `📷 Análisis corporal con IA: ${PREMIUM_LIMITS.bodyScansPerDay} al día`,
+  `🔄 Rehaz tu plan con IA cuando cambien tus circunstancias: ${PREMIUM_LIMITS.planRegensPerDay} al día`,
+];
+
+// Lo que el plan GRATIS ya incluye. No es relleno del paywall: quien está
+// decidiendo necesita saber qué conserva si no paga, y todo esto es
+// determinista y no cuesta un token, así que se puede prometer sin letra
+// pequeña. Enseñarlo también evita la lectura de "la app no sirve sin pagar",
+// que es la que hace desinstalar.
+export const FREE_HIGHLIGHTS = [
+  '🏋️ Tu plan de entrenamiento completo, generado con IA',
+  '📈 Progresión automática: cuándo subir el peso y cuándo bajar, según tus series',
+  '🔥 Calentamiento y estiramientos filtrados por tus lesiones y condiciones',
+  '📊 Registro de series, récords, historial y proyección hacia tu meta',
+  '🍎 Macros y comidas a mano, agua, peso y medidas',
 ];
 
 export type GateResult = { allowed: boolean; reason?: string };

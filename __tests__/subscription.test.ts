@@ -1,7 +1,13 @@
 // __tests__/subscription.test.ts
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canUseFeature, FREE_LIMITS } from '../lib/subscription.ts';
+import {
+  canUseFeature,
+  FREE_LIMITS,
+  PREMIUM_LIMITS,
+  PREMIUM_BENEFITS,
+  FREE_HIGHLIGHTS,
+} from '../lib/subscription.ts';
 
 test('premium puede todo', () => {
   assert.equal(canUseFeature('body_scan', true).allowed, true);
@@ -33,4 +39,48 @@ test('los topes gratis de IA están todos en cero', () => {
 test('los bloqueos traen una razón legible', () => {
   const r = canUseFeature('body_scan', false);
   assert.ok(r.reason && r.reason.length > 0);
+});
+
+// ── Lo que promete el paywall ──
+// Cobrar por algo que el plan gratis ya tiene decepciona justo cuando la
+// persona acaba de pagar, y en tienda es motivo de rechazo. Ya se coló dos
+// veces: la proyección hacia la meta (goalMath es puro y se pinta sin mirar el
+// plan) y un "coach de postura" compitiendo con el coach de reglas que el plan
+// gratis también tiene.
+
+test('el paywall no vende nada que el plan gratis ya incluya', () => {
+  const texto = PREMIUM_BENEFITS.join(' ').toLowerCase();
+  for (const yaEsGratis of ['predicción', 'proyección', 'racha', 'récord', 'historial', 'calentamiento']) {
+    assert.ok(!texto.includes(yaEsGratis), `el paywall vende "${yaEsGratis}", que el plan gratis ya tiene`);
+  }
+});
+
+test('el paywall no promete nada ilimitado', () => {
+  // Premium tiene topes reales que aplica el servidor. Prometer "ilimitado" es
+  // publicidad engañosa y genera reembolsos.
+  const texto = PREMIUM_BENEFITS.join(' ').toLowerCase();
+  assert.ok(!/ilimitad|sin límite|sin restricc/.test(texto));
+});
+
+test('el paywall no compara contra cero', () => {
+  // "(gratis: 0)" no vende: suena a castigo por no haber pagado.
+  assert.ok(!PREMIUM_BENEFITS.join(' ').includes('gratis: 0'));
+});
+
+test('cada tope que promete el paywall sale de PREMIUM_LIMITS', () => {
+  // Escribir los números a mano es cómo se prometen topes que el servidor no
+  // concede. Todo número que aparezca tiene que ser uno de los reales.
+  const permitidos = new Set(Object.values(PREMIUM_LIMITS).map(String));
+  for (const b of PREMIUM_BENEFITS) {
+    for (const n of b.match(/\d+/g) ?? []) {
+      assert.ok(permitidos.has(n), `el paywall promete "${n}" y no es ningún tope de PREMIUM_LIMITS`);
+    }
+  }
+});
+
+test('lo que se anuncia como gratis no requiere pagar', () => {
+  const texto = FREE_HIGHLIGHTS.join(' ').toLowerCase();
+  for (const esPremium of ['escane', 'chat', 'coach en vivo', 'análisis corporal', 'nevera']) {
+    assert.ok(!texto.includes(esPremium), `se anuncia "${esPremium}" como gratis y es de pago`);
+  }
 });

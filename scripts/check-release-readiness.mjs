@@ -72,6 +72,22 @@ for (const name of ['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN']) {
   if (!process.env[name]) avisos.push(`Observabilidad: falta ${name}; los errores llegarán sin simbolicar.`);
 }
 
+// La clave de RevenueCat se HORNEA en el bundle al compilar. Sin ella,
+// lib/purchases.ts corta en `if (!P || !API_KEY) return null` y el paywall no
+// hace absolutamente nada: el botón de comprar no responde y no hay ningún
+// error, ni en pantalla ni en Sentry. No se arregla configurando nada después
+// del build — hay que volver a compilar.
+//
+// Se lee del .env del disco y no de process.env porque a este script lo lanza
+// node directamente, sin que Expo haya cargado el archivo.
+const claveRc = leer(path.join(root, '.env')).match(/^\s*EXPO_PUBLIC_RC_API_KEY_ANDROID\s*=\s*(.+)$/m)?.[1]?.trim();
+if (!claveRc) {
+  avisos.push(
+    'Compras: falta EXPO_PUBLIC_RC_API_KEY_ANDROID en .env, así que este build ' +
+      'saldrá con el paywall inerte (sin error visible). Ver .env.example.',
+  );
+}
+
 if (avisos.length) {
   console.warn('Estado de publicación (informativo, no bloquea):\n- ' + avisos.join('\n- '));
 } else {

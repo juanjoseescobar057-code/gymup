@@ -13,11 +13,21 @@
 // ─────────────────────────────────────────────────────────
 
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const CARPETAS = ['scripts', 'plugins'];
 const EXTENSIONES = ['.mjs', '.js', '.cjs'];
+
+// Las Edge Functions corren en Deno, así que ni tsc las mira (no están en el
+// tsconfig) ni node --check puede parsear TypeScript. Quedaban fuera de todo,
+// y el único momento en que se descubría un error de sintaxis era al
+// desplegar — con el despliegue a medias.
+//
+// Pasó de verdad: una edición dejó `const FEATURE_POLICY` declarado DOS veces
+// en ai-proxy. Todo en verde, y el error salió del servidor de Supabase.
+const FUNCIONES = 'supabase/functions';
 
 const archivos = CARPETAS.flatMap((carpeta) => {
   const dir = path.join(process.cwd(), carpeta);
@@ -42,9 +52,48 @@ for (const archivo of archivos) {
   }
 }
 
-if (fallos) {
-  console.error(`Sintaxis: ${fallos} de ${archivos.length} archivos con errores.`);
+// ── Las Edge Functions (TypeScript de Deno) ──
+// esbuild transforma un archivo suelto sin resolver imports, así que sirve
+// como analizador sintáctico: los `import` de https:// y npm: de Deno no le
+// molestan porque no intenta seguirlos.
+
+const requerir = createRequire(import.meta.url);
+let esbuild;
+try {
+  esbuild = requerir('esbuild');
+} catch {
+  // Fallar, no avisar. Saltárselo en silencio devuelve exactamente el agujero
+  // por el que se coló el error que motivó esto.
+  console.error('✖ No pude cargar esbuild, así que no puedo revisar supabase/functions.');
+  console.error('  Instálalo con: npm i -D esbuild');
   process.exit(1);
 }
 
-console.log(`Sintaxis OK (${archivos.length} scripts y plugins)`);
+const dirFunciones = path.join(process.cwd(), FUNCIONES);
+const funciones = fs.existsSync(dirFunciones)
+  ? fs
+      .readdirSync(dirFunciones, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => path.join(FUNCIONES, d.name, 'index.ts'))
+      .filter((p) => fs.existsSync(path.join(process.cwd(), p)))
+  : [];
+
+for (const archivo of funciones) {
+  try {
+    esbuild.transformSync(fs.readFileSync(archivo, 'utf8'), { loader: 'ts' });
+  } catch (e) {
+    fallos++;
+    const detalle = (e.errors ?? [])
+      .map((x) => `  ${x.text}${x.location ? ` (línea ${x.location.line})` : ''}`)
+      .join('\n');
+    console.error(`✖ ${archivo}\n${detalle || String(e)}\n`);
+  }
+}
+
+const total = archivos.length + funciones.length;
+if (fallos) {
+  console.error(`Sintaxis: ${fallos} de ${total} archivos con errores.`);
+  process.exit(1);
+}
+
+console.log(`Sintaxis OK (${archivos.length} scripts y plugins, ${funciones.length} edge functions)`);

@@ -61,7 +61,6 @@ type FeaturePolicy = {
 // un chat de un plan, que cuesta cuatro veces más. El techo de verdad es el
 // presupuesto en dólares de más abajo. Estos números están para que nadie
 // queme el mes en dos días y para que la experiencia sea predecible.
-const FEATURE_POLICY: Record<string, FeaturePolicy> = {
 // El plan GRATIS no consume IA salvo para generar su plan de entrenamiento.
 // No es tacañería: es que el valor del plan gratis no está en la IA. La
 // progresión (progressionEngine), el calentamiento filtrado por lesiones

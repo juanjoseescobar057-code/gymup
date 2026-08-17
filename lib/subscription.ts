@@ -52,8 +52,18 @@ export const PREMIUM_LIMITS = {
 // la tienda: el precio que se cobra de verdad es el localizado que devuelve
 // RevenueCat (priceString), y es el que pinta el paywall. Ver app/paywall.tsx.
 export const PLANS = {
-  monthly: { id: 'gymup_premium_monthly', price: '$9.99', period: 'mes' },
-  yearly:  { id: 'gymup_premium_yearly',  price: '$79.99', period: 'año', save: '33%' },
+  // SIN precio escrito a mano, a propósito. Había `price: '$9.99'` como
+  // "respaldo visual" y acabó en producción: el paywall enseñaba dólares
+  // cuando el precio real son 24.900 COP, con los productos ni creados en Play
+  // y el botón de comprar inservible. Un precio inventado en una pantalla de
+  // pago no es un respaldo, es una cifra falsa — y en cada país sería falsa de
+  // una manera distinta.
+  //
+  // El único precio que se pinta es el que devuelve la tienda (priceString),
+  // ya formateado en la moneda de quien mira. Si no hay tienda, el paywall
+  // muestra "—" y desactiva la compra. Ver app/paywall.tsx.
+  monthly: { id: 'gymup_premium_monthly', period: 'mes' },
+  yearly:  { id: 'gymup_premium_yearly',  period: 'año', save: '33%' },
 };
 
 // Los beneficios se arman con los números reales para que no puedan desviarse

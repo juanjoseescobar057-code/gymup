@@ -36,6 +36,9 @@ export default function PaywallScreen() {
   const [plan, setPlan] = useState<PlanKey>('yearly');
   const [busy, setBusy] = useState(false);
   const [precios, setPrecios] = useState<Partial<Record<PlanKey, PrecioTienda>>>({});
+  // 'cargando' hasta que la tienda conteste. Distinguirlo de 'sin_tienda'
+  // importa: "…" durante medio segundo es normal, "—" para siempre no.
+  const [estadoTienda, setEstadoTienda] = useState<'cargando' | 'ok' | 'sin_tienda'>('cargando');
   const purchasedRef = useRef(false);
 
   // Monetización: ver el paywall, y CUÁNTO dudó antes de cerrarlo sin comprar
@@ -59,7 +62,7 @@ export default function PaywallScreen() {
     let vivo = true;
     (async () => {
       const P = rc();
-      if (!P) return; // build sin el módulo nativo: se queda el respaldo
+      if (!P) { setEstadoTienda('sin_tienda'); return; } // build sin el módulo nativo
       try {
         // checkPremium() configura el SDK con la identidad del usuario de forma
         // idempotente (lib/purchases no expone ensureConfigured). Sin eso,
@@ -72,10 +75,16 @@ export default function PaywallScreen() {
           const prod = paquetes.find((p: any) => esElPlan(p?.product?.identifier ?? '', PLANS[k].id))?.product;
           if (prod?.priceString) encontrados[k] = { texto: prod.priceString, valor: Number(prod.price) };
         });
-        if (vivo && Object.keys(encontrados).length > 0) setPrecios(encontrados);
+        if (!vivo) return;
+        if (Object.keys(encontrados).length > 0) {
+          setPrecios(encontrados);
+          setEstadoTienda('ok');
+        } else {
+          setEstadoTienda('sin_tienda');
+        }
       } catch {
-        // Sin red, sin ofertas configuradas o SDK sin inicializar: el paywall no
-        // se bloquea por esto, muestra el respaldo marcado como aproximado.
+        // Sin red, sin ofertas configuradas o SDK sin inicializar.
+        if (vivo) setEstadoTienda('sin_tienda');
       }
     })();
     return () => { vivo = false; };
@@ -93,10 +102,28 @@ export default function PaywallScreen() {
     return pct > 0 ? `${pct}%` : null;
   }, [precios]);
 
-  // Mientras no haya precio de tienda se marca como aproximado: es un respaldo
-  // visual, no una oferta.
-  const etiquetaPrecio = (k: PlanKey) =>
-    precios[k]?.texto ?? `≈ ${PLANS[k].price} USD`;
+  // NUNCA un precio inventado en una pantalla de pago.
+  //
+  // Antes, sin tienda, se pintaba "≈ $9.99 USD" desde PLANS. Marcarlo como
+  // aproximado no lo arregla: el precio real son 24.900 COP, así que el número
+  // no se parecía ni en cifra ni en moneda a lo que se iba a cobrar. Y en un
+  // mercado que no sea Colombia sería otra moneda distinta otra vez.
+  //
+  // Pasó en producción: el paywall enseñaba precios en dólares con los
+  // productos aún sin crear en Play, y encima con el botón de comprar
+  // inservible porque sin ofertas no hay nada que comprar.
+  //
+  // Ahora hay tres estados y cada uno dice la verdad: cargando, precio real de
+  // la tienda, o no se pudo consultar.
+  const etiquetaPrecio = (k: PlanKey) => {
+    if (precios[k]?.texto) return precios[k]!.texto;
+    return estadoTienda === 'cargando' ? '…' : '—';
+  };
+
+  // Sin ofertas no hay compra posible: el botón no puede hacer nada, así que
+  // se desactiva y se explica. Dejarlo activo lleva a tocarlo, no ver reacción
+  // y concluir que la app está rota.
+  const sinTienda = estadoTienda === 'sin_tienda';
 
   async function subscribe() {
     setBusy(true);
@@ -183,14 +210,31 @@ export default function PaywallScreen() {
           <View style={[s.radio, plan === 'monthly' && s.radioOn]} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[s.cta, busy && { opacity: 0.6 }]} onPress={subscribe} disabled={busy} activeOpacity={0.85}
+        <TouchableOpacity
+          style={[s.cta, (busy || sinTienda) && { opacity: 0.6 }]}
+          onPress={subscribe}
+          disabled={busy || sinTienda}
+          activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel={busy
-            ? 'Procesando tu suscripción, espera'
-            : `Empezar Premium con el plan ${plan === 'yearly' ? 'anual' : 'mensual'}`}
-          accessibilityState={{ disabled: busy, busy }}>
-          <Text style={s.ctaTxt}>{busy ? 'Procesando…' : 'EMPEZAR PREMIUM'}</Text>
+          accessibilityLabel={
+            sinTienda
+              ? 'Las suscripciones no están disponibles ahora mismo'
+              : busy
+                ? 'Procesando tu suscripción, espera'
+                : `Empezar Premium con el plan ${plan === 'yearly' ? 'anual' : 'mensual'}`
+          }
+          accessibilityState={{ disabled: busy || sinTienda, busy }}>
+          <Text style={s.ctaTxt}>
+            {sinTienda ? 'NO DISPONIBLE' : busy ? 'Procesando…' : 'EMPEZAR PREMIUM'}
+          </Text>
         </TouchableOpacity>
+
+        {sinTienda && (
+          <Text style={s.sinTiendaTxt}>
+            No pudimos consultar los precios con Google Play. Revisa tu conexión e inténtalo
+            más tarde. No se te ha cobrado nada.
+          </Text>
+        )}
 
         <TouchableOpacity
           accessibilityRole="button" accessibilityLabel="Restaurar compras anteriores"
@@ -237,6 +281,10 @@ const s = StyleSheet.create({
   },
   freeTitle: { fontFamily: Fonts.headingSemi, fontSize: 15, color: Colors.textSecondary, marginBottom: 2 },
   freeItem: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary },
+  sinTiendaTxt: {
+    fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary,
+    textAlign: 'center', marginTop: Spacing.sm, lineHeight: 18,
+  },
   planCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1.5, borderColor: Colors.border, padding: Spacing.md, marginBottom: 10 },
   planSel: { borderColor: Colors.accent, backgroundColor: Colors.bgSelected },
   planName: { fontFamily: Fonts.headingSemi, fontSize: 18, color: Colors.textPrimary },

@@ -25,6 +25,7 @@ import { getWaterCount, addWater, WATER_GOAL } from '../../lib/water';
 import { AVISO_RECUPERACION } from '../../lib/recoveryMode';
 import { calcularDiaDeHoy, type EstadoDelDia } from '../../lib/diaDeHoy';
 import { mensajeDeRegreso } from '../../lib/motivacion';
+import { consejosGratisDeHoy, type ConsejoCoach } from '../../lib/consejosGratis';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
@@ -163,6 +164,28 @@ export default function DashboardScreen() {
 
   const todayIndex = estadoHoy?.diaDelPlan ?? Math.min(profile?.current_plan_day ?? 0, 6);
   const todayPlan = trainingPlan?.plan_data?.days?.[todayIndex];
+
+  // El coach del plan GRATIS. Reglas, no IA: sale de progressionEngine,
+  // warmupMath y healthMath, que ya deciden lo difícil de forma determinista.
+  // No cuesta un token, así que puede correr para quien no paga — que es
+  // justamente quien hasta ahora abría la app y no encontraba a nadie
+  // diciéndole nada sobre sus propios números.
+  const [consejos, setConsejos] = useState<ConsejoCoach[]>([]);
+  useEffect(() => {
+    if (!profile?.user_id || profile.is_premium || !estadoHoy) return;
+    let vivo = true;
+    consejosGratisDeHoy({
+      userId: profile.user_id,
+      goal: profile.goal,
+      grupoDeHoy: todayPlan?.muscle_groups ?? [],
+      diasSinEntrenar: estadoHoy.diasSinEntrenar,
+      proteinaHoyG: totals.protein_g,
+      proteinaMetaG: profile.daily_protein_g,
+    })
+      .then((c) => { if (vivo) setConsejos(c); })
+      .catch(() => {}); // sin coach es peor, pero no puede tumbar la portada
+    return () => { vivo = false; };
+  }, [profile?.user_id, profile?.is_premium, estadoHoy, todayIndex, totals.protein_g]);
 
   // El saludo de quien vuelve.
   //
@@ -701,23 +724,54 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* Tu coach IA te escribe primero — tocar abre el chat */}
-        <TouchableOpacity
-          style={s.aiCard}
-          onPress={() => router.push('/coach-chat' as any)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`Tu coach: ${aiSuggestion || 'cargando a tu coach'}`}
-          accessibilityHint="Abre el chat para responderle o preguntarle lo que quieras"
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <View style={s.aiDot} />
-            <Text style={s.aiLbl}>TU COACH IA</Text>
-            <Text style={[s.aiLbl, { marginLeft: 'auto' }]}>💬</Text>
+        {/* El coach. Con Premium escribe la IA y se le puede responder; sin
+            Premium hablan las reglas (lib/coachReglas.ts), que son
+            deterministas y no cuestan un token.
+
+            No es una versión capada: la IA responde lo que le preguntes, y
+            esto dice lo que hoy importa de tus números sin que preguntes. Por
+            eso la tarjeta gratis no lleva "actualiza para desbloquear" encima
+            del consejo — el consejo es de verdad, y el enlace al paywall va
+            debajo y en pequeño. */}
+        {profile.is_premium ? (
+          <TouchableOpacity
+            style={s.aiCard}
+            onPress={() => router.push('/coach-chat' as any)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Tu coach: ${aiSuggestion || 'cargando a tu coach'}`}
+            accessibilityHint="Abre el chat para responderle o preguntarle lo que quieras"
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <View style={s.aiDot} />
+              <Text style={s.aiLbl}>TU COACH IA</Text>
+              <Text style={[s.aiLbl, { marginLeft: 'auto' }]}>💬</Text>
+            </View>
+            <Text style={s.aiTxt}>{aiSuggestion || 'Cargando a tu coach...'}</Text>
+            <Text style={s.aiCta}>Respóndele o pregúntale lo que quieras →</Text>
+          </TouchableOpacity>
+        ) : consejos.length > 0 ? (
+          <View
+            style={s.aiCard}
+            accessible
+            accessibilityLabel={`Tu coach: ${consejos.map((c) => c.texto).join('. ')}`}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <View style={s.aiDot} />
+              <Text style={s.aiLbl}>TU COACH</Text>
+            </View>
+            {consejos.map((c) => (
+              <Text key={c.clave} style={s.consejoTxt}>• {c.texto}</Text>
+            ))}
+            <TouchableOpacity
+              onPress={() => router.push('/paywall' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Ver Premium para poder preguntarle lo que quieras al coach"
+            >
+              <Text style={s.aiCta}>¿Quieres preguntarle lo que sea? Mira Premium →</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={s.aiTxt}>{aiSuggestion || 'Cargando a tu coach...'}</Text>
-          <Text style={s.aiCta}>Respóndele o pregúntale lo que quieras →</Text>
-        </TouchableOpacity>
+        ) : null}
 
         {/* Accesos rápidos */}
         <View style={s.quickRow}>
@@ -772,6 +826,9 @@ const s = StyleSheet.create({
   regresoTitulo: { fontFamily: Fonts.headingSemi, fontSize: 16, color: Colors.accent },
   regresoCuerpo: { fontFamily: Fonts.bodyMedium, fontSize: 15, color: Colors.textPrimary },
   regresoNota: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  // Mismo peso visual que el texto del coach IA: el consejo de reglas no es un
+  // sucedáneo y no tiene por qué verse como tal.
+  consejoTxt: { fontFamily: Fonts.bodyMedium, fontSize: 15, color: Colors.textPrimary, marginBottom: 6 },
   recoveryTxt: {
     fontFamily: Fonts.body, fontSize: Type.body, color: Colors.textSecondary, lineHeight: 20,
   },

@@ -130,7 +130,7 @@ async function syncLocalPremium(active: boolean): Promise<void> {
   } catch {}
 }
 
-/** Compra el plan (product id de la tienda, ej. gymup_premium_monthly). */
+/** Compra el plan (product id de la tienda, ej. premium_monthly). */
 export async function purchasePlan(
   planId: string
 ): Promise<{ ok: boolean; error?: string; pendiente?: boolean }> {

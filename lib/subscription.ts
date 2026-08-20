@@ -48,9 +48,6 @@ export const PREMIUM_LIMITS = {
   planRegensPerDay: 1,     // ai-proxy: plan.premiumLimit (regenerar plan)
 };
 
-// `price` es solo un RESPALDO VISUAL en USD para mientras cargan las ofertas de
-// la tienda: el precio que se cobra de verdad es el localizado que devuelve
-// RevenueCat (priceString), y es el que pinta el paywall. Ver app/paywall.tsx.
 export const PLANS = {
   // SIN precio escrito a mano, a propósito. Había `price: '$9.99'` como
   // "respaldo visual" y acabó en producción: el paywall enseñaba dólares
@@ -62,8 +59,8 @@ export const PLANS = {
   // El único precio que se pinta es el que devuelve la tienda (priceString),
   // ya formateado en la moneda de quien mira. Si no hay tienda, el paywall
   // muestra "—" y desactiva la compra. Ver app/paywall.tsx.
-  monthly: { id: 'gymup_premium_monthly', period: 'mes' },
-  yearly:  { id: 'gymup_premium_yearly',  period: 'año', save: '33%' },
+  monthly: { id: 'premium_monthly', period: 'mes' },
+  yearly:  { id: 'premium_yearly',  period: 'año', save: '33%' },
 };
 
 // Los beneficios se arman con los números reales para que no puedan desviarse

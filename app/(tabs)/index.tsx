@@ -402,7 +402,7 @@ export default function DashboardScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <HelpButton
               pantalla="la pantalla de inicio"
-              pregunta="Explícame la pantalla de inicio de GymUp: qué significa cada cosa que veo (el anillo de calorías, las barras de macros, los vasos de agua, el día del plan) y cómo la uso día a día."
+              pregunta="Explícame la pantalla de inicio de Rityvo: qué significa cada cosa que veo (el anillo de calorías, las barras de macros, los vasos de agua, el día del plan) y cómo la uso día a día."
             />
             {/* Era un View inerte: tiene toda la pinta de un botón de perfil
                 —círculo con tu inicial, arriba a la derecha— y no hacía nada

@@ -1,6 +1,6 @@
-# Cumplimiento de Google Play para GymUp (app de salud + IA)
+# Cumplimiento de Google Play para Rityvo (app de salud + IA)
 
-Investigación 2025-2026, con fuentes. GymUp dispara **tres políticas simultáneas** de
+Investigación 2025-2026, con fuentes. Rityvo dispara **tres políticas simultáneas** de
 Google Play por combinar: (1) datos de salud (tamizaje PAR-Q+), (2) contenido generado
 por IA, y (3) fotos corporales/posturales. Ninguna app "normal" de fitness dispara las
 tres a la vez — tratarlo con seriedad es lo que evita un rechazo o suspensión posterior.
@@ -49,7 +49,7 @@ escrutinio, así que si hay duda, empezar por "Health & Fitness" y ajustar si Pl
 
 ## Health Content and Services — disclaimers EN LA APP, no solo en el listing
 
-- Descripción de la app: aclarar que **GymUp no es un dispositivo médico**, no
+- Descripción de la app: aclarar que **Rityvo no es un dispositivo médico**, no
   diagnostica ni trata condiciones (a menos que tengan certificación SaMD).
 - **Los disclaimers deben estar en el punto de uso dentro de la app** (no basta con
   ponerlos solo en la ficha de Play Store) — ya existe `MEDICAL_DISCLAIMER` en
@@ -58,7 +58,7 @@ escrutinio, así que si hay duda, empezar por "Health & Fitness" y ajustar si Pl
 
 ## AI-Generated Content — falta un mecanismo de reporte en la app
 
-Como GymUp usa IA (OpenAI) para generar consejos, aplica esta política. Requiere:
+Como Rityvo usa IA (OpenAI) para generar consejos, aplica esta política. Requiere:
 1. Un botón/canal **dentro de la app** para reportar una respuesta de IA como ofensiva,
    dañina o incorrecta (no basta con el moderation endpoint de OpenAI — Google exige que
    el usuario tenga cómo reportar, gestionado por el desarrollador).
@@ -90,7 +90,7 @@ postura tengan el mismo nivel de disclosure explícito**, no solo el permiso est
 - **Content rating (IARC)** es un trámite **separado** del Health apps declaration form —
   ambos son obligatorios, uno no sustituye al otro.
 - **Política de abril 2026**: prohibido usar datos de salud sensibles para elegibilidad de
-  empleo/seguros o "compartir social no autorizado" — si en el futuro GymUp agrega
+  empleo/seguros o "compartir social no autorizado" — si en el futuro Rityvo agrega
   features sociales (compartir progreso, leaderboards), nunca exponer ahí datos derivados
   del tamizaje de salud sin consentimiento explícito y separado.
 - **Posible requisito de cuenta de Organización** (no solo Personal) para apps con

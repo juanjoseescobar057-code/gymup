@@ -197,7 +197,7 @@ function PoseCameraInner({ active, onPose, onUnavailable }: Props) {
         <Text style={{ fontSize: 44, marginBottom: 12 }}
           importantForAccessibility="no" accessibilityElementsHidden>📷</Text>
         <Text style={s.msg}>
-          GymUp necesita la cámara para contar tus reps y corregir tu técnica.
+          Rityvo necesita la cámara para contar tus reps y corregir tu técnica.
         </Text>
         <TouchableOpacity style={s.permBtn} onPress={() => requestPermission()} activeOpacity={0.85}
           accessibilityRole="button" accessibilityLabel="Conceder permiso de cámara">

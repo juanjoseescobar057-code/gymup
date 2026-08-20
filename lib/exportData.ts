@@ -80,7 +80,7 @@ export async function exportarMisDatos(userId: string): Promise<ResultadoExport>
   }
 
   const sobre = {
-    app: 'GymUp',
+    app: 'Rityvo',
     exportado_el: new Date().toISOString(),
     usuario: userId,
     aviso: incompletas.length

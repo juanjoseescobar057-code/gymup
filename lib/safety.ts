@@ -111,7 +111,7 @@ CÓMO SE EXPRESA LA CAUTELA (esto NO es opcional):
 
 // ── DISCLAIMERS PARA LA UI ───────────────────────────────
 export const MEDICAL_DISCLAIMER =
-  'GymUp ofrece estimaciones generadas por IA con fines informativos y de motivación. ' +
+  'Rityvo ofrece estimaciones generadas por IA con fines informativos y de motivación. ' +
   'No es consejo médico, nutricional ni psicológico profesional, y no reemplaza la evaluación ' +
   'de un profesional de la salud. Consulta a tu médico antes de empezar cualquier plan de ejercicio o dieta.';
 
@@ -120,5 +120,5 @@ export const AGE_CONFIRMATION =
 
 export const BODY_SCAN_CONSENT =
   `Soy mayor de ${MIN_AGE} años y autorizo que mis fotos se envíen a un servicio de IA (OpenAI) ` +
-  `únicamente para generar este análisis. GymUp no almacena las fotos; solo guarda los resultados ` +
+  `únicamente para generar este análisis. Rityvo no almacena las fotos; solo guarda los resultados ` +
   `numéricos, que puedo eliminar cuando quiera desde mi perfil.`;

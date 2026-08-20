@@ -130,7 +130,7 @@ export default function OnboardingScreen() {
     if (!age || isNaN(+age) || +age < MIN_AGE || +age > MAX_AGE) {
       Alert.alert(
         `Debes ser mayor de ${MIN_AGE} años`,
-        `GymUp es una aplicación solo para mayores de ${MIN_AGE} años. La edad debe estar entre ${MIN_AGE} y ${MAX_AGE} años.`
+        `Rityvo es una aplicación solo para mayores de ${MIN_AGE} años. La edad debe estar entre ${MIN_AGE} y ${MAX_AGE} años.`
       );
       return false;
     }

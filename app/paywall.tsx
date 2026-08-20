@@ -154,7 +154,7 @@ export default function PaywallScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
-        <Text style={s.title} accessibilityRole="header">GymUp <Text style={{ color: Colors.accent }}>Premium</Text></Text>
+        <Text style={s.title} accessibilityRole="header">Rityvo <Text style={{ color: Colors.accent }}>Premium</Text></Text>
         <Text style={s.sub}>Lo que Premium añade a lo que ya tienes. Estos son los cupos diarios reales.</Text>
 
         <View style={s.benefits}>

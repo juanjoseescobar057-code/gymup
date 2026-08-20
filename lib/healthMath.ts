@@ -167,7 +167,7 @@ export function evaluateWorkoutAccess(h: HealthProfile, age: number): WorkoutAcc
       level: 'alto',
       title: 'Esto lo acompañamos distinto',
       detail:
-        'Marcaste un trastorno de la conducta alimentaria. GymUp fija metas de calorías, analiza fotos de tu cuerpo y grafica tu peso, y eso puede jugar en contra de tu recuperación. ' +
+        'Marcaste un trastorno de la conducta alimentaria. Rityvo fija metas de calorías, analiza fotos de tu cuerpo y grafica tu peso, y eso puede jugar en contra de tu recuperación. ' +
         'Habla con el equipo que te trata: si te dicen que entrenar te viene bien, márcalo en Mi salud y programamos sin metas de peso ni de estética. Mientras tanto, moverte por gusto —caminar, bailar, estirar— no necesita esta app.',
       reasons: risk.reasons,
     };

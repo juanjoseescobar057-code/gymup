@@ -1,6 +1,6 @@
 // constants/theme.ts
 // ─────────────────────────────────────────────────────────
-// Sistema de diseño de GymUp
+// Sistema de diseño de Rityvo
 // Paleta oscura con acento verde eléctrico
 //
 // CONTRASTE: los valores de texto están elegidos para cumplir WCAG 2.2 AA

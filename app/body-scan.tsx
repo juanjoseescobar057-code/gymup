@@ -264,7 +264,7 @@ export default function BodyScanScreen() {
   async function takePhoto() {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permiso necesario', 'GymUp necesita acceso a la cámara.');
+      Alert.alert('Permiso necesario', 'Rityvo necesita acceso a la cámara.');
       return;
     }
 
@@ -415,7 +415,7 @@ export default function BodyScanScreen() {
             <Text style={s.infoCardTitle}>📸 Cómo usamos tus fotos</Text>
             {[
               `Solo para mayores de ${MIN_AGE} años`,
-              'Las fotos se envían a OpenAI solo para generar el análisis; GymUp no las almacena',
+              'Las fotos se envían a OpenAI solo para generar el análisis; Rityvo no las almacena',
               'Solo guardamos los resultados numéricos del análisis, no las fotos',
               'Nunca vendemos ni compartimos tu información con terceros con fines comerciales',
               'Puedes eliminar tu historial cuando quieras desde Perfil › Privacidad y datos',
@@ -524,13 +524,13 @@ export default function BodyScanScreen() {
               <Text style={s.privacyTitle}>Política de Privacidad</Text>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <Text style={s.privacyTxt}>
-                  {`GymUp toma la privacidad de tus datos corporales muy en serio.\n\n`}
-                  {`• Las fotos se envían a OpenAI mediante nuestro servidor únicamente para producir el análisis. GymUp no las guarda; OpenAI puede conservar datos de API temporalmente, normalmente hasta 30 días para prevención de abuso, salvo que se habiliten controles de retención reducida o cero.\n\n`}
-                  {`• GymUp NO almacena tus fotos en ningún servidor. Solo guardamos los datos numéricos del análisis: score, % grasa estimado, zonas identificadas y notas del plan.\n\n`}
+                  {`Rityvo toma la privacidad de tus datos corporales muy en serio.\n\n`}
+                  {`• Las fotos se envían a OpenAI mediante nuestro servidor únicamente para producir el análisis. Rityvo no las guarda; OpenAI puede conservar datos de API temporalmente, normalmente hasta 30 días para prevención de abuso, salvo que se habiliten controles de retención reducida o cero.\n\n`}
+                  {`• Rityvo NO almacena tus fotos en ningún servidor. Solo guardamos los datos numéricos del análisis: score, % grasa estimado, zonas identificadas y notas del plan.\n\n`}
                   {`• No vendemos tus datos. Solo los comparten los proveedores necesarios descritos en la política (por ejemplo, Supabase y OpenAI) bajo sus medidas de seguridad.\n\n`}
                   {`• Puedes solicitar la eliminación completa de todos tus datos desde tu perfil en cualquier momento.\n\n`}
                   {`• El análisis es una estimación visual basada en inteligencia artificial. No es un diagnóstico médico y no reemplaza la evaluación de un profesional de la salud.\n\n`}
-                  {`• Esta función es completamente opcional. Puedes usar GymUp sin nunca realizar un análisis corporal.`}
+                  {`• Esta función es completamente opcional. Puedes usar Rityvo sin nunca realizar un análisis corporal.`}
                 </Text>
               </ScrollView>
               <TouchableOpacity style={[s.primaryBtn, { marginTop: 16 }]}

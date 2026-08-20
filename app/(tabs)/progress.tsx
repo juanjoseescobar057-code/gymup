@@ -428,7 +428,7 @@ export default function ProgressScreen() {
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
             <HelpButton
               pantalla="la pantalla de progreso"
-              pregunta="Explícame la pantalla de progreso de GymUp: qué es la racha, el XP y los niveles, para qué sirven los comodines de racha, cómo funcionan las misiones semanales y los logros, y cómo leo la gráfica de peso."
+              pregunta="Explícame la pantalla de progreso de Rityvo: qué es la racha, el XP y los niveles, para qué sirven los comodines de racha, cómo funcionan las misiones semanales y los logros, y cómo leo la gráfica de peso."
             />
             <TouchableOpacity style={s.ghostBtn} onPress={() => router.push('/history' as any)}
               accessibilityRole="button" accessibilityLabel="Ver historial de entrenamientos">

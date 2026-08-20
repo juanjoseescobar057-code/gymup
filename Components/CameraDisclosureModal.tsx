@@ -55,7 +55,7 @@ function textoDe(destino: DestinoFoto, subject: string): string {
     case 'ia':
     default:
       return `La foto de ${subject} se envía a un servicio de inteligencia artificial ` +
-        `(OpenAI) únicamente para generar el análisis. GymUp no almacena la foto — solo ` +
+        `(OpenAI) únicamente para generar el análisis. Rityvo no almacena la foto — solo ` +
         `guarda el resultado, que puedes eliminar cuando quieras desde tu perfil.`;
   }
 }

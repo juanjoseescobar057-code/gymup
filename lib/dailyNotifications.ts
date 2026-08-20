@@ -98,7 +98,7 @@ async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   try {
     await Notifications.setNotificationChannelAsync('gymup', {
-      name: 'Recordatorios de GymUp',
+      name: 'Recordatorios de Rityvo',
       importance: Notifications.AndroidImportance.DEFAULT,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#C8FF3E',

@@ -1,6 +1,6 @@
 // lib/streaks.ts
 // ─────────────────────────────────────────────────────────
-// Sistema de rachas, XP y badges de GymUp.
+// Sistema de rachas, XP y badges de Rityvo.
 // La FUENTE DE VERDAD de las stats es el SERVIDOR: user_stats ya no acepta
 // INSERT/UPDATE desde el cliente (RLS revocada) porque una app modificada
 // podía escribirse XP, nivel, racha y badges a voluntad — y los "resultados

@@ -83,7 +83,7 @@ export default function CameraScreen() {
           <Text style={s.headerTitle} accessibilityRole="header">ESCANEAR</Text>
           <HelpButton
             pantalla="la pantalla de escanear"
-            pregunta="Explícame para qué sirve cada escáner de GymUp: escanear comida, escanear la nevera y el análisis corporal. ¿Qué hace cada uno, cuándo lo uso y cuántas veces al día puedo usarlos?"
+            pregunta="Explícame para qué sirve cada escáner de Rityvo: escanear comida, escanear la nevera y el análisis corporal. ¿Qué hace cada uno, cuándo lo uso y cuántas veces al día puedo usarlos?"
           />
         </View>
         <Text style={s.headerSub}>Elige qué quieres analizar hoy</Text>

@@ -110,7 +110,7 @@ export default function Index() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' }}
-      accessible accessibilityLabel="Abriendo GymUp" accessibilityState={{ busy: true }}>
+      accessible accessibilityLabel="Abriendo Rityvo" accessibilityState={{ busy: true }}>
       <ActivityIndicator color={Colors.accent} size="large" />
     </View>
   );

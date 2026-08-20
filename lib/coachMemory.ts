@@ -147,7 +147,7 @@ export async function distillMemory(
       messages: [
         {
           role: 'user',
-          content: `Eres el módulo de MEMORIA a largo plazo del coach de fitness de GymUp.
+          content: `Eres el módulo de MEMORIA a largo plazo del coach de fitness de Rityvo.
 
 MEMORIA ACTUAL (lo que ya sabes del usuario):
 ${existing.length ? existing.map((f) => `- ${f}`).join('\n') : '(vacía)'}

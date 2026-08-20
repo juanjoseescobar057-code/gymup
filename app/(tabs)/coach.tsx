@@ -355,7 +355,7 @@ export default function CoachScreen() {
             <Text style={[s.headerTitle, { flex: 1 }]} accessibilityRole="header">COACH</Text>
             <HelpButton
               pantalla="el coach de postura"
-              pregunta="Explícame el coach de postura de GymUp: cómo le tomo la foto, qué diferencia hay entre el análisis por foto y el coach en vivo que cuenta reps, y qué significa el puntaje de técnica que me da."
+              pregunta="Explícame el coach de postura de Rityvo: cómo le tomo la foto, qué diferencia hay entre el análisis por foto y el coach en vivo que cuenta reps, y qué significa el puntaje de técnica que me da."
             />
           </View>
           {/* La pestaña no es solo postura: contiene coach en vivo, chat,

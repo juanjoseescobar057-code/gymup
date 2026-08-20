@@ -189,7 +189,7 @@ export default function FridgeScanScreen() {
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!perm.granted) {
-        Alert.alert('Permiso necesario', 'GymUp necesita acceso a la cámara o galería.');
+        Alert.alert('Permiso necesario', 'Rityvo necesita acceso a la cámara o galería.');
         return;
       }
 

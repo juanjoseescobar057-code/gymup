@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "GymUp",
+    "name": "Rityvo",
     "slug": "gymup",
     "version": "1.2.0",
     "orientation": "portrait",
@@ -12,8 +12,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.juanescobar.gymup",
       "infoPlist": {
-        "NSCameraUsageDescription": "GymUp necesita la cámara para analizar tus comidas y corregir tu postura.",
-        "NSPhotoLibraryUsageDescription": "Elige fotos de comida, postura o progreso solo cuando uses esas funciones. GymUp explicará antes qué se procesa y qué se guarda."
+        "NSCameraUsageDescription": "Rityvo necesita la cámara para analizar tus comidas y corregir tu postura.",
+        "NSPhotoLibraryUsageDescription": "Elige fotos de comida, postura o progreso solo cuando uses esas funciones. Rityvo explicará antes qué se procesa y qué se guarda."
       }
     },
     "android": {
@@ -39,13 +39,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "GymUp necesita la cámara para analizar tus comidas y corregir tu postura."
+          "cameraPermission": "Rityvo necesita la cámara para analizar tus comidas y corregir tu postura."
         }
       ],
       [
         "react-native-vision-camera",
         {
-          "cameraPermissionText": "GymUp usa la cámara para contar tus reps y corregir tu técnica en tiempo real.",
+          "cameraPermissionText": "Rityvo usa la cámara para contar tus reps y corregir tu técnica en tiempo real.",
           "enableMicrophonePermission": false,
           "enableFrameProcessors": true
         }

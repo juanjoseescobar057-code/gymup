@@ -1,9 +1,9 @@
-# Política de Privacidad de GymUp
+# Política de Privacidad de Rityvo
 
 **Última actualización:** 4 de agosto de 2026 · **Versión:** 1.3
 
 > ⚠️ **Antes de publicar:** este documento fue redactado como base sólida y específica para
-> GymUp, pero **no sustituye asesoría legal profesional**. Dado que la app trata **datos de
+> Rityvo, pero **no sustituye asesoría legal profesional**. Dado que la app trata **datos de
 > salud** (categoría sensible bajo la Ley 1581 de 2012 de Colombia), recomendamos que un
 > abogado lo revise antes de publicarlo.
 
@@ -12,11 +12,11 @@
 **Responsable del tratamiento:** Juan José Escobar
 **Contacto:** juanjoseescobar057@gmail.com · **Domicilio:** Bogotá, Colombia
 
-GymUp ("la App", "nosotros") es una aplicación de acondicionamiento físico y nutrición
+Rityvo ("la App", "nosotros") es una aplicación de acondicionamiento físico y nutrición
 asistida por inteligencia artificial. Esta política explica qué información recopilamos,
 para qué la usamos, con quién la compartimos y qué derechos tienes sobre ella.
 
-Al crear una cuenta o usar GymUp, aceptas esta Política de Privacidad y confirmas que
+Al crear una cuenta o usar Rityvo, aceptas esta Política de Privacidad y confirmas que
 **eres mayor de 18 años** (la App no está dirigida a menores de edad y no recopilamos
 intencionalmente datos de menores).
 
@@ -77,10 +77,10 @@ grabaciones enmascaradas para entender dónde la App confunde o falla: el texto 
 imágenes se sustituyen por bloques de color. Aunque hayas dado permiso, la grabación se
 desactiva por completo en pantallas sensibles, entre ellas salud, análisis corporal,
 escáneres, cámara, entrenamiento, coach y datos legales. Puedes retirar el permiso en
-cualquier momento sin perder las funciones principales de GymUp.
+cualquier momento sin perder las funciones principales de Rityvo.
 
 ### 2.7 Información de pago
-Si te suscribes a GymUp Premium, el pago lo procesa **Apple App Store o Google Play**
+Si te suscribes a Rityvo Premium, el pago lo procesa **Apple App Store o Google Play**
 directamente: **no vemos ni almacenamos tu información de tarjeta**. Recibimos, a
 través de RevenueCat, únicamente el estado de tu suscripción (activa/vencida) para
 activar los beneficios Premium.
@@ -153,15 +153,15 @@ conservamos ninguna copia que podamos devolverte.
   (Supabase) pueden conservar datos **hasta 30 días adicionales** antes de su eliminación
   definitiva.
 - El proveedor de IA puede conservar temporalmente las entradas y salidas enviadas por
-  nuestro servidor **hasta 30 días** para monitoreo de abuso, salvo que GymUp tenga
-  habilitado contractualmente un régimen de retención reducida o cero retención. GymUp
+  nuestro servidor **hasta 30 días** para monitoreo de abuso, salvo que Rityvo tenga
+  habilitado contractualmente un régimen de retención reducida o cero retención. Rityvo
   no usa ese contenido para entrenar modelos y no guarda las fotos analizadas en su base
   de datos, salvo las fotos de transformación que tú decidas conservar.
 - Conservamos los registros de eventos de facturación que nos envía RevenueCat
   (identificador del evento, identificador interno de usuario, tipo de evento y fecha,
   sin datos de tarjeta ni de contacto) como soporte de las transacciones.
 - El estado de tu suscripción en RevenueCat, Apple o Google se rige por las políticas de
-  esas plataformas, independientes de GymUp.
+  esas plataformas, independientes de Rityvo.
 
 Si ya no tienes la app instalada, puedes pedirnos la eliminación por correo a
 **juanjoseescobar057@gmail.com** desde la dirección asociada a tu cuenta; en ese caso la
@@ -192,13 +192,13 @@ de la industria para proteger tu información.
 
 ## 8. Menores de edad
 
-GymUp es exclusivamente para personas **mayores de 18 años**. No recopilamos
+Rityvo es exclusivamente para personas **mayores de 18 años**. No recopilamos
 intencionalmente información de menores. Si detectamos una cuenta de un menor, la
 eliminaremos.
 
 ## 9. Aviso médico
 
-GymUp ofrece orientación generada por inteligencia artificial con fines informativos y
+Rityvo ofrece orientación generada por inteligencia artificial con fines informativos y
 de motivación. **No es consejo médico, nutricional ni psicológico profesional, y no
 reemplaza la evaluación de un profesional de la salud.** Consulta a tu médico antes de
 empezar cualquier plan de ejercicio o dieta, especialmente si declaraste alguna

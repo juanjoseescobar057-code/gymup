@@ -1,4 +1,4 @@
-# Términos de Uso de GymUp
+# Términos de Uso de Rityvo
 
 **Última actualización:** 15 de julio de 2026 · **Versión:** 1.0
 
@@ -8,7 +8,7 @@
 
 ## 1. Aceptación de los términos
 
-Al crear una cuenta o usar GymUp ("la App"), operada por **Juan José Escobar**
+Al crear una cuenta o usar Rityvo ("la App"), operada por **Juan José Escobar**
 ("nosotros"), aceptas estos Términos de Uso y nuestra
 [Política de Privacidad](./privacy-policy.md). Si no estás de acuerdo, no uses la App.
 
@@ -20,14 +20,14 @@ que incumplan esta condición.
 
 ## 3. Descripción del servicio
 
-GymUp es una aplicación que usa inteligencia artificial para generar planes de
+Rityvo es una aplicación que usa inteligencia artificial para generar planes de
 entrenamiento y nutrición personalizados, analizar fotos de comida/nevera/cuerpo/postura,
-y ofrecer un coach conversacional. **GymUp NO es:**
+y ofrecer un coach conversacional. **Rityvo NO es:**
 - Un servicio médico, de fisioterapia, nutrición clínica o psicológico licenciado.
 - Un sustituto de la evaluación de un profesional de la salud.
 - Un dispositivo médico ni una herramienta de diagnóstico.
 
-La IA de GymUp está diseñada con criterio conservador y reglas de seguridad (evita
+La IA de Rityvo está diseñada con criterio conservador y reglas de seguridad (evita
 recomendar prácticas de riesgo, deriva a profesionales cuando corresponde), pero **puede
 cometer errores**. Tú eres responsable de escuchar a tu cuerpo, detenerte ante
 molestias, y consultar a un profesional de salud antes de iniciar cualquier programa de
@@ -35,7 +35,7 @@ ejercicio o cambio nutricional — especialmente si declaraste alguna condición
 
 ## 4. Asunción de riesgo
 
-**El ejercicio físico conlleva riesgo inherente de lesión.** Al usar GymUp, reconoces y
+**El ejercicio físico conlleva riesgo inherente de lesión.** Al usar Rityvo, reconoces y
 aceptas que:
 - Participas en las actividades sugeridas por la App **bajo tu propio riesgo**.
 - Debes detener cualquier ejercicio si sientes dolor agudo, mareo, dificultad para
@@ -55,7 +55,7 @@ momento desde Perfil → Eliminar cuenta — esta acción es **irreversible**.
 
 ## 6. Suscripción Premium
 
-- GymUp ofrece un plan gratuito con límites de uso diario y un plan **Premium** de
+- Rityvo ofrece un plan gratuito con límites de uso diario y un plan **Premium** de
   pago con funciones ampliadas.
 - Las suscripciones se cobran y gestionan a través de **Apple App Store** o
   **Google Play** (según tu dispositivo), incluyendo renovación automática, precios y
@@ -69,7 +69,7 @@ momento desde Perfil → Eliminar cuenta — esta acción es **irreversible**.
 
 ## 7. Conducta del usuario
 
-Al usar GymUp, te comprometes a NO:
+Al usar Rityvo, te comprometes a NO:
 - Subir fotos o información de salud de terceros sin su consentimiento.
 - Usar el coach de IA como sustituto de atención médica de emergencia.
 - Intentar vulnerar, sobrecargar o hacer ingeniería inversa de la App o sus sistemas de
@@ -88,14 +88,14 @@ generados para ti son para tu uso personal.
 
 ## 9. Servicios de terceros
 
-GymUp utiliza servicios de terceros (OpenAI para el procesamiento de IA, Supabase para
+Rityvo utiliza servicios de terceros (OpenAI para el procesamiento de IA, Supabase para
 infraestructura, RevenueCat para suscripciones, Apple/Google para distribución y pagos).
 No somos responsables por interrupciones, errores o políticas de estos terceros, aunque
 trabajamos para que la experiencia sea confiable.
 
 ## 10. Limitación de responsabilidad
 
-En la máxima medida permitida por la ley, GymUp y sus responsables no serán
+En la máxima medida permitida por la ley, Rityvo y sus responsables no serán
 responsables por daños indirectos, incidentales o consecuentes derivados del uso de la
 App. Nuestra responsabilidad total, si aplica, no excederá el monto que hayas pagado por
 la suscripción en los últimos 12 meses.

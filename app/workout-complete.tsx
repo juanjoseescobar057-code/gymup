@@ -71,7 +71,7 @@ export default function WorkoutCompleteScreen() {
 
   async function share() {
     const lines = [
-      `💪 Entrené ${duration} en GymUp (${exercises} ejercicios)`,
+      `💪 Entrené ${duration} en Rityvo (${exercises} ejercicios)`,
       `🔥 Racha de ${streak} día${streak === '1' ? '' : 's'}`,
     ];
     if (prs.length > 0) lines.push(`🏅 Récord personal en ${prs.join(', ')}`);

@@ -205,7 +205,7 @@ export default function ProfileScreen() {
       }
 
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(ruta, { mimeType: 'application/json', dialogTitle: 'Tus datos de GymUp' });
+        await Sharing.shareAsync(ruta, { mimeType: 'application/json', dialogTitle: 'Tus datos de Rityvo' });
       } else {
         Alert.alert('Datos listos', `Se guardaron ${res.filas} registros en ${ruta}`);
       }
@@ -388,7 +388,7 @@ export default function ProfileScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <HelpButton
               pantalla="la pantalla de perfil"
-              pregunta="Explícame la pantalla de perfil de GymUp: de dónde salen mis macros diarios, qué pasa si edito mi peso o mi objetivo, qué hace 'Ajustar mi plan con IA' y para qué sirve la sección de salud."
+              pregunta="Explícame la pantalla de perfil de Rityvo: de dónde salen mis macros diarios, qué pasa si edito mi peso o mi objetivo, qué hace 'Ajustar mi plan con IA' y para qué sirve la sección de salud."
             />
             <TouchableOpacity style={s.editBtn}
               accessibilityRole="button" accessibilityLabel="Editar mi perfil"

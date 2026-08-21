@@ -22,8 +22,8 @@
         "backgroundColor": "#0e0e10"
       },
       "package": "com.juanescobar.gymup",
-      "//versionCode": "SOLO para builds LOCALES. En EAS manda el contador remoto (appVersionSource: remote en eas.json) y este campo se ignora. Al compilar en local hay que SUBIRLO A MANO antes de cada AAB que vaya a Play: Google quema el número en cuanto subes el archivo, aunque descartes el borrador. Ya gastados: 19 y 20 (Play), 21 (publicado 2026-08-17, primer build local).",
-      "versionCode": 22,
+      "//versionCode": "SOLO para builds LOCALES. En EAS manda el contador remoto (appVersionSource: remote en eas.json) y este campo se ignora. Al compilar en local hay que SUBIRLO A MANO antes de cada AAB que vaya a Play: Google quema el número en cuanto subes el archivo, aunque descartes el borrador. Ya gastados: 19 y 20 (Play), 21 (publicado 2026-08-17, primer build local), 22 (Rityvo 1.3.0, subido a prueba interna).",
+      "versionCode": 23,
       "permissions": [
         "CAMERA"
       ],

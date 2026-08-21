@@ -161,3 +161,51 @@ test('el estado del día trae la reincorporación ya calculada', () => {
   assert.equal(r.reincorporacion?.diasFuera, 15);
   assert.equal(r.reincorporacion?.factorCarga, 0.8);
 });
+
+// ── EL TIPO QUE FALTABA ──
+// El plan permite TRES tipos (lib/planJsonSchema.ts): workout, rest y
+// active_recovery. Los tests originales solo usaban los dos primeros, y por
+// eso no vieron que 'active_recovery' se clasificaba como día de
+// entrenamiento. En producción eso produjo una pantalla que se contradecía:
+// arriba "llevas 10 días parado, baja un 10% el peso" y abajo una caminata
+// suave de 25 minutos.
+
+const CON_RECUPERACION: TipoDeDia[] = [
+  'workout', 'workout', 'active_recovery', 'workout', 'workout', 'workout', 'rest',
+];
+
+test('la recuperación activa NO cuenta como día de entrenamiento', () => {
+  const r = estadoDelDia({ hoyISO: dia(12), ultimoEntrenoISO: dia(12), diaGuardado: 2, dias: CON_RECUPERACION });
+  assert.equal(r.esDescanso, true, 'caminar y estirar no es entrenar');
+});
+
+test('volver de una pausa tampoco cae en recuperación activa', () => {
+  // El caso exacto que se vio en el teléfono: diez días parado, y el plan
+  // proponiendo caminata suave.
+  for (let guardado = 0; guardado < CON_RECUPERACION.length; guardado++) {
+    const r = estadoDelDia({
+      hoyISO: dia(21), ultimoEntrenoISO: dia(11), diaGuardado: guardado, dias: CON_RECUPERACION,
+    });
+    assert.equal(r.esDescanso, false, `saliendo del día ${guardado} acabó sin entrenar`);
+  }
+});
+
+test('el salto se anuncia también cuando lo que se salta es recuperación activa', () => {
+  // (0 + 9) % 7 = 2, que es el día de recuperación activa.
+  const r = estadoDelDia({ hoyISO: dia(21), ultimoEntrenoISO: dia(11), diaGuardado: 0, dias: CON_RECUPERACION });
+  assert.equal(r.saltoDescanso, true);
+  assert.equal(r.diaDelPlan, 3);
+});
+
+test('una pausa corta SÍ respeta la recuperación activa', () => {
+  // Es parte del plan: quien entrenó ayer sí necesita el día suave.
+  const r = estadoDelDia({ hoyISO: dia(13), ultimoEntrenoISO: dia(12), diaGuardado: 2, dias: CON_RECUPERACION });
+  assert.equal(r.esDescanso, true);
+  assert.equal(r.saltoDescanso, false);
+});
+
+test('un plan sin ningún día de entrenamiento no cuelga', () => {
+  const nadaDeEntreno: TipoDeDia[] = ['rest', 'active_recovery', 'rest', 'active_recovery', 'rest', 'rest', 'rest'];
+  const r = estadoDelDia({ hoyISO: dia(25), ultimoEntrenoISO: dia(10), diaGuardado: 0, dias: nadaDeEntreno });
+  assert.equal(r.esDescanso, true); // no había a dónde saltar, y lo admite
+});

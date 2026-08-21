@@ -28,10 +28,24 @@
 //     gente al reincorporarse.
 // ─────────────────────────────────────────────────────────
 
-export type TipoDeDia = 'workout' | 'rest';
+/**
+ * Los tres tipos que permite el plan (ver lib/planJsonSchema.ts).
+ *
+ * `active_recovery` es un día SIN entrenamiento: caminar, estirar, moverse
+ * suave. Tratarlo como día de entreno fue un bug real — a alguien que llevaba
+ * diez días parado la app le decía arriba "vuelve, baja un 10% el peso" y
+ * abajo le proponía una caminata de 25 minutos. Los dos mensajes se
+ * contradecían en la misma pantalla.
+ */
+export type TipoDeDia = 'workout' | 'rest' | 'active_recovery';
 
-/** Días parado a partir de los cuales volver no puede caer en descanso. */
+/** Días parado a partir de los cuales volver no puede caer en un día sin entrenar. */
 export const DIAS_PARA_SALTAR_DESCANSO = 3;
+
+/** ¿Se entrena de verdad este día? Solo 'workout' cuenta. */
+function esDiaDeEntreno(t: TipoDeDia | undefined): boolean {
+  return t === 'workout';
+}
 
 export type Reincorporacion = {
   diasFuera: number;
@@ -46,6 +60,7 @@ export type Reincorporacion = {
 export type EstadoDelDia = {
   /** Índice 0..6 del día que toca HOY. */
   diaDelPlan: number;
+  /** true en 'rest' Y en 'active_recovery': ninguno de los dos es entrenar. */
   esDescanso: boolean;
   /** null cuando no hay ningún entrenamiento registrado todavía. */
   diasSinEntrenar: number | null;
@@ -136,7 +151,7 @@ export function estadoDelDia(args: {
   if (!args.ultimoEntrenoISO) {
     return {
       diaDelPlan: base,
-      esDescanso: args.dias[base] === 'rest',
+      esDescanso: !esDiaDeEntreno(args.dias[base]),
       diasSinEntrenar: null,
       diasAvanzados: 0,
       saltoDescanso: false,
@@ -152,12 +167,17 @@ export function estadoDelDia(args: {
   let dia = (base + diasAvanzados) % total;
   let saltoDescanso = false;
 
-  // Volver de una pausa no puede caer en descanso. Se avanza al siguiente día
-  // de entrenamiento; el tope evita el bucle si el plan fuese todo descanso.
-  if (diasSinEntrenar >= DIAS_PARA_SALTAR_DESCANSO && args.dias[dia] === 'rest') {
+  // Volver de una pausa no puede caer en un día sin entrenar — ni descanso ni
+  // recuperación activa. Quien lleva días parado no necesita una caminata
+  // suave: necesita volver a entrenar, con la carga bajada.
+  //
+  // Se comprueba `!esDiaDeEntreno` y no `=== 'rest'` a propósito: esa
+  // comparación se dejó fuera a 'active_recovery' y produjo el bug de la
+  // pantalla que se contradecía a sí misma.
+  if (diasSinEntrenar >= DIAS_PARA_SALTAR_DESCANSO && !esDiaDeEntreno(args.dias[dia])) {
     for (let i = 1; i <= total; i++) {
       const candidato = (dia + i) % total;
-      if (args.dias[candidato] === 'workout') {
+      if (esDiaDeEntreno(args.dias[candidato])) {
         dia = candidato;
         saltoDescanso = true;
         break;
@@ -167,7 +187,7 @@ export function estadoDelDia(args: {
 
   return {
     diaDelPlan: dia,
-    esDescanso: args.dias[dia] === 'rest',
+    esDescanso: !esDiaDeEntreno(args.dias[dia]),
     diasSinEntrenar,
     diasAvanzados,
     saltoDescanso,

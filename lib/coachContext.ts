@@ -17,6 +17,7 @@ import { loadHealthSafe } from './health';
 import { healthToPrompt, HEALTH_UNKNOWN_DIRECTIVE } from './healthMath';
 import { projectGoal, type WeightPoint, type GoalProjection } from './goalMath';
 import { estadoDelDia, type Reincorporacion } from './planCalendario';
+import { tiposDeDia } from './diaDeHoy';
 
 export const GOAL_LABELS: Record<string, string> = {
   muscle_gain: 'ganar músculo',
@@ -259,7 +260,10 @@ export async function fetchCoachSnapshot(args: {
     hoyISO: new Date().toISOString().slice(0, 10),
     ultimoEntrenoISO: sessions[0]?.started_at ?? null,
     diaGuardado: profile.current_plan_day ?? 0,
-    dias: (trainingPlan?.plan_data?.days ?? []).map((d: any) => (d?.type === 'rest' ? 'rest' : 'workout')),
+    // tiposDeDia y no un ternario aquí: esta misma línea estaba copiada y
+    // clasificaba 'active_recovery' como día de entrenamiento. Una sola
+    // función para los tres tipos, y no puede volver a divergir.
+    dias: tiposDeDia(trainingPlan?.plan_data?.days),
   });
   const todayIndex = estadoHoy.diaDelPlan;
   const day = trainingPlan?.plan_data?.days?.[todayIndex];

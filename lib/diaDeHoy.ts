@@ -64,9 +64,29 @@ export function olvidarUltimoEntreno(): void {
   cache = null;
 }
 
-/** Normaliza los días del plan a 'workout' | 'rest'. */
+/**
+ * Normaliza los días del plan a los tres tipos de lib/planJsonSchema.ts.
+ *
+ * ESTA LÍNEA TENÍA UN BUG y llegó a producción:
+ *
+ *     d?.type === 'rest' ? 'rest' : 'workout'
+ *
+ * El plan permite TRES tipos —'workout', 'rest' y 'active_recovery'— así que
+ * ese ternario clasificaba la recuperación activa como día de entrenamiento.
+ * Resultado: a quien volvía tras diez días parados, la app le decía arriba
+ * "vuelve, baja un 10% el peso" y abajo le proponía una caminata de 25
+ * minutos. Dos mensajes contradiciéndose en la misma pantalla.
+ *
+ * Lo desconocido cae en 'workout' a propósito: un tipo que no reconocemos es
+ * más probable que sea una variante de entrenamiento que un descanso, y
+ * equivocarse hacia "hoy entrenas" es menos dañino que hacia "hoy descansas".
+ */
 export function tiposDeDia(dias: PlanDia[] | null | undefined): TipoDeDia[] {
-  return (dias ?? []).map((d) => (d?.type === 'rest' ? 'rest' : 'workout'));
+  return (dias ?? []).map((d) => {
+    if (d?.type === 'rest') return 'rest';
+    if (d?.type === 'active_recovery') return 'active_recovery';
+    return 'workout';
+  });
 }
 
 /**

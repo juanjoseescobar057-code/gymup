@@ -172,17 +172,48 @@ console.log(`  ✔ ${veredictoEnv.mensaje}`);
 
 paso('Comprobando el versionCode');
 
+// Los versionCode que Google YA tiene quemados. Los quema en cuanto subes el
+// archivo, aunque después descartes el borrador — ya pasó con el 19.
+//
+// Esto vivía en un comentario "//versionCode" dentro de app.json, que además
+// de no comprobar nada Expo Doctor marcaba como propiedad inválida. Un
+// comentario avisa si alguien lo lee; esto detiene el build.
+//
+// AL SUBIR UN AAB A PLAY, AÑADE AQUÍ SU NÚMERO.
+const VERSION_CODES_QUEMADOS = [
+  19, // rechazado por Play
+  20, // rechazado por Play
+  21, // publicado 2026-08-17, primer build local
+  22, // Rityvo 1.3.0, subido a prueba interna
+];
+
 const appJson = JSON.parse(fs.readFileSync(path.join(raiz, 'app.json'), 'utf8'));
 const versionCode = appJson?.expo?.android?.versionCode;
 const version = appJson?.expo?.version;
 if (typeof versionCode !== 'number') {
   morir('app.json no define expo.android.versionCode, que en un build local es obligatorio.');
 }
+if (VERSION_CODES_QUEMADOS.includes(versionCode)) {
+  const siguiente = Math.max(...VERSION_CODES_QUEMADOS) + 1;
+  morir(
+    `El versionCode ${versionCode} ya se subió a Play, y Google no acepta el mismo dos veces.\n` +
+      `  Súbelo en app.json (el siguiente libre es ${siguiente}) y añade el usado\n` +
+      '  a VERSION_CODES_QUEMADOS en este script.',
+  );
+}
+
+// La versión de marketing tiene que ser la misma en los dos sitios. Estuvieron
+// desalineadas (app.json 1.3.0, package.json 1.0.0), y eso no molesta a nadie
+// hasta que algo lee la equivocada.
+const pkgJson = JSON.parse(fs.readFileSync(path.join(raiz, 'package.json'), 'utf8'));
+if (pkgJson.version !== version) {
+  morir(`app.json dice versión ${version} y package.json dice ${pkgJson.version}. Iguálalas.`);
+}
 console.log(`  versión ${version} (versionCode ${versionCode})`);
 console.log(
-  '  \x1b[33m⚠ Google quema el versionCode en cuanto subes el archivo, aunque\n' +
-    '    después descartes el borrador. Si este número ya se subió alguna vez,\n' +
-    '    cancela ahora (Ctrl+C) y súbelo en app.json.\x1b[0m',
+  '  \x1b[33m⚠ Si este número ya se subió a Play alguna vez y no está en\n' +
+    '    VERSION_CODES_QUEMADOS, cancela ahora (Ctrl+C): Google lo quema al\n' +
+    '    subirlo, aunque después descartes el borrador.\x1b[0m',
 );
 
 // ── 4. Lo que EAS corría en el servidor ──

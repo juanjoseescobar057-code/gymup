@@ -18,6 +18,7 @@ import HealthForm from '../../Components/HealthForm';
 import { EMPTY_HEALTH, computeRisk, type HealthProfile } from '../../lib/healthMath';
 import { type AIShapeError } from '../../lib/schemas';
 import { saveHealthProfile } from '../../lib/health';
+import { registrarConsentimiento } from '../../lib/consentimientos';
 import { track, flush } from '../../lib/analytics';
 import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
 import { MIN_AGE, MAX_AGE, AGE_CONFIRMATION, MEDICAL_DISCLAIMER } from '../../lib/safety';
@@ -204,6 +205,19 @@ export default function OnboardingScreen() {
           }
         }
       }
+
+      // DEJAR CONSTANCIA DE LA AUTORIZACIÓN, antes de escribir ningún dato de
+      // salud. Hasta ahora la casilla de más arriba era un useState que
+      // bloqueaba el botón y no se guardaba en ninguna parte: al salir de la
+      // pantalla no quedaba rastro de que nadie hubiera autorizado nada, y
+      // justo después se escribía el tamizaje entero.
+      //
+      // Si falla se ABORTA, igual que con el tamizaje y por el mismo motivo
+      // llevado un paso más allá: guardar datos sensibles sin poder probar la
+      // autorización es exactamente lo que la Ley 1581 prohíbe. Es el único
+      // orden defendible — primero la prueba, después el dato.
+      const consent = await registrarConsentimiento(userId);
+      if (!consent.ok) throw new Error('Autorización: ' + consent.error);
 
       // Guardar el tamizaje de salud ANTES de generar: el plan nace ya adaptado
       // a lesiones, condiciones y edad. Si el guardado FALLA, se aborta: un

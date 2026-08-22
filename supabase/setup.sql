@@ -1337,6 +1337,50 @@ create table if not exists public.push_tokens (
 select public._apply_owner_rls('push_tokens');
 create index if not exists push_tokens_user on public.push_tokens(user_id);
 
+-- ─── AUTORIZACIÓN DE TRATAMIENTO DE DATOS ────────────────
+-- La casilla del onboarding era un useState(false). Bloqueaba el botón y no se
+-- guardaba en ningún sitio: al cerrar la pantalla no quedaba rastro de que
+-- alguien hubiera autorizado nada.
+--
+-- Eso no vale. La Ley 1581 de 2012 y el Decreto 1377 de 2013 exigen que el
+-- responsable pueda PROBAR la autorización, y para datos sensibles —salud lo
+-- es, y esta app guarda un tamizaje PAR-Q+ entero— el estándar es más
+-- estricto todavía. Un booleano en memoria no prueba nada: ni quién aceptó, ni
+-- cuándo, ni qué versión del documento estaba viendo. Si mañana cambia la
+-- política, tampoco hay forma de saber a quién hay que volver a preguntarle.
+--
+-- Por eso se guarda una FILA POR DOCUMENTO Y VERSIÓN, y no una columna
+-- "acepto" en el perfil: una columna se sobrescribe y la prueba desaparece con
+-- ella.
+create table if not exists public.legal_consents (
+  user_id     uuid references auth.users(id) on delete cascade not null,
+  document    text not null check (document in ('terms','privacy')),
+  version     text not null,
+  accepted_at timestamptz not null default now(),
+  -- Contexto de la aceptación. No es adorno: si alguna vez hay que demostrar
+  -- qué vio esa persona, la versión de la app dice qué pantalla era.
+  app_version text,
+  locale      text,
+  primary key (user_id, document, version)
+);
+alter table public.legal_consents enable row level security;
+grant select, insert on public.legal_consents to anon, authenticated;
+
+-- Se puede leer lo propio e insertar lo propio. NADA MÁS.
+--
+-- Sin update y sin delete a propósito: una prueba que el interesado puede
+-- reescribir o borrar deja de ser prueba. Revocar la autorización no se hace
+-- borrando la fila —eso destruiría el registro de que un día se dio— sino
+-- borrando la cuenta, y de eso ya se encarga el ON DELETE CASCADE.
+drop policy if exists legal_consents_select on public.legal_consents;
+drop policy if exists legal_consents_insert on public.legal_consents;
+create policy legal_consents_select on public.legal_consents
+  for select using (auth.uid() = user_id);
+create policy legal_consents_insert on public.legal_consents
+  for insert with check (auth.uid() = user_id);
+
+create index if not exists legal_consents_user on public.legal_consents(user_id);
+
 -- ─── PERFIL DE SALUD (tamizaje estilo PAR-Q+) ────────────
 -- Lesiones, condiciones y banderas rojas: la IA recibe directivas
 -- individuales de seguridad en TODO lo que genera. Dato sensible:

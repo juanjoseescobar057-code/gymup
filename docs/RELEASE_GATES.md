@@ -27,3 +27,36 @@ de negocio.
 No se debe cambiar un estado a `approved` solo para hacer pasar el build. La finalidad
 de esta compuerta es impedir que una decisión humana pendiente quede disfrazada como un
 problema técnico ya resuelto.
+
+## Las 22 vulnerabilidades de `npm audit` (revisadas el 22 de agosto de 2026)
+
+`npm audit` reporta 22 (8 altas, 14 moderadas) y **ninguna se puede arreglar ni
+afecta a la app publicada**. Queda escrito para que nadie tenga que volver a
+averiguarlo, y para que se note si aparece una nueva.
+
+**Las 8 altas son todas la misma:** `image-size`, dentro de `metro`. Metro es el
+empaquetador: corre en el equipo de desarrollo, no viaja en el AAB. El fallo es
+un bucle infinito al leer un ICNS/JXL/HEIF malformado, así que para que hiciera
+daño tendría que haber una imagen hostil en nuestra propia carpeta de assets.
+
+Y no hay a dónde actualizar: el aviso cubre `<=2.0.2`, que son **todas** las
+versiones publicadas. Lo que `npm audit fix` propone —bajar a `expo@46.0.21`—
+es el resolvedor de npm buscando un árbol sin esa dependencia: sería retroceder
+ocho versiones mayores de SDK y romper la app entera.
+
+**Las 14 moderadas** son el mismo patrón: `@expo/config`, `expo-constants`,
+`expo-dev-client`, `xcode`, `uuid` en herramientas de build. Sus arreglos
+también son degradaciones con salto de mayor.
+
+**Lo que sí se arregló:** `nanoid` estaba por debajo de 3.3.18 y sí viaja en el
+bundle (lo usa react-navigation). Fijado en `overrides`, igual que `postcss`,
+`shell-quote` y `ws`.
+
+### Qué hacer en la próxima revisión
+
+```bash
+npm audit
+```
+
+Si sale algo que **no** sea de la cadena `metro`/`image-size`/`@expo/*`, hay que
+mirarlo de verdad. Si solo salen esas, no ha cambiado nada.

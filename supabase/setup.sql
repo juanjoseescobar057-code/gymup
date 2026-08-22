@@ -1580,6 +1580,15 @@ begin
     raise exception 'increment_ai_usage requiere un usuario autenticado';
   end if;
 
+  -- Un tope nulo se rechaza ANTES de contar. En Postgres `n <= NULL` es NULL,
+  -- no false, así que un p_limit nulo hacía que esta función devolviera NULL —
+  -- y quien la llamaba comparando contra false lo interpretaba como permitido.
+  -- Pasó de verdad: el proxy combinaba dos políticas y perdía un campo por el
+  -- camino. Sin tope válido no se autoriza gasto de IA, y punto.
+  if p_limit is null then
+    raise exception 'increment_ai_usage requiere un tope numérico (llegó null para %)', p_feature;
+  end if;
+
   insert into public.ai_usage (user_id, date, feature, count)
   values (v_uid, current_date, p_feature, 1)
   on conflict (user_id, date, feature)

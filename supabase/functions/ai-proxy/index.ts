@@ -298,6 +298,14 @@ Deno.serve(async (req) => {
         ? policy.premiumLimit
         : policy.freeLimit;
 
+  // Defensa en profundidad: un tope que no sea un número REAL no puede llegar
+  // a la base. Ya pasó una vez —strictestPolicy olvidó trialLimit— y el
+  // undefined resultante hacía que el control fallara ABIERTO.
+  if (!Number.isFinite(limit)) {
+    console.error(`ai-proxy: tope inválido (${String(limit)}) para ${claveContador}; se corta`);
+    return json({ error: 'No se pudo verificar el límite. Intenta luego.' }, 503);
+  }
+
   const { data: allowed, error: rlError } = await supabase.rpc('increment_ai_usage', {
     p_feature: claveContador, p_limit: limit,
   });
@@ -305,7 +313,9 @@ Deno.serve(async (req) => {
     console.error('rate-limit error:', rlError.message);
     return json({ error: 'No se pudo verificar el límite. Intenta luego.' }, 503);
   }
-  if (allowed === false) {
+  // `!== true` y no `=== false`: la RPC devuelve NULL si el tope llega nulo, y
+  // NULL no es false. Comparar contra false dejaba pasar ese caso.
+  if (allowed !== true) {
     return json({ error: 'Alcanzaste el límite de hoy. Pásate a Premium para más.', code: 'limit_reached' }, 429);
   }
 
@@ -478,9 +488,19 @@ function rankOf(feature: string): number {
 
 // "Más estricta" = premiumOnly gana y cada límite se toma al mínimo.
 function strictestPolicy(a: FeaturePolicy, b: FeaturePolicy): FeaturePolicy {
+  // TODOS los campos de FeaturePolicy, sin excepción. Al añadir trialLimit se
+  // olvidó aquí, y el objeto combinado salía con trialLimit: undefined. Eso
+  // llegaba a increment_ai_usage como p_limit null, y en Postgres
+  // `current_count <= NULL` es NULL, no false — así que la comprobación del
+  // proxy (`allowed === false`) lo dejaba pasar. No fallaba el trial: fallaba
+  // ABIERTO, con IA sin tope por ese camino.
+  //
+  // __tests__/aiProxyPolicy.test.ts comprueba que esta función cubra todos los
+  // campos del tipo, para que el próximo campo nuevo no repita la historia.
   return {
     premiumOnly: a.premiumOnly || b.premiumOnly,
     freeLimit: Math.min(a.freeLimit, b.freeLimit),
+    trialLimit: Math.min(a.trialLimit, b.trialLimit),
     premiumLimit: Math.min(a.premiumLimit, b.premiumLimit),
   };
 }

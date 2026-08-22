@@ -27,6 +27,7 @@
 // ─────────────────────────────────────────────────────────
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { listaDeEntitlements, veredictoPremium } from '../_shared/entitlements.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,32 +41,11 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-/**
- * ¿Tiene alguna suscripción activa según RevenueCat?
- * Se mira `entitlements` y, como respaldo, `subscriptions`: si el proyecto aún
- * no tiene entitlement configurado, una suscripción activa igual debe contar.
- */
-function tienePremium(subscriber: Record<string, any> | null): boolean {
-  if (!subscriber) return false;
-  const ahora = Date.now();
-
-  const vigente = (expira: unknown): boolean => {
-    // expires_date null = compra no renovable / vitalicia: sigue vigente.
-    if (expira == null) return true;
-    const t = Date.parse(String(expira));
-    return Number.isFinite(t) && t > ahora;
-  };
-
-  const ents = subscriber.entitlements ?? {};
-  for (const key of Object.keys(ents)) {
-    if (vigente(ents[key]?.expires_date)) return true;
-  }
-  const subs = subscriber.subscriptions ?? {};
-  for (const key of Object.keys(subs)) {
-    if (vigente(subs[key]?.expires_date)) return true;
-  }
-  return false;
-}
+// La lista de entitlements y el veredicto viven en _shared/entitlements.ts:
+// rc-webhook tiene que responder LO MISMO que este archivo, porque son las dos
+// vías que escriben is_premium. Y ahí se puede probar de verdad
+// (__tests__/entitlementsRC.test.ts), que aquí dentro no.
+const ENTITLEMENTS_PREMIUM = listaDeEntitlements(Deno.env.get('RC_ENTITLEMENT_IDS'));
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -113,7 +93,22 @@ Deno.serve(async (req) => {
     return json({ error: 'RevenueCat no respondió', code: 'rc_unavailable' }, 503);
   }
 
-  const premium = tienePremium(subscriber);
+  const veredicto = veredictoPremium(subscriber, ENTITLEMENTS_PREMIUM, Date.now());
+  if (veredicto.noReconocidos.length > 0) {
+    // Casi siempre es el entitlement mal nombrado en el panel. Se dice con el
+    // nombre exacto porque el modo de fallo caro de este archivo es negarle
+    // Premium a quien pagó, y así se ve en el primer log en vez de en el
+    // primer reembolso.
+    console.warn(
+      `sync-premium: entitlement activo fuera de la lista: ${veredicto.noReconocidos.join(', ')}. ` +
+      `Se esperaba uno de [${ENTITLEMENTS_PREMIUM.join(', ')}]. ` +
+      `Si el nombre correcto es otro, ponlo en el secreto RC_ENTITLEMENT_IDS.`,
+    );
+  }
+  if (veredicto.motivo?.startsWith('suscripcion:')) {
+    console.warn(`sync-premium: Premium por ${veredicto.motivo} (el proyecto no tiene entitlements configurados).`);
+  }
+  const premium = veredicto.premium;
 
   // Escritura con service role: is_premium está revocada para el cliente.
   const admin = createClient(

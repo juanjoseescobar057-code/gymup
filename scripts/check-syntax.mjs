@@ -69,14 +69,20 @@ try {
   process.exit(1);
 }
 
-const dirFunciones = path.join(process.cwd(), FUNCIONES);
-const funciones = fs.existsSync(dirFunciones)
-  ? fs
-      .readdirSync(dirFunciones, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => path.join(FUNCIONES, d.name, 'index.ts'))
-      .filter((p) => fs.existsSync(path.join(process.cwd(), p)))
-  : [];
+// TODOS los .ts de supabase/functions, no solo los index.ts. Los módulos de
+// _shared/ los importan varias funciones a la vez, así que un error ahí las
+// rompe todas — y antes no los miraba nadie: tsconfig excluye supabase/ porque
+// es Deno, y esta comprobación solo recorría carpeta/index.ts.
+function tsDeFunciones(dir, acc = []) {
+  if (!fs.existsSync(dir)) return acc;
+  for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+    const completo = path.join(dir, d.name);
+    if (d.isDirectory()) tsDeFunciones(completo, acc);
+    else if (d.name.endsWith('.ts')) acc.push(path.relative(process.cwd(), completo));
+  }
+  return acc;
+}
+const funciones = tsDeFunciones(path.join(process.cwd(), FUNCIONES));
 
 for (const archivo of funciones) {
   try {
@@ -96,4 +102,4 @@ if (fallos) {
   process.exit(1);
 }
 
-console.log(`Sintaxis OK (${archivos.length} scripts y plugins, ${funciones.length} edge functions)`);
+console.log(`Sintaxis OK (${archivos.length} scripts y plugins, ${funciones.length} archivos de edge functions)`);

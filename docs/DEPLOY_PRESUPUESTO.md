@@ -9,7 +9,7 @@ responde, no gasta IA y devuelve 503. Es lo correcto —mejor sin IA que sin
 control de gasto— pero significa que **desplegar la función antes que el SQL
 corta toda la IA en producción** hasta que llegue el SQL.
 
-    1. SQL      (supabase/migraciones/2026-08-17-presupuesto-ia.sql)
+    1. SQL      (supabase/setup.sql)
     2. Funciones (ai-proxy y rc-webhook)
 
 ---
@@ -20,8 +20,7 @@ En el panel de Supabase → **SQL Editor** → **New query**.
 
 ### 1.1 Validar sin aplicar
 
-Pega el contenido de `supabase/migraciones/2026-08-17-presupuesto-ia.sql`
-envuelto así:
+Pega el contenido de **`supabase/setup.sql`** envuelto así:
 
 ```sql
 BEGIN;
@@ -32,6 +31,14 @@ ROLLBACK;
 Con `ROLLBACK` al final, Postgres ejecuta todo y lo deshace. Si algo estaba
 mal, sale el error y la base queda intacta. Si dice **Success**, el SQL es
 válido contra el esquema real.
+
+> **Por qué el archivo entero y no un trozo.** `setup.sql` es idempotente: se
+> puede correr las veces que haga falta, y es el **único** SQL que se ejecuta en
+> este proyecto. Este paso apuntó un tiempo a
+> `supabase/migraciones/2026-08-17-presupuesto-ia.sql`. Esa carpeta no la leía
+> nadie —la CLI de Supabase solo mira `migrations`— así que ese archivo nunca
+> fue un paso de despliegue de verdad. Ahora vive en `supabase/historico/` como
+> registro de qué cambió ese día. **No lo pegues.**
 
 ### 1.2 Aplicar
 

@@ -29,6 +29,7 @@
 // ─────────────────────────────────────────────────────────
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { listaDeEntitlements, afectaANuestroEntitlement } from '../_shared/entitlements.ts';
 
 // Eventos que dejan Premium ACTIVO / INACTIVO. CANCELLATION solo apaga la
 // renovación: el acceso sigue hasta EXPIRATION (comportamiento estándar).
@@ -48,6 +49,13 @@ const DEACTIVATE = new Set(['EXPIRATION']);
 // (incluidos los no manejados) descartaría por error una activación/
 // desactivación legítima entregada fuera de orden.
 const STATE_CHANGING = new Set([...ACTIVATE, ...DEACTIVATE, 'TRANSFER']);
+
+// La lista y la decisión viven en _shared/entitlements.ts, compartidas con
+// sync-premium: son las dos vías que escriben is_premium y tienen que
+// responder lo mismo. Antes CUALQUIER compra del proyecto activaba Premium;
+// con un solo producto daba igual, en cuanto exista un segundo —un paquete de
+// escaneos, una promo, un tier más barato— comprarlo daría Premium completo.
+const ENTITLEMENTS_PREMIUM = listaDeEntitlements(Deno.env.get('RC_ENTITLEMENT_IDS'));
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -144,6 +152,20 @@ Deno.serve(async (req) => {
     return fila?.aplicado === true;
   }
 
+  // ¿Es un entitlement nuestro? Se calcula una vez y vale para las dos ramas.
+  const nuestro = afectaANuestroEntitlement(event, ENTITLEMENTS_PREMIUM);
+  if (nuestro === false) {
+    console.log(
+      `rc-webhook: ${type} de entitlements ajenos (${JSON.stringify(event.entitlement_ids ?? event.entitlement_id)}); ` +
+      `se registra sin tocar is_premium. Esperados: [${ENTITLEMENTS_PREMIUM.join(', ')}]`,
+    );
+  } else if (nuestro === null) {
+    console.log(`rc-webhook: ${type} sin entitlement_ids; se aplica por tipo de evento.`);
+  }
+  // Solo un entitlement RECONOCIDO cambia el estado. Con null se sigue como
+  // siempre: el campo falta, no contradice.
+  const puedeCambiarEstado = nuestro !== false;
+
   let handled = false;
 
   if (type === 'TRANSFER') {
@@ -154,13 +176,15 @@ Deno.serve(async (req) => {
     // Clave por usuario afectado. Con un solo event_id para varias personas,
     // el cerrojo de idempotencia dejaba a todas menos a una fuera del control
     // de orden — y a su fila sin quedar asociada a nadie en concreto.
-    for (const uid of to) handled = (await aplicar(`${eventId}#${uid}`, uid, true, true)) || handled;
-    for (const uid of from) handled = (await aplicar(`${eventId}#${uid}`, uid, false, true)) || handled;
+    for (const uid of to) handled = (await aplicar(`${eventId}#${uid}`, uid, puedeCambiarEstado ? true : null, puedeCambiarEstado)) || handled;
+    for (const uid of from) handled = (await aplicar(`${eventId}#${uid}`, uid, puedeCambiarEstado ? false : null, puedeCambiarEstado)) || handled;
   } else {
     const userId: string = event.app_user_id ?? '';
     let isPremium: boolean | null = null;
-    if (ACTIVATE.has(type)) isPremium = true;
-    else if (DEACTIVATE.has(type)) isPremium = false;
+    if (puedeCambiarEstado) {
+      if (ACTIVATE.has(type)) isPremium = true;
+      else if (DEACTIVATE.has(type)) isPremium = false;
+    }
     // Se llama SIEMPRE, aunque el evento no cambie el estado: así queda
     // registrado y un reintento futuro se detecta como duplicado.
     handled = await aplicar(eventId, userId, isPremium, isPremium !== null);

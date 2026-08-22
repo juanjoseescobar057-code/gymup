@@ -31,6 +31,7 @@
 // ─────────────────────────────────────────────────────────
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { leerCuerpoAcotado, inspectMessages } from '../_shared/payload.ts';
 
 // Se admite el SNAPSHOT además del alias. El alias mueve el comportamiento del
 // modelo sin avisar, y esta app da recomendaciones de salud: la generación de
@@ -155,6 +156,25 @@ const MAX_TEXT_CHARS = 120_000;
 const MAX_IMAGES = 4;
 const MAX_OUTPUT_TOKENS = 4096;
 
+// Techo del CUERPO de la petición, en bytes.
+//
+// Hacía falta porque MAX_TEXT_CHARS no mide los data-URI de las imágenes a
+// propósito (ver inspectMessages), así que hasta ahora no había NADA acotando
+// el tamaño real: `await req.json()` se tragaba lo que llegara, y una petición
+// de cientos de megas tumbaba la función antes de llegar a ningún control.
+//
+// La cuenta: lib/image.ts manda JPEG de 1024 px al 70% de calidad. Eso son
+// ~150-500 KB por foto, y base64 añade un tercio: ~700 KB en el peor caso
+// realista. Cuatro fotos (MAX_IMAGES) son ~2,7 MB. Seis megas deja el doble de
+// margen y sigue estando dos órdenes de magnitud por debajo de lo que hace
+// daño.
+const MAX_BODY_BYTES = 6 * 1024 * 1024;
+
+// Techo por imagen. Con el de arriba bastaría, pero una sola foto de 5 MB es
+// siempre un error del cliente (o alguien probando), no una foto de gimnasio:
+// mejor decirlo con claridad que dejar que se lo coma el techo global.
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type, x-gymup-feature',
@@ -178,8 +198,24 @@ Deno.serve(async (req) => {
   if (authError || !user) return json({ error: 'No autorizado' }, 401);
 
   // 2. Body + modelo + validación DURA del payload (antes de gastar nada).
+  //
+  // El tamaño se acota ANTES de parsear. Con `await req.json()` a secas, un
+  // cuerpo de 200 MB se bufferizaba entero en memoria y reventaba la función
+  // sin que ningún control llegara a ejecutarse: no hacía falta ni tener cuenta
+  // premium para tumbar la IA de todos.
+  const declarado = Number(req.headers.get('content-length'));
+  if (Number.isFinite(declarado) && declarado > MAX_BODY_BYTES) {
+    return json({ error: 'Petición demasiado grande.', code: 'payload_too_large' }, 413);
+  }
+
+  const crudo = await leerCuerpoAcotado(req, MAX_BODY_BYTES);
+  if (crudo === null) {
+    // Se cortó la lectura a mitad: el content-length mentía o no venía.
+    return json({ error: 'Petición demasiado grande.', code: 'payload_too_large' }, 413);
+  }
+
   let body: any;
-  try { body = await req.json(); } catch { return json({ error: 'JSON inválido' }, 400); }
+  try { body = JSON.parse(crudo); } catch { return json({ error: 'JSON inválido' }, 400); }
   if (!ALLOWED_MODELS.has(body?.model)) return json({ error: 'Modelo no permitido' }, 400);
 
   const messages = body?.messages;
@@ -198,7 +234,14 @@ Deno.serve(async (req) => {
   if (Number(body.n) > 1) return json({ error: 'Solo se permite una respuesta por petición (n = 1).' }, 400);
   if (body.stream === true) return json({ error: 'El proxy no soporta streaming.' }, 400);
 
-  const { images, textChars } = inspectMessages(messages);
+  const { images, textChars, imagenInvalida } = inspectMessages(messages, MAX_IMAGE_BYTES);
+  if (imagenInvalida) {
+    // La app SIEMPRE manda data:image/...;base64 (ver lib/openai.ts y
+    // lib/openai-features.ts). Una URL remota haría que OpenAI la descargue
+    // CON NUESTRA CUENTA: eso convierte el proxy en un buscador de URLs ajeno y
+    // no lo necesita ninguna función real.
+    return json({ error: imagenInvalida, code: 'imagen_invalida' }, 400);
+  }
   if (textChars > MAX_TEXT_CHARS) {
     return json({
       error: `Petición demasiado larga: ${textChars} caracteres de texto (máximo ${MAX_TEXT_CHARS}). Reduce el contexto.`,
@@ -450,26 +493,6 @@ function esRespuestaInservible(raw: string): boolean {
   } catch {
     return true; // ni siquiera es JSON: no hay nada que entregar
   }
-}
-
-// Recorre los mensajes contando imágenes y caracteres de TEXTO.
-// Los data-URI de las imágenes NO cuentan como texto a propósito: un body_scan
-// legítimo trae cientos de miles de caracteres de base64 y medirlos ahí lo
-// rechazaría siempre. El nº de imágenes ya se acota por separado.
-function inspectMessages(messages: unknown[]): { images: number; textChars: number } {
-  let images = 0;
-  let textChars = 0;
-  for (const msg of messages) {
-    const content = (msg as { content?: unknown })?.content;
-    if (typeof content === 'string') { textChars += content.length; continue; }
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      const p = part as { type?: unknown; text?: unknown };
-      if (p?.type === 'image_url') images++;
-      else if (typeof p?.text === 'string') textChars += p.text.length;
-    }
-  }
-  return { images, textChars };
 }
 
 // Piso de política derivado SOLO del payload, sin mirar el header. Las imágenes

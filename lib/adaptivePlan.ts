@@ -14,6 +14,7 @@ import { loadHealthSafe, clearPlanStaleForHealth, markPlanStaleForHealth } from 
 import { healthToPrompt, evaluateWorkoutAccess } from './healthMath';
 import type { UserProfile, WeeklyPlan, BiologicalSex } from './supabase';
 import { analyzeExerciseProgress, chooseIntervention, type PerformanceSet } from './progressionEngine';
+import { resumirReadiness, type FilaReadiness } from './readinessMath';
 
 // Re-export de la lógica pura (vive en adaptivePlanMath para ser testeable).
 export { parseRepsHigh, progressionAdvice, summarizePerformance } from './adaptivePlanMath';
@@ -60,14 +61,12 @@ export async function regenerateAdaptivePlan(
     .gte('recorded_at', new Date(Date.now() - 28 * 86400000).toISOString())
     .order('recorded_at', { ascending: false })
     .limit(20);
-  const readiness = readinessRows?.length ? {
-    energy: Math.round(readinessRows.reduce((a: number, r: any) => a + (r.energy ?? 3), 0) / readinessRows.length),
-    sleepQuality: Math.round(readinessRows.reduce((a: number, r: any) => a + (r.sleep_quality ?? 3), 0) / readinessRows.length),
-    soreness: Math.round(readinessRows.reduce((a: number, r: any) => a + (r.soreness ?? 3), 0) / readinessRows.length),
-    stress: Math.round(readinessRows.reduce((a: number, r: any) => a + (r.stress ?? 3), 0) / readinessRows.length),
-    painNew: readinessRows.some((r: any) => r.pain_new),
-    availableMinutes: Math.round(readinessRows.reduce((a: number, r: any) => a + (r.available_minutes ?? 60), 0) / readinessRows.length),
-  } : undefined;
+  // resumirReadiness y no un promedio a mano: el de aquí usaba `?? 3` en cada
+  // campo, o sea que convertía "no lo sé" en "está normal". Como 3 es el valor
+  // neutro, eso diluía las señales reales hasta apagarlas — dos sesiones de
+  // energía 2 entre ocho sin dato salían en 2.8 y no disparaban nada.
+  // Ahora los nulos se omiten y lo desconocido llega como undefined.
+  const readiness = resumirReadiness((readinessRows ?? []) as FilaReadiness[]);
   const diagnostics = exerciseNames.map((name) => {
     const progress = analyzeExerciseProgress(name, rows);
     const libraryName = name.toLowerCase();

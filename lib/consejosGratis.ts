@@ -23,6 +23,7 @@ import {
 import { consejosDelDia, type ConsejoCoach, type ContextoCoach } from './coachReglas';
 import { loadUserStats } from './streaks';
 import { loadHealthSafe } from './health';
+import { resumirReadiness, calcularAdherencia, type FilaReadiness } from './readinessMath';
 
 export type { ConsejoCoach } from './coachReglas';
 
@@ -49,6 +50,10 @@ export async function consejosGratisDeHoy(args: {
   diasSinEntrenar: number | null;
   proteinaHoyG: number | null;
   proteinaMetaG: number | null;
+  /** Días de entreno que tiene el plan por semana. Para la adherencia. */
+  diasDeEntrenoPorSemana?: number;
+  /** Fechas ISO de sesiones completadas, para la adherencia. */
+  sesionesCompletadas?: string[];
 }): Promise<ConsejoCoach[]> {
   const desde = new Date(Date.now() - VENTANA_DIAS * 86_400_000).toISOString();
 
@@ -87,8 +92,25 @@ export async function consejosGratisDeHoy(args: {
   // que hay más evidencia. Enseñar tres a la vez no es un consejo, es una lista.
   const filasReadiness: FilaReadiness[] =
     readinessRes.status === 'fulfilled' ? ((readinessRes.value.data ?? []) as FilaReadiness[]) : [];
-  const readiness = resumirReadiness(filasReadiness);
+  const readinessBase = resumirReadiness(filasReadiness);
   const sueno = resumirSueno(filasReadiness);
+
+  // La adherencia: progressionEngine tiene una rama que hace el plan más
+  // ejecutable por debajo del 70%, pero nadie calculaba el dato y el `?? 100`
+  // la dejaba muerta — el motor presumía cumplimiento perfecto de todo el
+  // mundo. El propio código lo advertía en un comentario.
+  //
+  // Solo se pasa cuando hay un número real: mandar null sería volver a
+  // inventar, que es justo lo que se está corrigiendo.
+  const adherencia = calcularAdherencia({
+    diasDeEntrenoPorSemana: args.diasDeEntrenoPorSemana ?? 0,
+    sesionesCompletadas: args.sesionesCompletadas ?? [],
+    semanas: 4,
+    hoyISO: new Date().toISOString(),
+  });
+  const readiness = readinessBase || adherencia.pct !== null
+    ? { ...(readinessBase ?? {}), ...(adherencia.pct !== null ? { adherencePct: adherencia.pct } : {}) }
+    : undefined;
 
   const conMasDatos = progresos.slice().sort((a, b) => b.exposures - a.exposures)[0];
   const intervencion: Intervention | null = conMasDatos
@@ -155,40 +177,7 @@ function mejoresDeLaSemana(
     .slice(0, 3);
 }
 
-export type FilaReadiness = {
-  energy: number | null;
-  sleep_quality: number | null;
-  soreness: number | null;
-  stress: number | null;
-  pain_new: boolean | null;
-};
 
-/**
- * Promedia la readiness para chooseIntervention.
- *
- * Los nulos se OMITEN en vez de contarse como 3 (el valor neutro). Promediar
- * ausencias con el neutro diluye las señales reales: alguien con dos sesiones
- * de energía 2 y ocho sin dato saldría en 2.8 y no dispararía nada.
- */
-export function resumirReadiness(filas: FilaReadiness[]): ReadinessSummary | undefined {
-  if (filas.length === 0) return undefined;
-
-  const media = (k: keyof FilaReadiness): number | undefined => {
-    const vals = filas.map((f) => f[k]).filter((v): v is number => typeof v === 'number');
-    if (vals.length === 0) return undefined;
-    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-  };
-
-  return {
-    energy: media('energy'),
-    sleepQuality: media('sleep_quality'),
-    soreness: media('soreness'),
-    stress: media('stress'),
-    // Un dolor nuevo en cualquiera de las últimas sesiones basta para señalarlo:
-    // promediarlo lo apagaría, y es la única señal aquí que es de salud.
-    painNew: filas.some((f) => f.pain_new === true),
-  };
-}
 
 export type ResumenSueno = {
   /** Media 1-5 de las sesiones CON dato. null = nadie ha respondido nunca. */

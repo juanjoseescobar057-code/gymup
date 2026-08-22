@@ -125,6 +125,8 @@ export default function WorkoutSessionScreen() {
   const [sorenessToday, setSorenessToday] = useState(3);
   // 1-5, misma escala que energia y molestia. Lo lee chooseIntervention.
   const [sleepToday, setSleepToday] = useState(3);
+  // Estres: la otra columna que adaptivePlan leia y nadie escribia.
+  const [stressToday, setStressToday] = useState(3);
   const [availableMinutes, setAvailableMinutes] = useState(60);
   const [newPainToday, setNewPainToday] = useState(false);
   const ctxSalud = {
@@ -792,6 +794,7 @@ export default function WorkoutSessionScreen() {
           client_session_key: clientSessionKeyRef.current,
           energy: energyToday,
           sleep_quality: sleepToday,
+          stress: stressToday,
           soreness: sorenessToday,
           available_minutes: availableMinutes,
           pain_new: newPainToday,
@@ -801,6 +804,7 @@ export default function WorkoutSessionScreen() {
         track('workout_readiness_submitted', {
           energy: energyToday,
           sleep_quality: sleepToday,
+          stress: stressToday,
           soreness: sorenessToday,
           available_minutes: availableMinutes,
           pain_new: newPainToday,
@@ -861,6 +865,19 @@ export default function WorkoutSessionScreen() {
                   onPress={() => setSleepToday(o.v)} accessibilityRole="radio"
                   accessibilityState={{ selected: sleepToday === o.v }} accessibilityLabel={`Dormiste ${o.l}`}>
                   <Text style={[s.readinessChipTxt, sleepToday === o.v && s.readinessChipTxtOn]}>{o.l}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* El estrés no es relleno: chooseIntervention lo mira igual que el
+                sueño —`(readiness.stress ?? 3) >= 5` entra en underRecovered— y
+                adaptivePlan lo lee. Era la otra columna que nadie llenaba. */}
+            <Text style={s.readinessLabel}>Estrés estos días</Text>
+            <View style={s.readinessRow}>
+              {[{ v: 1, l: 'Poco' }, { v: 3, l: 'Normal' }, { v: 5, l: 'Mucho' }].map((o) => (
+                <TouchableOpacity key={o.v} style={[s.readinessChip, stressToday === o.v && s.readinessChipOn]}
+                  onPress={() => setStressToday(o.v)} accessibilityRole="radio"
+                  accessibilityState={{ selected: stressToday === o.v }} accessibilityLabel={`Estrés ${o.l}`}>
+                  <Text style={[s.readinessChipTxt, stressToday === o.v && s.readinessChipTxtOn]}>{o.l}</Text>
                 </TouchableOpacity>
               ))}
             </View>

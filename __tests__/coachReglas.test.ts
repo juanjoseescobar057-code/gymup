@@ -160,3 +160,52 @@ test('cada consejo trae una clave que no cambia entre llamadas', () => {
     consejosDelDia(c).map((x) => x.clave),
   );
 });
+
+// ── Sueño ──
+// El dato es una AUTOEVALUACIÓN de 1 a 5 al empezar a entrenar, no horas
+// dormidas. Todo lo que diga el consejo tiene que caber dentro de eso.
+
+const conSueno = (nochesMalas: number, sesionesConDato: number) =>
+  ctx({ sueno: { calidadMedia: 2, nochesMalas, sesionesConDato } });
+
+test('una mala noche suelta no dispara nada', () => {
+  // Avisar por una noche mala enseña a ignorar el aviso.
+  assert.ok(!/durmiendo/i.test(textos(conSueno(1, 4))));
+});
+
+test('con pocas sesiones registradas tampoco avisa', () => {
+  // Dos de dos parece grave y no lo es: no hay patrón todavía.
+  assert.ok(!/durmiendo/i.test(textos(conSueno(2, 2))));
+});
+
+test('un patrón real sí avisa, y dice sobre cuántas sesiones', () => {
+  const t = textos(conSueno(3, 5));
+  assert.match(t, /durmiendo mal/i);
+  assert.match(t, /3 de tus últimas 5/);
+});
+
+test('sin datos de sueño no se inventa el consejo', () => {
+  assert.ok(!/durmiendo/i.test(textos(ctx({ sueno: null }))));
+  assert.ok(!/durmiendo/i.test(textos(ctx({}))));
+});
+
+test('NUNCA menciona horas de sueño', () => {
+  // El dato no las contiene. Decir "duermes 5 horas" sería inventar una cifra
+  // que nadie midió, y encima suena a que la app te vigila.
+  const t = textos(conSueno(4, 6));
+  assert.ok(!/\d+\s*(horas|h\b)/i.test(t), `se coló una cifra de horas: "${t}"`);
+});
+
+test('el consejo de sueño es accionable, no un regaño', () => {
+  const t = textos(conSueno(4, 6));
+  assert.match(t, /baja el volumen/i);
+  assert.ok(!/deberías|tienes que|mal hecho|excusas/i.test(t));
+});
+
+test('la salud sigue mandando por encima del sueño', () => {
+  const r = consejosDelDia(ctx({
+    condiciones: ['cardiopatia'],
+    sueno: { calidadMedia: 1, nochesMalas: 5, sesionesConDato: 5 },
+  }));
+  assert.equal(r[0].origen, 'salud');
+});

@@ -46,6 +46,11 @@ export type ContextoCoach = {
   condiciones: string[];
   /** null si no se pudo leer el tamizaje: se asume lo conservador. */
   saludDesconocida?: boolean;
+  /**
+   * Cómo viene durmiendo, de lo que él mismo declara al empezar a entrenar.
+   * null cuando nunca ha respondido. OJO: es una nota de 1 a 5, NO horas.
+   */
+  sueno?: { calidadMedia: number | null; nochesMalas: number; sesionesConDato: number } | null;
   proteinaHoyG: number | null;
   proteinaMetaG: number | null;
   /** PRs de los últimos días, ya filtrados por quien llama. */
@@ -59,6 +64,7 @@ const PRIORIDAD = {
   salud: 100,
   intervencion: 80,
   estancamiento: 60,
+  sueno: 58,
   regreso: 55,
   descanso: 50,
   pr: 40,
@@ -197,6 +203,30 @@ export function consejosDelDia(ctx: ContextoCoach): ConsejoCoach[] {
       origen: 'descanso',
       prioridad: PRIORIDAD.descanso,
       texto: 'Hoy toca descansar, y es parte del plan: el músculo crece entre sesiones, no durante. Camina, estira, duerme bien.',
+    });
+  }
+
+  // ── Sueño ──
+  // Va alto porque es la palanca de recuperación más grande que existe y
+  // además es la única señal de aquí sobre la que se puede actuar FUERA del
+  // gimnasio: la energía y las agujetas se constatan, el sueño se cambia.
+  //
+  // Hacen falta al menos tres sesiones con dato: una mala noche no es un
+  // patrón, y avisar por ella enseña a ignorar el aviso.
+  //
+  // Nunca se mencionan horas. El dato es una nota de 1 a 5 que la persona se
+  // pone a sí misma; decir "duermes cinco horas" sería inventar una cifra que
+  // nadie midió.
+  const s = ctx.sueno;
+  if (s && s.sesionesConDato >= 3 && s.nochesMalas >= 2) {
+    consejos.push({
+      clave: 'sueno',
+      origen: 'descanso',
+      prioridad: PRIORIDAD.sueno,
+      texto:
+        `Vienes durmiendo mal (${s.nochesMalas} de tus últimas ${s.sesionesConDato} sesiones). ` +
+        'Hoy baja el volumen: la fuerza no se pierde en una semana, pero durmiendo poco sube el riesgo de lesión ' +
+        'y el músculo se construye peor.',
     });
   }
 

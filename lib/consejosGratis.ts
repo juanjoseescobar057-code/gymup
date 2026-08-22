@@ -18,6 +18,7 @@ import {
   type ExerciseProgress,
   type Intervention,
   type PerformanceSet,
+  type ReadinessSummary,
 } from './progressionEngine';
 import { consejosDelDia, type ConsejoCoach, type ContextoCoach } from './coachReglas';
 import { loadUserStats } from './streaks';
@@ -51,7 +52,13 @@ export async function consejosGratisDeHoy(args: {
 }): Promise<ConsejoCoach[]> {
   const desde = new Date(Date.now() - VENTANA_DIAS * 86_400_000).toISOString();
 
-  const [setsRes, statsRes, healthRes] = await Promise.allSettled([
+  // La readiness de las últimas sesiones. chooseIntervention YA sabe qué hacer
+  // con ella —dormir mal o llegar sin energía baja el volumen— pero hasta ahora
+  // se la llamaba sin este dato, así que esa rama nunca se ejecutaba para el
+  // plan gratis. Cuatro semanas: menos es una mala noche suelta, no un patrón.
+  const desdeReadiness = new Date(Date.now() - 28 * 86_400_000).toISOString();
+
+  const [setsRes, statsRes, healthRes, readinessRes] = await Promise.allSettled([
     supabase
       .from('set_logs')
       .select('exercise_name, weight_kg, reps, rir, logged_at, session_id')
@@ -61,6 +68,13 @@ export async function consejosGratisDeHoy(args: {
       .limit(500),
     loadUserStats(args.userId),
     loadHealthSafe(args.userId),
+    supabase
+      .from('workout_readiness')
+      .select('energy, sleep_quality, soreness, stress, pain_new')
+      .eq('user_id', args.userId)
+      .gte('recorded_at', desdeReadiness)
+      .order('recorded_at', { ascending: false })
+      .limit(10),
   ]);
 
   const filas: PerformanceSet[] =
@@ -71,10 +85,16 @@ export async function consejosGratisDeHoy(args: {
 
   // Una sola intervención, la del ejercicio con más exposiciones: es sobre la
   // que hay más evidencia. Enseñar tres a la vez no es un consejo, es una lista.
+  const filasReadiness: FilaReadiness[] =
+    readinessRes.status === 'fulfilled' ? ((readinessRes.value.data ?? []) as FilaReadiness[]) : [];
+  const readiness = resumirReadiness(filasReadiness);
+  const sueno = resumirSueno(filasReadiness);
+
   const conMasDatos = progresos.slice().sort((a, b) => b.exposures - a.exposures)[0];
   const intervencion: Intervention | null = conMasDatos
     ? chooseIntervention({
         progress: conMasDatos,
+        readiness,
         isIsolation: esAislamiento(conMasDatos.exercise),
         goal: args.goal ?? undefined,
       })
@@ -107,6 +127,7 @@ export async function consejosGratisDeHoy(args: {
     lesiones: perfilSalud?.injuries ?? [],
     condiciones: perfilSalud?.conditions ?? [],
     saludDesconocida,
+    sueno,
     proteinaHoyG: args.proteinaHoyG,
     proteinaMetaG: args.proteinaMetaG,
     prsRecientes,
@@ -132,4 +153,70 @@ function mejoresDeLaSemana(
     .map(([ejercicio, pesoKg]) => ({ ejercicio, pesoKg }))
     .sort((a, b) => b.pesoKg - a.pesoKg)
     .slice(0, 3);
+}
+
+export type FilaReadiness = {
+  energy: number | null;
+  sleep_quality: number | null;
+  soreness: number | null;
+  stress: number | null;
+  pain_new: boolean | null;
+};
+
+/**
+ * Promedia la readiness para chooseIntervention.
+ *
+ * Los nulos se OMITEN en vez de contarse como 3 (el valor neutro). Promediar
+ * ausencias con el neutro diluye las señales reales: alguien con dos sesiones
+ * de energía 2 y ocho sin dato saldría en 2.8 y no dispararía nada.
+ */
+export function resumirReadiness(filas: FilaReadiness[]): ReadinessSummary | undefined {
+  if (filas.length === 0) return undefined;
+
+  const media = (k: keyof FilaReadiness): number | undefined => {
+    const vals = filas.map((f) => f[k]).filter((v): v is number => typeof v === 'number');
+    if (vals.length === 0) return undefined;
+    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  };
+
+  return {
+    energy: media('energy'),
+    sleepQuality: media('sleep_quality'),
+    soreness: media('soreness'),
+    stress: media('stress'),
+    // Un dolor nuevo en cualquiera de las últimas sesiones basta para señalarlo:
+    // promediarlo lo apagaría, y es la única señal aquí que es de salud.
+    painNew: filas.some((f) => f.pain_new === true),
+  };
+}
+
+export type ResumenSueno = {
+  /** Media 1-5 de las sesiones CON dato. null = nadie ha respondido nunca. */
+  calidadMedia: number | null;
+  /** Sesiones registradas durmiendo mal (<= 2). */
+  nochesMalas: number;
+  /** Sobre cuántas sesiones con dato. */
+  sesionesConDato: number;
+};
+
+/**
+ * El sueño, aparte del resto de la readiness.
+ *
+ * Va separado porque es lo único de aquí sobre lo que se puede dar un consejo
+ * accionable fuera del gimnasio: la energía y las agujetas se constatan, el
+ * sueño se cambia.
+ *
+ * OJO CON LO QUE ES ESTE DATO: es una autoevaluación de 1 a 5 al empezar a
+ * entrenar, NO horas dormidas. Así que el consejo puede decir "vienes
+ * durmiendo mal" pero nunca "duermes cinco horas": eso sería inventarse una
+ * cifra que nadie midió.
+ */
+export function resumirSueno(filas: FilaReadiness[]): ResumenSueno {
+  const vals = filas.map((f) => f.sleep_quality).filter((v): v is number => typeof v === 'number');
+  if (vals.length === 0) return { calidadMedia: null, nochesMalas: 0, sesionesConDato: 0 };
+  return {
+    calidadMedia: vals.reduce((a, b) => a + b, 0) / vals.length,
+    nochesMalas: vals.filter((v) => v <= 2).length,
+    sesionesConDato: vals.length,
+  };
 }

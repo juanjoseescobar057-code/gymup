@@ -123,6 +123,8 @@ export default function WorkoutSessionScreen() {
   // una pregunta sin responder, y ese 2 invisible se guardaba igual en
   // workout_readiness y entraba en el promedio de recuperación.
   const [sorenessToday, setSorenessToday] = useState(3);
+  // 1-5, misma escala que energia y molestia. Lo lee chooseIntervention.
+  const [sleepToday, setSleepToday] = useState(3);
   const [availableMinutes, setAvailableMinutes] = useState(60);
   const [newPainToday, setNewPainToday] = useState(false);
   const ctxSalud = {
@@ -789,6 +791,7 @@ export default function WorkoutSessionScreen() {
           user_id: profile.user_id,
           client_session_key: clientSessionKeyRef.current,
           energy: energyToday,
+          sleep_quality: sleepToday,
           soreness: sorenessToday,
           available_minutes: availableMinutes,
           pain_new: newPainToday,
@@ -797,6 +800,7 @@ export default function WorkoutSessionScreen() {
         });
         track('workout_readiness_submitted', {
           energy: energyToday,
+          sleep_quality: sleepToday,
           soreness: sorenessToday,
           available_minutes: availableMinutes,
           pain_new: newPainToday,
@@ -841,6 +845,22 @@ export default function WorkoutSessionScreen() {
                   onPress={() => setEnergyToday(o.v)} accessibilityRole="radio"
                   accessibilityState={{ selected: energyToday === o.v }} accessibilityLabel={`Energía ${o.l}`}>
                   <Text style={[s.readinessChipTxt, energyToday === o.v && s.readinessChipTxtOn]}>{o.l}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* El sueño es la palanca de recuperación más grande que existe, y
+                progressionEngine YA lo usa: `(readiness.sleepQuality ?? 3) <= 2`
+                dispara la bajada de volumen. Pero nadie lo capturaba, así que
+                la columna siempre iba en null y esa rama nunca se ejecutaba.
+                Se pregunta aquí y no en una pantalla nueva porque esta ya la ve
+                todo el mundo antes de entrenar: coste de fricción, una fila. */}
+            <Text style={s.readinessLabel}>Cómo dormiste</Text>
+            <View style={s.readinessRow}>
+              {[{ v: 2, l: 'Mal' }, { v: 3, l: 'Normal' }, { v: 5, l: 'Bien' }].map((o) => (
+                <TouchableOpacity key={o.v} style={[s.readinessChip, sleepToday === o.v && s.readinessChipOn]}
+                  onPress={() => setSleepToday(o.v)} accessibilityRole="radio"
+                  accessibilityState={{ selected: sleepToday === o.v }} accessibilityLabel={`Dormiste ${o.l}`}>
+                  <Text style={[s.readinessChipTxt, sleepToday === o.v && s.readinessChipTxtOn]}>{o.l}</Text>
                 </TouchableOpacity>
               ))}
             </View>

@@ -8,6 +8,7 @@ import { captureError } from './monitoring';
 import { PLAN_JSON_SCHEMA } from './planJsonSchema';
 import { aiChatContent as chat } from './aiClient';
 import { evaluateWorkoutAccess, healthToPrompt, type HealthProfile } from './healthMath';
+import { validarPlan } from './planValidator';
 
 // Los tipos del plan viven en lib/supabase.ts (fuente única) y aquí solo se
 // re-exportan. Antes había una copia local que se quedó atrás cuando el esquema
@@ -242,7 +243,14 @@ consultar a un profesional en el campo "notes" de los días correspondientes.`;
         response_format: { type: 'json_schema', json_schema: PLAN_JSON_SCHEMA },
         temperature: intento === 1 ? 0.7 : 0.2,
       }, 'plan');
-      return parseAI(WeeklyPlanSchema, content, 'plan de entrenamiento') as WeeklyPlan;
+      const bruto = parseAI(WeeklyPlanSchema, content, 'plan de entrenamiento') as WeeklyPlan;
+      // POSTVALIDACIÓN. parseAI comprueba la FORMA —siete días, los campos
+      // esperados— y nada más. El contenido dependía por completo de que el
+      // modelo obedeciera el prompt, y un prompt es una petición, no un control:
+      // una sentadilla profunda para quien declaró la rodilla, un press militar
+      // con el hombro tocado o barra para quien entrena en casa sin material
+      // pasaban intactos y guiaban semanas.
+      return postValidar(bruto, profile, health);
     } catch (e) {
       ultimoError = e;
       // Solo se reintenta si el fallo es de FORMA. Un 402, un 429 o un corte de
@@ -310,3 +318,28 @@ SOLO JSON sin texto adicional:
 
 // La sugerencia nocturna fue reemplazada por el mensaje proactivo del Coach IA
 // (lib/coachChat.getProactiveInsight), que conoce TODO el contexto del usuario.
+
+/**
+ * Aplica el post-validador y deja constancia de lo que tuvo que corregir.
+ *
+ * Se registra SIEMPRE que corrija algo: si el modelo incumple el prompt de
+ * seguridad con frecuencia, eso hay que saberlo — es la señal de que el prompt
+ * no basta, que es justamente por lo que existe esta capa.
+ */
+function postValidar(plan: WeeklyPlan, profile: PlanProfile, health: HealthProfile | null): WeeklyPlan {
+  const { plan: corregido, correcciones } = validarPlan(plan as any, {
+    injuries: health?.injuries ?? [],
+    conditions: health?.conditions ?? [],
+    equipment: (profile as any).equipment ?? 'gym',
+    age: profile.age,
+    saludDesconocida: !health,
+  });
+  if (correcciones.length > 0) {
+    captureError(new Error('El plan generado incumplía el tamizaje'), {
+      scope: 'generateTrainingPlan.postvalidacion',
+      correcciones: correcciones.length,
+      motivos: correcciones.map((c) => c.motivo).join(' | ').slice(0, 300),
+    });
+  }
+  return corregido as WeeklyPlan;
+}

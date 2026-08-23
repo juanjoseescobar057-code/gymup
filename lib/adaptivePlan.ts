@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────
 
 import { supabase } from './supabase';
+import { validarPlan } from './planValidator';
 import { aiChatContent } from './aiClient';
 import { parseAI, WeeklyPlanSchema } from './schemas';
 import { AI_SAFETY_RULES } from './safety';
@@ -184,7 +185,26 @@ Incluye los 7 días.`,
     temperature: 0.6,
   }, 'plan');
 
-  return parseAI(WeeklyPlanSchema, content, 'plan adaptado') as WeeklyPlan;
+  const bruto = parseAI(WeeklyPlanSchema, content, 'plan adaptado') as WeeklyPlan;
+  // La misma postvalidación que el plan inicial. Un plan adaptado se guarda
+  // igual y guía igual: no puede tener menos controles por venir de otro camino.
+  const { plan: corregido, correcciones } = validarPlan(bruto as any, {
+    injuries: healthLoad.profile?.injuries ?? [],
+    conditions: healthLoad.profile?.conditions ?? [],
+    equipment: (profile as any).equipment ?? 'gym',
+    age: profile.age,
+    // Aquí healthLoad ya no puede ser 'unknown': más arriba se aborta si no se
+    // pudo leer la salud, porque un plan generado a ciegas persiste en la base y
+    // guía semanas. Se deja explícito para que se vea que no es un olvido.
+    saludDesconocida: false,
+  });
+  if (correcciones.length > 0) {
+    // Se registra: si el modelo incumple el prompt de seguridad a menudo, eso
+    // hay que saberlo — es la señal de que el prompt no basta, que es
+    // exactamente por lo que existe esta capa.
+    console.warn('regenerateAdaptivePlan: el plan incumplía el tamizaje,', correcciones.length, 'correcciones');
+  }
+  return corregido as WeeklyPlan;
 }
 
 /**

@@ -33,6 +33,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { leerCuerpoAcotado, inspectMessages } from '../_shared/payload.ts';
 import { resolverPolitica } from '../_shared/politica.ts';
+import { fetchConTiempo, TIEMPO_OPENAI_MS, TiempoAgotado } from '../_shared/fetchConTiempo.ts';
 
 // Se admite el SNAPSHOT además del alias. El alias mueve el comportamiento del
 // modelo sin avisar, y esta app da recomendaciones de salud: la generación de
@@ -383,12 +384,47 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
   const openaiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiKey) return json({ error: 'IA no configurada en el servidor' }, 500);
 
-  const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
-    body: JSON.stringify(body),
-  });
-  const text = await upstream.text();
+  // El cliente de servicio hace falta ya aquí: si OpenAI no responde hay que
+  // devolver la reserva de presupuesto y el cupo diario, que se tomaron antes.
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
+  // CON TIEMPO LÍMITE. Sin él, un OpenAI que acepta la conexión y se calla
+  // dejaba la función colgada hasta que la matara la plataforma — con la reserva
+  // de presupuesto YA HECHA, así que le cobraba a alguien una llamada que nunca
+  // ocurrió. Y la persona veía un spinner eterno, sin error y sin reintento.
+  let upstream: Response;
+  let text: string;
+  try {
+    upstream = await fetchConTiempo('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+      body: JSON.stringify(body),
+    }, TIEMPO_OPENAI_MS);
+    text = await upstream.text();
+  } catch (e) {
+    // No se entregó nada y no se gastó nada: se devuelven las dos cosas.
+    const { error: eAjuste } = await admin.rpc('ajustar_ai', {
+      p_user_id: user.id, p_reservado_usd: estimado, p_real_usd: 0,
+    });
+    if (eAjuste) console.error('ajustar_ai tras fallo del proveedor:', eAjuste.message);
+
+    const { error: eCupo } = await admin.rpc('refund_ai_usage', {
+      p_user_id: user.id, p_feature: claveContador,
+    });
+    if (eCupo) console.error('refund_ai_usage tras fallo del proveedor:', eCupo.message);
+
+    const agotado = e instanceof TiempoAgotado;
+    console.error('ai-proxy: OpenAI no respondió:', agotado ? e.message : String(e));
+    return json({
+      error: agotado
+        ? 'La IA está tardando demasiado. Inténtalo de nuevo en un momento.'
+        : 'No pudimos contactar con la IA. Inténtalo de nuevo.',
+      code: 'proveedor_no_responde',
+    }, 504);
+  }
 
   // ─── DINERO Y CUPO SON DOS DECISIONES DISTINTAS ───────
   //
@@ -410,11 +446,6 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
   // record_ai_cost ya no se llama desde aquí: sumar después era justo lo que
   // permitía la ráfaga concurrente. La suma ahora ocurre ANTES, con la fila
   // bloqueada, y esto la ajusta.
-  const admin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-  );
-
   // 1. CUADRAR LA RESERVA CON EL COSTO REAL.
   //
   // El estimado ya está apuntado desde antes de llamar (esa es la reserva). Aquí

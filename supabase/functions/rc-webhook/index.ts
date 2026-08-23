@@ -48,7 +48,13 @@ const DEACTIVATE = new Set(['EXPIRATION']);
 // que cambian is_premium. Comparar contra el último evento de CUALQUIER tipo
 // (incluidos los no manejados) descartaría por error una activación/
 // desactivación legítima entregada fuera de orden.
-const STATE_CHANGING = new Set([...ACTIVATE, ...DEACTIVATE, 'TRANSFER']);
+// STATE_CHANGING se eliminó: estaba definida y NO LA USABA NADIE, mientras
+// apply_rc_event llevaba su propia lista escrita a mano que además no coincidía
+// (al SQL le faltaban NON_RENEWING_PURCHASE, TEMPORARY_ENTITLEMENT_GRANT y
+// REFUND_REVERSED, y le sobraba SUBSCRIPTION_PAUSED). Ahora el dato viaja: este
+// archivo decide si el evento cambia el estado y lo manda en p_state_changing,
+// que apply_rc_event guarda en la columna del mismo nombre y usa para el control
+// de orden. Una lista, en un sitio.
 
 // La lista y la decisión viven en _shared/entitlements.ts, compartidas con
 // sync-premium: son las dos vías que escriben is_premium y tienen que
@@ -90,8 +96,28 @@ Deno.serve(async (req) => {
   const type: string = event.type ?? '';
   const eventId: string = event.id ?? '';
   const eventTsMs: number = Number(event.event_timestamp_ms) || Date.now();
-  // Visible en logs, no bloquea: útil para distinguir compras de prueba de reales.
   const environment: string = event.environment ?? 'UNKNOWN';
+
+  // EVENTOS DE SANDBOX. Hoy se aceptan, porque la app está en pruebas y el
+  // sandbox de RevenueCat es exactamente lo que hay que ejercitar antes de
+  // cobrar de verdad.
+  //
+  // ANTES DE ABRIR AL PÚBLICO hay que poner el secreto RC_SOLO_PRODUCCION=true:
+  // a partir de ahí un evento de sandbox se registra y NO concede Premium. Sin
+  // eso, una compra de sandbox —que solo necesita una cuenta de tester— vale lo
+  // mismo que una real. Está en docs/RELEASE_GATES.md como paso de lanzamiento.
+  //
+  // Se responde 200 igual: el evento se procesó correctamente y la decisión fue
+  // no aplicarlo. Un 5xx haría que RevenueCat lo reintentara para siempre.
+  const soloProduccion = Deno.env.get('RC_SOLO_PRODUCCION') === 'true';
+  const esSandbox = environment.toUpperCase() === 'SANDBOX';
+  if (soloProduccion && esSandbox) {
+    console.log(`rc-webhook: ${type} de SANDBOX ignorado (RC_SOLO_PRODUCCION=true)`);
+    return json({ ok: true, handled: false, type, environment, motivo: 'sandbox' });
+  }
+  if (esSandbox) {
+    console.log(`rc-webhook: ${type} de SANDBOX aplicado. Pon RC_SOLO_PRODUCCION=true antes de abrir al público.`);
+  }
 
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,

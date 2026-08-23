@@ -28,6 +28,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { listaDeEntitlements, veredictoPremium } from '../_shared/entitlements.ts';
+import { fetchConTiempo, TIEMPO_REVENUECAT_MS } from '../_shared/fetchConTiempo.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -73,9 +74,12 @@ Deno.serve(async (req) => {
   // configura ensureConfigured() en lib/purchases.ts.
   let subscriber: Record<string, any> | null = null;
   try {
-    const res = await fetch(
+    // Con tiempo límite: consultar el estado de un suscriptor no puede colgar la
+    // reconciliación, que es justo lo que corre cuando alguien acaba de pagar.
+    const res = await fetchConTiempo(
       `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(user.id)}`,
-      { headers: { Authorization: `Bearer ${rcKey}` } }
+      { headers: { Authorization: `Bearer ${rcKey}` } },
+      TIEMPO_REVENUECAT_MS,
     );
     if (res.status === 404) {
       // Nunca compró nada: no es un error, es "no premium".

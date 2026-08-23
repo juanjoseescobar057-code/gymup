@@ -478,9 +478,18 @@ select public._apply_owner_rls('user_stats');
 -- producto: si el propio usuario los puede falsificar, no valen nada. El
 -- cliente pasa a SOLO LEER sus stats; la única vía de escritura es la RPC
 -- apply_workout_stats, que recalcula todo del lado del servidor.
--- DELETE se conserva: el borrado de cuenta (profile.tsx y la Edge Function
--- delete-account) elimina esta fila con el JWT del propio usuario.
-revoke insert, update on public.user_stats from anon, authenticated;
+-- Y DELETE TAMBIÉN SE QUITA. El comentario anterior decía que se conservaba
+-- porque el borrado de cuenta lo necesitaba con el JWT del usuario. No es
+-- cierto: delete-account usa el service role (admin.from(t).delete()) y además
+-- auth.admin.deleteUser dispara el ON DELETE CASCADE. Lo único que el cliente
+-- borra directamente es su historial de análisis corporal.
+--
+-- Lo que sí permitía era reiniciar la partida: borrar la fila pone a cero el XP,
+-- el nivel, la racha, las insignias y —sobre todo— claimed_missions, así que las
+-- misiones semanales se podían reclamar otra vez. Escribir XP ya estaba cerrado;
+-- borrarlo para volver a ganarlo, no.
+revoke insert, update, delete on public.user_stats from anon, authenticated;
+drop policy if exists user_stats_delete on public.user_stats;
 
 
 -- ─── CATÁLOGO DE INSIGNIAS (FUENTE DE VERDAD) ────────────
@@ -1508,6 +1517,20 @@ create table if not exists public.rc_webhook_events (
   environment text,
   received_at timestamptz default now()
 );
+-- Si este evento CAMBIÓ is_premium, según lo decidió rc-webhook.
+--
+-- Hasta ahora el guardián de orden de apply_rc_event llevaba su propia lista de
+-- tipos escrita a mano, y NO COINCIDÍA con la de TypeScript: al SQL le faltaban
+-- NON_RENEWING_PURCHASE, TEMPORARY_ENTITLEMENT_GRANT y REFUND_REVERSED, y le
+-- sobraba SUBSCRIPTION_PAUSED. O sea que el control de orden comparaba contra un
+-- conjunto distinto del que de verdad cambia el estado: una compra no renovable
+-- no contaba como antecedente, y una pausa sí, descartando por "fuera de orden"
+-- eventos legítimos.
+--
+-- Con la columna, la lista vive en UN solo sitio (el Set de rc-webhook) y aquí
+-- solo se lee lo que aquel decidió.
+alter table public.rc_webhook_events add column if not exists state_changing boolean;
+
 alter table public.rc_webhook_events enable row level security; -- sin políticas: solo service role
 create index if not exists rc_webhook_events_user on public.rc_webhook_events(user_id, event_timestamp_ms desc);
 
@@ -1526,6 +1549,19 @@ create table if not exists public.ai_content_reports (
   created_at timestamptz default now()
 );
 select public._apply_owner_rls('ai_content_reports');
+-- Un reporte es EVIDENCIA, no una nota personal. Con UPDATE y DELETE de tabla
+-- completa, quien reportaba podía después reescribir el contenido reportado,
+-- cambiar el motivo, marcarse el status como 'reviewed' —haciendo desaparecer su
+-- propio caso de la cola de revisión— o borrarlo entero.
+--
+-- Y esta tabla existe porque Google Play exige poder reportar contenido de IA:
+-- una cola que el reportante puede vaciar no cumple nada.
+--
+-- Se queda con SELECT (ver lo que reportó) e INSERT (reportar). El estado lo
+-- mueve quien revisa, con service role.
+revoke update, delete on public.ai_content_reports from anon, authenticated;
+drop policy if exists ai_content_reports_update on public.ai_content_reports;
+drop policy if exists ai_content_reports_delete on public.ai_content_reports;
 create index if not exists ai_content_reports_status on public.ai_content_reports(status, created_at desc);
 
 -- ─── OBSERVABILIDAD PROPIA DE IA ─────────────────────────
@@ -1556,6 +1592,21 @@ create table if not exists public.ai_telemetry (
 alter table if exists public.ai_telemetry add column if not exists conversation_id text;
 alter table if exists public.ai_telemetry add column if not exists signals jsonb;
 select public._apply_owner_rls('ai_telemetry');
+-- La telemetría se ESCRIBE, no se corrige. Con UPDATE de tabla completa, el
+-- costo y los tokens que registra el cliente se podían reescribir a cero
+-- después — y esta tabla es la que dice cuánto cuesta cada función de verdad.
+--
+-- (El techo del gasto NO depende de esto: lo lleva ai_cost_usage, que solo
+-- escriben las RPC con service role. Esto es observabilidad, y una observación
+-- que el observado puede editar no es una observación.)
+--
+-- Pero el UPDATE no se puede quitar del todo: el juez de calidad corre DESPUÉS
+-- de la respuesta y adjunta su puntuación a la fila (lib/aiTelemetry.ts). Así
+-- que se estrecha por columnas, igual que user_profiles: se puede escribir el
+-- score, no el costo.
+revoke update, delete on public.ai_telemetry from anon, authenticated;
+grant update (score, hallucination, score_reason, signals) on public.ai_telemetry to anon, authenticated;
+drop policy if exists ai_telemetry_delete on public.ai_telemetry;
 create index if not exists ai_telemetry_user_ts on public.ai_telemetry(user_id, ts desc);
 create index if not exists ai_telemetry_conv on public.ai_telemetry(user_id, conversation_id);
 
@@ -1576,6 +1627,11 @@ create table if not exists public.analytics_events (
   ts timestamptz default now()         -- hora de llegada al servidor
 );
 select public._apply_owner_rls('analytics_events');
+-- Mismo criterio: un evento ocurrió o no ocurrió. Reescribirlo o borrarlo
+-- después no es corregir un dato, es cambiar la historia.
+revoke update, delete on public.analytics_events from anon, authenticated;
+drop policy if exists analytics_events_update on public.analytics_events;
+drop policy if exists analytics_events_delete on public.analytics_events;
 create index if not exists analytics_user_ts on public.analytics_events(user_id, client_ts desc);
 create index if not exists analytics_user_event on public.analytics_events(user_id, event);
 create index if not exists analytics_session on public.analytics_events(user_id, session_id, seq);
@@ -1782,8 +1838,8 @@ declare
 begin
   -- 1. Cerrojo de idempotencia. Si el event_id ya estaba, es un reintento de
   --    RevenueCat: se confirma sin reaplicar nada.
-  insert into public.rc_webhook_events(event_id, user_id, event_type, event_timestamp_ms, environment)
-  values (p_event_id, p_user_id, p_event_type, p_event_ts_ms, p_environment)
+  insert into public.rc_webhook_events(event_id, user_id, event_type, event_timestamp_ms, environment, state_changing)
+  values (p_event_id, p_user_id, p_event_type, p_event_ts_ms, p_environment, p_state_changing)
   on conflict (event_id) do nothing;
   if not found then
     return query select false, true, 'evento ya procesado'::text;
@@ -1805,7 +1861,13 @@ begin
   from public.rc_webhook_events e
   where e.user_id = p_user_id
     and e.event_id <> p_event_id
-    and e.event_type = any (array['INITIAL_PURCHASE','RENEWAL','UNCANCELLATION','EXPIRATION','TRANSFER','PRODUCT_CHANGE','SUBSCRIPTION_PAUSED']);
+    -- La columna manda. El array solo cubre las filas escritas ANTES de que la
+    -- columna existiera (state_changing null): es la lista vieja, tal cual, para
+    -- no reinterpretar historia que ya pasó.
+    and coalesce(
+          e.state_changing,
+          e.event_type = any (array['INITIAL_PURCHASE','RENEWAL','UNCANCELLATION','EXPIRATION','TRANSFER','PRODUCT_CHANGE','SUBSCRIPTION_PAUSED'])
+        );
 
   if v_ultimo is not null and v_ultimo > p_event_ts_ms then
     return query select false, false, 'evento fuera de orden, ignorado'::text;

@@ -60,3 +60,43 @@ npm audit
 
 Si sale algo que **no** sea de la cadena `metro`/`image-size`/`@expo/*`, hay que
 mirarlo de verdad. Si solo salen esas, no ha cambiado nada.
+
+## Antes de abrir al público (no antes)
+
+Dos interruptores que hoy están donde tienen que estar para PROBAR, y que hay
+que mover antes de cobrarle a desconocidos.
+
+### 1. Rechazar compras de sandbox
+
+```bash
+npx supabase secrets set RC_SOLO_PRODUCCION=true
+```
+
+Mientras no esté puesto, un evento de sandbox concede Premium igual que uno
+real. Durante las pruebas eso es justo lo que hace falta; en abierto, una compra
+de sandbox solo necesita una cuenta de tester.
+
+El webhook lo dice en cada evento de sandbox que aplica, así que si se olvida,
+los logs lo repiten.
+
+### 2. Los interruptores remotos
+
+La tabla `public.feature_flags` permite apagar el análisis corporal o el de
+técnica sin publicar una versión:
+
+```sql
+update public.feature_flags
+   set activo = false,
+       motivo = 'Lo estamos revisando. Vuelve en unos días; tus datos siguen guardados.'
+ where clave = 'body_scan';
+```
+
+Llega en el siguiente arranque de cada persona. Si la tabla no se puede leer, el
+cliente cae a los valores compilados (todo encendido): un problema de red no
+apaga la app.
+
+### 3. La evaluación de modelos
+
+`npm run eval:modelos` compara gpt-4o contra gpt-4o-mini con los prompts reales.
+Mientras no se corra, la técnica, la comida y la nevera siguen en el modelo caro
+— que funciona, pero es lo que aprieta el presupuesto mensual.

@@ -27,6 +27,7 @@ import { useUserStore } from '../store/userStore';
 import { registrarComida } from '../lib/logMeal';
 import { validarComidaManual, caloriasDesdeMacros } from '../lib/mealMath';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../constants/theme';
+import GuardiaRecuperacion from '../Components/GuardiaRecuperacion';
 
 /** '' → NaN a propósito: un campo vacío no es un cero, es un dato que falta. */
 function aNumero(txt: string): number {
@@ -35,7 +36,7 @@ function aNumero(txt: string): number {
   return Number(limpio);
 }
 
-export default function FoodManualScreen() {
+function FoodManualScreenContenido() {
   const profile = useUserStore((s: any) => s.profile);
   const addFoodLog = useUserStore((s: any) => s.addFoodLog);
   const getDailyTotals = useUserStore((s: any) => s.getDailyTotals);
@@ -227,3 +228,19 @@ const s = StyleSheet.create({
   },
   guardarTxt: { fontFamily: Fonts.heading, fontSize: 16, color: '#0a0a0b', letterSpacing: 0.8 },
 });
+
+/**
+ * GUARDIA DEL MODO RECUPERACIÓN.
+ *
+ * Va aquí, en la ruta, y no en quien navega hasta ella. Esta pantalla se abre
+ * también por enlace directo (app.json declara el scheme "gymup") y desde
+ * cualquier router.push que exista hoy o mañana: esconder el botón de origen
+ * dejaba la puerta abierta.
+ */
+export default function FoodManualScreen() {
+  return (
+    <GuardiaRecuperacion area="calorias" titulo="REGISTRAR COMIDA">
+      <FoodManualScreenContenido />
+    </GuardiaRecuperacion>
+  );
+}

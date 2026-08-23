@@ -23,16 +23,25 @@ const proxy = fs.readFileSync(
   'utf8',
 );
 
+// El tipo y la combinación se mudaron a _shared/politica.ts, que sí se puede
+// importar y probar de verdad (ver __tests__/politicaIA.test.ts). Lo que se
+// sigue vigilando AQUÍ, con texto, es lo que quedó dentro del Deno.serve y
+// ningún test puede ejecutar.
+const politica = fs.readFileSync(
+  path.join(process.cwd(), 'supabase', 'functions', '_shared', 'politica.ts'),
+  'utf8',
+);
+
 /** Los campos declarados en el tipo FeaturePolicy. */
 function camposDeFeaturePolicy(): string[] {
-  const bloque = proxy.match(/type FeaturePolicy = \{([\s\S]*?)\};/);
+  const bloque = politica.match(/type FeaturePolicy = \{([\s\S]*?)\};/);
   assert.ok(bloque, 'no encontré el tipo FeaturePolicy');
   return [...bloque![1].matchAll(/^\s*(\w+)\s*[?:]/gm)].map((m) => m[1]);
 }
 
 /** El cuerpo de strictestPolicy. */
 function cuerpoStrictest(): string {
-  const m = proxy.match(/function strictestPolicy\([\s\S]*?\n\}/);
+  const m = politica.match(/function strictestPolicy\([\s\S]*?\n\}/);
   assert.ok(m, 'no encontré strictestPolicy');
   return m![0];
 }

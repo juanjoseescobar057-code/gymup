@@ -40,7 +40,7 @@ function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
 
 /** Tag de feature para que el servidor aplique entitlement/topes por función. */
 export type AIFeature =
-  | 'plan' | 'food_scan' | 'fridge_scan' | 'body_scan'
+  | 'plan' | 'food_scan' | 'fridge_scan' | 'body_scan' | 'scan_check'
   | 'coach' | 'coach_chat' | 'suggestion' | 'notification' | 'scoring' | 'general';
 
 /** Metadatos opcionales de observabilidad para una llamada. */

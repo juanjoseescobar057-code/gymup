@@ -89,6 +89,10 @@ const EQUIPMENT_OPTIONS = [
 
 export default function ProfileScreen() {
   const profile = useUserStore((s: any) => s.profile);
+  // Esta pantalla no sabía nada del modo recuperación: enseñaba el peso, la
+  // meta y los cuatro macros en números grandes, y dejaba editar el peso, que
+  // además recalcula las calorías al guardar.
+  const recuperacion = useUserStore((s: any) => s.recuperacion);
   const setProfile = useUserStore((s: any) => s.setProfile);
   const setOnboardingComplete = useUserStore((s: any) => s.setOnboardingComplete);
   const trainingPlan = useUserStore((s: any) => s.trainingPlan);
@@ -434,7 +438,10 @@ export default function ProfileScreen() {
         <View style={s.card}>
           {[
             { label: 'Edad', value: `${profile.age} años` },
-            { label: 'Peso', value: `${profile.weight_kg} kg` },
+            // El peso desaparece de la lista con el modo activo. Sigue guardado
+            // y sigue usándose para calcular su plan; simplemente no se le pone
+            // el número delante.
+            ...(recuperacion.ocultarPeso ? [] : [{ label: 'Peso', value: `${profile.weight_kg} kg` }]),
             { label: 'Altura', value: `${profile.height_cm} cm` },
             { label: 'Sexo biológico', value: SEX_LABELS[profile.sex] ?? SEX_LABELS.unspecified },
             { label: 'Actividad', value: ACTIVITY_LABELS[profile.activity_level] },
@@ -452,7 +459,11 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* Macros diarios */}
+        {/* Macros diarios. Se ocultan enteros con el modo activo: cuatro cifras
+            de objetivo diario es exactamente el material del que se alimenta un
+            trastorno de la conducta alimentaria. El plan los sigue usando. */}
+        {!recuperacion.ocultarCalorias && (
+        <>
         <Text style={s.sectionLbl} accessibilityRole="header">TUS MACROS DIARIOS</Text>
         <View style={s.macroGrid}>
           {[
@@ -474,6 +485,8 @@ export default function ProfileScreen() {
         <Text style={s.macroNote}>
           💡 Los macros se recalculan automáticamente cuando editas tu perfil.
         </Text>
+        </>
+        )}
 
         {/* Plan */}
         <Text style={s.sectionLbl} accessibilityRole="header">PLAN</Text>
@@ -705,6 +718,12 @@ export default function ProfileScreen() {
                           <Text style={s.fieldUnit}>años</Text>
                         </View>
                       </View>
+                      {/* El campo de peso se retira, no el guardado: la
+                          persona tiene que poder seguir editando su nombre, su
+                          edad o su equipo. El estado `weight` conserva el valor
+                          guardado, así que los macros se siguen calculando con
+                          el peso real — solo que sin pedírselo otra vez. */}
+                      {!recuperacion.ocultarPeso && (
                       <View style={{ flex: 1 }}>
                         <Text style={s.fieldLabel}>Peso</Text>
                         <View style={s.fieldRow}>
@@ -714,6 +733,7 @@ export default function ProfileScreen() {
                           <Text style={s.fieldUnit}>kg</Text>
                         </View>
                       </View>
+                      )}
                     </View>
 
                     <View style={{ flexDirection: 'row', gap: 10 }}>

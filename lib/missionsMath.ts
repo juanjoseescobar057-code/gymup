@@ -51,3 +51,55 @@ export function contarMisiones(a: ActividadSemana): Record<MissionType, number> 
     rest_day: descanso,
   };
 }
+
+// ─────────────────────────────────────────────────────────
+// EL CATÁLOGO Y QUÉ MISIONES SE OFRECEN
+//
+// Vive aquí y no en lib/missions.ts porque aquel importa supabase, y supabase
+// arrastra react-native: un test de Node no puede cargarlo. Es la misma razón
+// por la que existe este archivo — la lógica que hay que poder probar no puede
+// depender del entorno de la app.
+// ─────────────────────────────────────────────────────────
+
+export type Mission = {
+  id: string;
+  label: string;
+  emoji: string;
+  type: MissionType;
+  target: number;
+  xp: number;
+};
+
+/**
+ * El objetivo de `w_planned` es 3 solo como respaldo mientras se carga el
+ * plan: el real sale de cuántos días de entreno programa TU plan, y lo decide
+ * el servidor. Pedirle 3 a quien entrena 2 días le exigiría más de lo suyo.
+ */
+export const WEEKLY_MISSIONS: Mission[] = [
+  { id: 'w_planned',  label: 'Completa tus sesiones de la semana', emoji: '🏋️', type: 'planned_workouts', target: 3, xp: 120 },
+  { id: 'w_protein3', label: 'Cubre tu proteína en 3 días',        emoji: '🥩', type: 'protein_days',     target: 3, xp: 90 },
+  { id: 'w_rest',     label: 'Respeta un día de descanso',         emoji: '🌙', type: 'rest_day',         target: 1, xp: 60 },
+];
+
+/**
+ * Los tipos de misión que premian mirar la comida y no el entrenamiento.
+ *
+ * 'protein_days' pide cubrir un objetivo de macros tres días. Para casi todo el
+ * mundo es una meta sana; para alguien con un trastorno de la conducta
+ * alimentaria es una racha que perder, y ese es justo el mecanismo que el modo
+ * recuperación existe para apagar.
+ */
+const MISIONES_NUTRICIONALES = new Set<MissionType>(['protein_days']);
+
+/**
+ * Las misiones que se le ofrecen a esta persona.
+ *
+ * Con `sinRecompensasCorporales` se retiran las nutricionales y quedan las de
+ * entrenar y descansar, que es lo que el modo sí quiere reforzar. La lista no
+ * se queda vacía nunca: quitarle todas las metas a alguien es otra forma de
+ * decirle que aquí ya no hay nada para él.
+ */
+export function misionesDisponibles(sinRecompensasCorporales: boolean): Mission[] {
+  if (!sinRecompensasCorporales) return WEEKLY_MISSIONS;
+  return WEEKLY_MISSIONS.filter((x) => !MISIONES_NUTRICIONALES.has(x.type));
+}

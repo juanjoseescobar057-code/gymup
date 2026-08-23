@@ -26,6 +26,7 @@ import CameraDisclosureModal from '../Components/CameraDisclosureModal';
 import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 import type { FridgeAnalysis, Recipe } from '../lib/openai-features';
+import GuardiaRecuperacion from '../Components/GuardiaRecuperacion';
 
 function QualityBar({ score }: { score: number }) {
   const color = score >= 75 ? Colors.accent : score >= 50 ? Colors.warning : Colors.error;
@@ -124,7 +125,7 @@ function RecipeCard({ recipe, goal }: { recipe: Recipe; goal: string }) {
   );
 }
 
-export default function FridgeScanScreen() {
+function FridgeScanScreenContenido() {
   const profile = useUserStore((s: any) => s.profile);
   const [phase, setPhase] = useState<'intro' | 'analyzing' | 'result'>('intro');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -480,3 +481,19 @@ const s = StyleSheet.create({
   shoppingCard: { backgroundColor: Colors.bgCard, borderRadius: Radii.xl, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 12 },
   shoppingTxt: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
 });
+
+/**
+ * GUARDIA DEL MODO RECUPERACIÓN.
+ *
+ * Va aquí, en la ruta, y no en quien navega hasta ella. Esta pantalla se abre
+ * también por enlace directo (app.json declara el scheme "gymup") y desde
+ * cualquier router.push que exista hoy o mañana: esconder el botón de origen
+ * dejaba la puerta abierta.
+ */
+export default function FridgeScanScreen() {
+  return (
+    <GuardiaRecuperacion area="calorias" titulo="ESCANEAR NEVERA">
+      <FridgeScanScreenContenido />
+    </GuardiaRecuperacion>
+  );
+}

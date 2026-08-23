@@ -267,6 +267,10 @@ export default function ProgressScreen() {
   }
 
   async function saveWeight() {
+    // Corte de ACCIÓN, no de pintado. El botón de arriba ya no se muestra con el
+    // modo activo, pero un modal abierto de antes, un enlace directo o un
+    // cambio futuro en la interfaz no pueden acabar escribiendo un peso.
+    if (recuperacion.ocultarPeso) return;
     const w = parseFloat(newWeight.replace(',', '.'));
     if (!profile || isNaN(w) || w < 30 || w > 300) {
       Alert.alert('Peso inválido', 'Ingresa un número entre 30 y 300.');
@@ -301,6 +305,9 @@ export default function ProgressScreen() {
 
   async function saveGoal(remove = false) {
     if (!profile) return;
+    // Fijar o cambiar una meta de peso es justo la decisión que el modo aparta.
+    // Quitarla (remove) sí se permite: retirarse una meta siempre puede.
+    if (recuperacion.ocultarPeso && !remove) return;
     let tw: number | null = null;
     if (!remove) {
       tw = parseFloat(goalTargetInput.replace(',', '.'));
@@ -434,13 +441,18 @@ export default function ProgressScreen() {
               accessibilityRole="button" accessibilityLabel="Ver historial de entrenamientos">
               <Text style={s.ghostBtnTxt}>🏆 Historial</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.accentBtn} onPress={() => {
-              setNewWeight('');
-              setWeightModal(true);
-            }}
-              accessibilityRole="button" accessibilityLabel="Registrar mi peso de hoy">
-              <Text style={s.accentBtnTxt}>+ Peso</Text>
-            </TouchableOpacity>
+            {/* Vivía en la cabecera, fuera del ternario de ocultarPeso que
+                empieza 120 líneas más abajo: la pantalla escondía la gráfica de
+                la báscula y dejaba el botón de anotar el peso justo arriba. */}
+            {!recuperacion.ocultarPeso && (
+              <TouchableOpacity style={s.accentBtn} onPress={() => {
+                setNewWeight('');
+                setWeightModal(true);
+              }}
+                accessibilityRole="button" accessibilityLabel="Registrar mi peso de hoy">
+                <Text style={s.accentBtnTxt}>+ Peso</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 

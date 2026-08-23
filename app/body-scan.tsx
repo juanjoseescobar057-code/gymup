@@ -27,6 +27,7 @@ import { captureError } from '../lib/monitoring';
 import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 import { AI_SAFETY_RULES, clampFatPct, MEDICAL_DISCLAIMER, BODY_SCAN_CONSENT, MIN_AGE, MIN_FAT_PCT, MAX_FAT_PCT } from '../lib/safety';
+import GuardiaRecuperacion from '../Components/GuardiaRecuperacion';
 
 const POSES = [
   { id: 'front', label: 'Frente',  emoji: '🧍', instruction: 'Párate derecho mirando la cámara, brazos a los lados, cuerpo completo visible' },
@@ -117,7 +118,9 @@ Casos inválidos:
       }],
       response_format: { type: 'json_object' },
       max_tokens: 150,
-  }, 'body_scan');
+    // 'scan_check' y no 'body_scan': esta comprobación gastaba el ÚNICO uso
+    // diario del análisis, así que el análisis en sí recibía siempre un 429.
+  }, 'scan_check');
   return parseAI(PhotoValidationSchema, data.choices[0].message.content, 'validación de foto');
 }
 
@@ -233,7 +236,7 @@ Incluye entre 4 y 7 zonas. Sé específico y descriptivo.`,
   return parsed;
 }
 
-export default function BodyScanScreen() {
+function BodyScanScreenContenido() {
   const profile = useUserStore((s: any) => s.profile);
 
   const [phase, setPhase] = useState<'consent' | 'capture' | 'analyzing' | 'result'>('consent');
@@ -1015,3 +1018,19 @@ const s = StyleSheet.create({
   consentRowTxt: { flex: 1, fontFamily: Fonts.body, fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
   disclaimerTxt: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: Spacing.md, marginBottom: 20 },
 });
+
+/**
+ * GUARDIA DEL MODO RECUPERACIÓN.
+ *
+ * Va aquí, en la ruta, y no en quien navega hasta ella. Esta pantalla se abre
+ * también por enlace directo (app.json declara el scheme "gymup") y desde
+ * cualquier router.push que exista hoy o mañana: esconder el botón de origen
+ * dejaba la puerta abierta.
+ */
+export default function BodyScanScreen() {
+  return (
+    <GuardiaRecuperacion area="cuerpo" titulo="ANÁLISIS CORPORAL">
+      <BodyScanScreenContenido />
+    </GuardiaRecuperacion>
+  );
+}

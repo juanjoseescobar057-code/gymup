@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { loadHealthSafe } from '../lib/health';
 import { useUserStore } from '../store/userStore';
 import { fetchTodayFoodLogs, localDateKey } from '../lib/foodLogs';
 import { registerForPushNotifications } from '../lib/push';
@@ -62,6 +63,22 @@ export default function Index() {
 
       setProfile(profile);
       if (plan) setTrainingPlan(plan);
+
+      // HIDRATAR EL MODO RECUPERACIÓN AQUÍ, en el arranque.
+      //
+      // El store nacía en NEUTRO y nadie cargaba la salud al abrir la app: la
+      // hidratación dependía de que alguna pantalla llamara a loadHealthSafe
+      // por otro motivo (la sesión de entreno, Mi salud, el coach). En la
+      // pestaña Inicio eso no estaba garantizado, así que quien declaró un
+      // trastorno de la conducta alimentaria podía abrir la app y encontrarse
+      // el anillo de calorías y el peso — el modo ni siquiera estaba encendido.
+      //
+      // Ocultar botones no servía de nada si la bandera llegaba tarde.
+      //
+      // No bloquea el arranque y no rompe nada si falla: loadHealthSafe cae a
+      // la caché local, y si tampoco la hay deja el modo como estaba (ver
+      // lib/health.ts). Un fallo de red no puede esconderle sus datos a nadie.
+      loadHealthSafe(session.user.id).catch(() => {});
 
       // Recargar los registros de comida de HOY (antes arrancaban en 0).
       const todayLogs = await fetchTodayFoodLogs(session.user.id);

@@ -14,6 +14,7 @@ import { loadUserStats } from './streaks';
 import { bestFromSets } from './prs';
 import { getWaterCount } from './water';
 import { loadHealthSafe } from './health';
+import { modoRecuperacion, filtrarExpediente } from './recoveryMode';
 import { healthToPrompt, HEALTH_UNKNOWN_DIRECTIVE } from './healthMath';
 import { projectGoal, type WeightPoint, type GoalProjection } from './goalMath';
 import { estadoDelDia, type Reincorporacion } from './planCalendario';
@@ -48,10 +49,15 @@ export type CoachSnapshot = {
   goal: string;
   goalLabel: string;
   goalWhy: string | null;
-  currentWeight: number;
-  targetWeight: number | null;
-  projection: GoalProjection | null;
-  macros: {
+  // OPCIONALES A PROPÓSITO. Con el modo recuperación activo, filtrarExpediente
+  // los QUITA del objeto antes de que salga del dispositivo. Marcarlos
+  // opcionales no es cosmética: es lo que obliga al compilador a que cada sitio
+  // que los use se plantee qué hacer cuando no están. Con el tipo mintiendo,
+  // snapshotToPrompt habría escrito "Peso actual: undefined kg" en el prompt.
+  currentWeight?: number;
+  targetWeight?: number | null;
+  projection?: GoalProjection | null;
+  macros?: {
     calories: [number, number];  // [consumido, meta]
     protein: [number, number];
     carbs: [number, number];
@@ -67,7 +73,7 @@ export type CoachSnapshot = {
     exercises: { name: string; sets: number; reps: string }[];
   } | null;
   topLifts: TopLift[];
-  lastBodyScan: { score: number | null; fatPct: number | null; focus: string[] } | null;
+  lastBodyScan?: { score: number | null; fatPct: number | null; focus: string[] } | null;
   /**
    * Qué hacer con las cargas si vuelve de una pausa. null = no viene de una.
    * Es la diferencia entre un coach que le propone a alguien las mismas series
@@ -80,7 +86,7 @@ export type CoachSnapshot = {
   daysSinceLastWorkout: number | null;   // null = sin entrenos registrados
   workoutsLast7Days: number;
   lastSessionTopSets: TopSet[];          // mejores series de la última sesión
-  todayMeals: { name: string; calories: number }[];
+  todayMeals?: { name: string; calories: number }[];
   waterCups: number | null;
   healthBlock: string;                   // directivas de salud individuales ('' si sano)
   contextGaps: string[];                 // qué NO se pudo cargar ('salud' = crítico)
@@ -285,7 +291,21 @@ export async function fetchCoachSnapshot(args: {
     month: 'long',
   });
 
-  return {
+  // EL FILTRO DEL MODO RECUPERACIÓN VA AQUÍ, en el único sitio donde se arma el
+  // expediente. Ponerlo en cada consumidor sería volver a depender de que
+  // alguien se acuerde, y ya sabemos cómo acaba eso.
+  //
+  // Hasta ahora al coach le llegaban el peso, la meta, la proyección a la meta,
+  // los macros del día y el "~X% de grasa" del último análisis corporal. Lo
+  // único que había era `healthBlock`, que le PIDE al modelo no hablar de peso
+  // — mientras le entrega el peso en el mismo prompt. Eso no es un control: el
+  // número ya salió del teléfono y ya está en la ventana de contexto.
+  //
+  // Los campos no se ponen a null: se QUITAN. Un campo presente valiendo null
+  // sigue diciéndole al modelo que existe una báscula de la que se puede hablar.
+  const modo = modoRecuperacion(healthLoad.status === 'unknown' ? null : healthLoad.profile);
+
+  const expediente: CoachSnapshot = {
     name: profile.name,
     nickname: profile.nickname ?? null,
     age: profile.age,
@@ -320,6 +340,8 @@ export async function fetchCoachSnapshot(args: {
     contextGaps,
     dateLabel,
   };
+
+  return filtrarExpediente(expediente, modo);
 }
 
 /** Convierte el snapshot en un bloque de texto compacto para el prompt. PURA. */
@@ -332,7 +354,16 @@ export function snapshotToPrompt(s: CoachSnapshot): string {
     );
   }
   if (s.nickname) L.push(`- Quiere que lo llames "${s.nickname}" — úsalo siempre.`);
-  L.push(`- Edad: ${s.age} años · Sexo biológico: ${SEX_LABELS[s.sex]} · Peso actual: ${s.currentWeight.toFixed(1)} kg`);
+  // El peso puede NO ESTAR: con el modo recuperación activo se retira del
+  // expediente antes de llegar aquí. La línea se arma sin él en vez de escribir
+  // "undefined kg", y se le dice al modelo por qué falta, para que no lo pida.
+  L.push(
+    `- Edad: ${s.age} años · Sexo biológico: ${SEX_LABELS[s.sex]}` +
+      (s.currentWeight != null ? ` · Peso actual: ${s.currentWeight.toFixed(1)} kg` : ''),
+  );
+  if (s.currentWeight == null) {
+    L.push('- NO tienes su peso, su meta de peso ni sus calorías, y es deliberado: declaró un trastorno de la conducta alimentaria. No los pidas, no los estimes y no hables de cifras corporales. Habla de entrenar, moverse, descansar y cómo se siente.');
+  }
   // El dato viaja SIEMPRE con su regla de uso: es fisiología (gasto energético,
   // reparto de volumen y frecuencia), nunca licencia para estereotipar ni para
   // bajarle la exigencia a nadie. Mismo criterio que el generador de plan.
@@ -359,10 +390,12 @@ export function snapshotToPrompt(s: CoachSnapshot): string {
   }
 
   const m = s.macros;
-  L.push(
-    `- Nutrición hoy: ${m.calories[0]}/${m.calories[1]} kcal · ` +
-      `P ${m.protein[0]}/${m.protein[1]}g · C ${m.carbs[0]}/${m.carbs[1]}g · G ${m.fat[0]}/${m.fat[1]}g`
-  );
+  if (m) {
+    L.push(
+      `- Nutrición hoy: ${m.calories[0]}/${m.calories[1]} kcal · ` +
+        `P ${m.protein[0]}/${m.protein[1]}g · C ${m.carbs[0]}/${m.carbs[1]}g · G ${m.fat[0]}/${m.fat[1]}g`
+    );
+  }
   L.push(`- Racha: ${s.streak} días · Nivel ${s.level} · ${s.totalWorkouts} entrenos totales · ${s.freezes} comodines`);
 
   if (s.todayPlan) {
@@ -444,12 +477,14 @@ export function snapshotToPrompt(s: CoachSnapshot): string {
           .join(', ')
     );
   }
-  if (s.todayMeals.length) {
+  // Con el modo recuperación no se listan las comidas NI se dice que no hay:
+  // "hoy no has registrado comidas" es justo el recordatorio que sobra.
+  if (s.todayMeals?.length) {
     L.push(
       `- Comidas registradas hoy: ` +
         s.todayMeals.map((m) => `${m.name} (${Math.round(m.calories)} kcal)`).join(', ')
     );
-  } else {
+  } else if (s.todayMeals) {
     L.push(`- Hoy no ha registrado comidas todavía.`);
   }
   if (s.waterCups != null) L.push(`- Agua de hoy: ${s.waterCups}/8 vasos.`);

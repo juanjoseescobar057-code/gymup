@@ -20,6 +20,7 @@ import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../lib/camera
 import CameraDisclosureModal from '../Components/CameraDisclosureModal';
 import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
+import GuardiaRecuperacion from '../Components/GuardiaRecuperacion';
 
 type FoodResult = {
   meal_name: string;
@@ -31,7 +32,7 @@ type FoodResult = {
   fiber_g: number;
 };
 
-export default function FoodScanScreen() {
+function FoodScanScreenContenido() {
   const profile = useUserStore((s: any) => s.profile);
   const addFoodLog = useUserStore((s: any) => s.addFoodLog);
   const getDailyTotals = useUserStore((s: any) => s.getDailyTotals);
@@ -535,3 +536,19 @@ const s = StyleSheet.create({
   impactVal: { fontFamily: Fonts.bodyMedium, fontSize: 13 },
   impactNote: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginTop: 8, borderTopWidth: 1, borderTopColor: Colors.accentBorder, paddingTop: 8 },
 });
+
+/**
+ * GUARDIA DEL MODO RECUPERACIÓN.
+ *
+ * Va aquí, en la ruta, y no en quien navega hasta ella. Esta pantalla se abre
+ * también por enlace directo (app.json declara el scheme "gymup") y desde
+ * cualquier router.push que exista hoy o mañana: esconder el botón de origen
+ * dejaba la puerta abierta.
+ */
+export default function FoodScanScreen() {
+  return (
+    <GuardiaRecuperacion area="calorias" titulo="ESCANEAR COMIDA">
+      <FoodScanScreenContenido />
+    </GuardiaRecuperacion>
+  );
+}

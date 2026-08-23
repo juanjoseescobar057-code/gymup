@@ -74,30 +74,66 @@ export async function registrarComida(opts: {
 
   track('food_added', { calories: comida.calories, protein_g: comida.protein_g, origen, ...(propsExtra ?? {}) });
 
-  const macroPerfect = completaMacrosDelDia(totalesPrevios, comida, metas);
-  recordMealLogged(userId, macroPerfect, saved.id)
-    .then((r) => {
-      if (r.macroDayCounted) {
-        track('macro_day_perfect'); // contrato de analítica: no renombrar
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: '🎯 Metas de macros del día cubiertas',
-            body: 'Alcanzaste tus cuatro metas de hoy: calorías, proteína, carbos y grasa. +50 XP.',
-            sound: 'default',
-          },
-          trigger: null,
-        }).catch(() => {});
-      }
-    })
-    .catch((e) => captureError(e, { scope: 'logMeal.gamificacion', origen }));
+  // SIN RECOMPENSAS CORPORALES.
+  //
+  // `sinRecompensasCorporales` estaba declarada en lib/recoveryMode.ts desde el
+  // principio y NO LA LEÍA NADIE. Así que a alguien con un trastorno de la
+  // conducta alimentaria la app le seguía dando 15 XP por cada comida
+  // registrada, +50 XP por "cubrir las cuatro metas del día", insignias por
+  // número de comidas y una notificación felicitándolo por ello. Es decir:
+  // gamificaba exactamente la conducta que el modo existe para despriorizar.
+  //
+  // La comida SE SIGUE GUARDANDO. Lo que se retira es el premio, el marcador y
+  // el aviso de proteína. Dejar de registrar sería quitarle a la persona el
+  // control de sus propios datos; dejar de premiarlo es todo lo que hace falta.
+  const sinPremios = sinRecompensasCorporales();
 
-  const aviso = avisoProteina(totalesPrevios.protein_g + comida.protein_g, metas.daily_protein_g);
-  if (aviso) {
-    Notifications.scheduleNotificationAsync({
-      content: { ...aviso, sound: 'default' },
-      trigger: null,
-    }).catch(() => {});
+  if (!sinPremios) {
+    const macroPerfect = completaMacrosDelDia(totalesPrevios, comida, metas);
+    recordMealLogged(userId, macroPerfect, saved.id)
+      .then((r) => {
+        if (r.macroDayCounted) {
+          track('macro_day_perfect'); // contrato de analítica: no renombrar
+          Notifications.scheduleNotificationAsync({
+            content: {
+              title: '🎯 Metas de macros del día cubiertas',
+              body: 'Alcanzaste tus cuatro metas de hoy: calorías, proteína, carbos y grasa. +50 XP.',
+              sound: 'default',
+            },
+            trigger: null,
+          }).catch(() => {});
+        }
+      })
+      .catch((e) => captureError(e, { scope: 'logMeal.gamificacion', origen }));
+
+    const aviso = avisoProteina(totalesPrevios.protein_g + comida.protein_g, metas.daily_protein_g);
+    if (aviso) {
+      Notifications.scheduleNotificationAsync({
+        content: { ...aviso, sound: 'default' },
+        trigger: null,
+      }).catch(() => {});
+    }
   }
 
   return { ok: true, log };
+}
+
+/**
+ * ¿Está esta persona en modo recuperación?
+ *
+ * Lee el store con `require` diferido, igual que publicarModoRecuperacion en
+ * lib/health.ts, para no crear el ciclo lib → store → lib.
+ *
+ * Ante cualquier duda devuelve false, que es lo mismo que hace
+ * modoRecuperacion(null): esconderle sus datos a alguien por un fallo de
+ * lectura sería tan malo como el problema que se quiere evitar.
+ */
+function sinRecompensasCorporales(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useUserStore } = require('../store/userStore');
+    return useUserStore.getState().recuperacion?.sinRecompensasCorporales === true;
+  } catch {
+    return false;
+  }
 }

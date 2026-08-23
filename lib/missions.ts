@@ -19,27 +19,20 @@ import { loadUserStats } from './streaks';
  */
 export type { MissionType, ActividadSemana } from './missionsMath';
 export { contarMisiones } from './missionsMath';
-import { contarMisiones, type MissionType, type ActividadSemana } from './missionsMath';
+import {
+  contarMisiones,
+  misionesDisponibles,
+  WEEKLY_MISSIONS,
+  type Mission,
+  type MissionType,
+  type ActividadSemana,
+} from './missionsMath';
 
-export type Mission = {
-  id: string;
-  label: string;
-  emoji: string;
-  type: MissionType;
-  target: number;
-  xp: number;
-};
-
-/**
- * El objetivo de `w_planned` es 3 solo como respaldo mientras se carga el
- * plan: el real sale de cuántos días de entreno programa TU plan, y lo decide
- * el servidor. Pedirle 3 a quien entrena 2 días le exigiría más de lo suyo.
- */
-export const WEEKLY_MISSIONS: Mission[] = [
-  { id: 'w_planned',  label: 'Completa tus sesiones de la semana', emoji: '🏋️', type: 'planned_workouts', target: 3, xp: 120 },
-  { id: 'w_protein3', label: 'Cubre tu proteína en 3 días',        emoji: '🥩', type: 'protein_days',     target: 3, xp: 90 },
-  { id: 'w_rest',     label: 'Respeta un día de descanso',         emoji: '🌙', type: 'rest_day',         target: 1, xp: 60 },
-];
+// Se reexportan desde aquí porque es donde los buscan las pantallas. Viven en
+// missionsMath para que se puedan probar: este archivo importa supabase, y
+// supabase arrastra react-native.
+export { WEEKLY_MISSIONS, misionesDisponibles };
+export type { Mission };
 
 export type MissionProgress = Mission & { current: number; done: boolean; claimed: boolean };
 
@@ -57,13 +50,20 @@ export function getWeekKey(date = new Date()): string {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
-/** Combina misiones + progreso + reclamadas en una vista para la UI. */
+/**
+ * Combina misiones + progreso + reclamadas en una vista para la UI.
+ *
+ * El filtro va AQUÍ y no en la pantalla: computeMissions es lo único que llama
+ * progress.tsx, así que filtrando en este punto no hay forma de que una vista
+ * nueva se salte el modo por olvido.
+ */
 export function computeMissions(
   counts: Record<MissionType, number>,
   claimedMissions: string[],
-  weekKey: string
+  weekKey: string,
+  sinRecompensasCorporales = false,
 ): MissionProgress[] {
-  return WEEKLY_MISSIONS.map((m) => {
+  return misionesDisponibles(sinRecompensasCorporales).map((m) => {
     const current = counts[m.type] ?? 0;
     return {
       ...m,
@@ -109,7 +109,24 @@ export async function fetchWeeklyCounts(userId: string): Promise<Record<MissionT
 export async function loadWeeklyMissions(userId: string): Promise<MissionProgress[]> {
   const stats = await loadUserStats(userId);
   const counts = await fetchWeeklyCounts(userId);
-  return computeMissions(counts, stats.claimed_missions ?? [], getWeekKey());
+  return computeMissions(counts, stats.claimed_missions ?? [], getWeekKey(), sinRecompensas());
+}
+
+/**
+ * ¿Está esta persona en modo recuperación?
+ *
+ * `require` diferido para no crear el ciclo lib → store → lib, igual que
+ * publicarModoRecuperacion en lib/health.ts. Ante la duda devuelve false: es el
+ * mismo criterio que modoRecuperacion(null), no esconder nada por un fallo.
+ */
+function sinRecompensas(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { useUserStore } = require('../store/userStore');
+    return useUserStore.getState().recuperacion?.sinRecompensasCorporales === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

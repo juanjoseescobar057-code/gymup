@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PREMIUM_LIMITS } from '../lib/subscription';
 import { MODEL_PRICING } from '../lib/aiMetrics';
+import { FEATURE_POLICY } from '../supabase/functions/_shared/politica';
 
 const raiz = process.cwd();
 const proxy = fs.readFileSync(
@@ -26,14 +27,19 @@ const proxy = fs.readFileSync(
   'utf8',
 );
 
-/** Extrae los tres topes de una línea de FEATURE_POLICY. */
+/**
+ * Los tres topes de una feature.
+ *
+ * Antes esto los sacaba del ai-proxy con una expresión regular, porque el proxy
+ * es Deno y no se podía importar. Ya no hace falta: la política vive en
+ * supabase/functions/_shared/politica.ts, que es TypeScript puro sin nada de
+ * Deno dentro. Comparar objetos y no texto significa que un cambio de formato
+ * ya no puede romper el test — ni un test roto dejar de comparar.
+ */
 function politica(feature: string): { free: number; trial: number; premium: number } {
-  const re = new RegExp(
-    `${feature}\\s*:\\s*\\{[^}]*freeLimit:\\s*(\\d+)[^}]*trialLimit:\\s*(\\d+)[^}]*premiumLimit:\\s*(\\d+)`,
-  );
-  const m = proxy.match(re);
-  assert.ok(m, `no encontré la política de ${feature} en el ai-proxy`);
-  return { free: Number(m![1]), trial: Number(m![2]), premium: Number(m![3]) };
+  const p = FEATURE_POLICY[feature];
+  assert.ok(p, `no existe la política de ${feature}`);
+  return { free: p.freeLimit, trial: p.trialLimit, premium: p.premiumLimit };
 }
 
 // ── Los topes del paywall son los que aplica el servidor ──

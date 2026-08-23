@@ -103,7 +103,12 @@ export function quickPrompts(snapshot: CoachSnapshot): string[] {
   } else {
     out.push('¿Qué hago hoy si quiero entrenar?');
   }
-  if (snapshot.macros.protein[0] < snapshot.macros.protein[1] * 0.7) {
+  // Los dos atajos siguientes desaparecen solos con el modo recuperación
+  // activo, porque los campos que los disparan ya no vienen en el expediente.
+  // Ofrecerle "¿Cómo llego a mi meta de proteína?" a alguien con un trastorno
+  // de la conducta alimentaria es empujarlo a la conversación que el modo
+  // existe para no tener.
+  if (snapshot.macros && snapshot.macros.protein[0] < snapshot.macros.protein[1] * 0.7) {
     out.push('¿Cómo llego a mi meta de proteína?');
   }
   if (snapshot.projection?.hasGoal) {

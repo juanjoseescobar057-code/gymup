@@ -179,8 +179,11 @@ export default function DashboardScreen() {
       goal: profile.goal,
       grupoDeHoy: todayPlan?.muscle_groups ?? [],
       diasSinEntrenar: estadoHoy.diasSinEntrenar,
-      proteinaHoyG: totals.protein_g,
-      proteinaMetaG: profile.daily_protein_g,
+      // Sin cifras de proteína con el modo activo: el coach de reglas emite
+      // "te faltan N g para tu meta de hoy", que es exactamente la frase que
+      // esta pantalla acaba de decidir no mostrar tres bloques más arriba.
+      proteinaHoyG: recuperacion.ocultarCalorias ? null : totals.protein_g,
+      proteinaMetaG: recuperacion.ocultarCalorias ? null : profile.daily_protein_g,
     })
       .then((c) => { if (vivo) setConsejos(c); })
       .catch(() => {}); // sin coach es peor, pero no puede tumbar la portada
@@ -773,23 +776,34 @@ export default function DashboardScreen() {
           </View>
         ) : null}
 
-        {/* Accesos rápidos */}
+        {/* Accesos rápidos.
+            Esta misma pantalla pinta el aviso del modo recuperación 330 líneas
+            más arriba y seguía enseñando "Escanear cuerpo" aquí abajo. Las
+            pantallas ya se defienden solas (Components/GuardiaRecuperacion),
+            pero ofrecerle el botón a alguien para que se choque con un muro es
+            una crueldad pequeña y evitable. */}
         <View style={s.quickRow}>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/food-scan' as any)} activeOpacity={0.85}
-            accessibilityRole="button" accessibilityLabel="Escanear comida con la cámara">
-            <Text style={{ fontSize: 24 }}>🍽️</Text>
-            <Text style={s.quickLbl}>Escanear comida</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/fridge-scan' as any)} activeOpacity={0.85}
-            accessibilityRole="button" accessibilityLabel="Escanear mi nevera con la cámara">
-            <Text style={{ fontSize: 24 }}>🧊</Text>
-            <Text style={s.quickLbl}>Escanear nevera</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/body-scan' as any)} activeOpacity={0.85}
-            accessibilityRole="button" accessibilityLabel="Escanear mi cuerpo con la cámara">
-            <Text style={{ fontSize: 24 }}>💪</Text>
-            <Text style={s.quickLbl}>Escanear cuerpo</Text>
-          </TouchableOpacity>
+          {!recuperacion.ocultarCalorias && (
+            <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/food-scan' as any)} activeOpacity={0.85}
+              accessibilityRole="button" accessibilityLabel="Escanear comida con la cámara">
+              <Text style={{ fontSize: 24 }}>🍽️</Text>
+              <Text style={s.quickLbl}>Escanear comida</Text>
+            </TouchableOpacity>
+          )}
+          {!recuperacion.ocultarCalorias && (
+            <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/fridge-scan' as any)} activeOpacity={0.85}
+              accessibilityRole="button" accessibilityLabel="Escanear mi nevera con la cámara">
+              <Text style={{ fontSize: 24 }}>🧊</Text>
+              <Text style={s.quickLbl}>Escanear nevera</Text>
+            </TouchableOpacity>
+          )}
+          {!recuperacion.ocultarCuerpo && (
+            <TouchableOpacity style={s.quickBtn} onPress={() => router.push('/body-scan' as any)} activeOpacity={0.85}
+              accessibilityRole="button" accessibilityLabel="Escanear mi cuerpo con la cámara">
+              <Text style={{ fontSize: 24 }}>💪</Text>
+              <Text style={s.quickLbl}>Escanear cuerpo</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={{ height: 40 }} />

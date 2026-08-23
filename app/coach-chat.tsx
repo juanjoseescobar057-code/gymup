@@ -220,10 +220,14 @@ export default function CoachChatScreen() {
         days_since_workout: snapshot.daysSinceLastWorkout,
         workouts_7d: snapshot.workoutsLast7Days,
         today_plan: snapshot.todayPlan?.type ?? 'none',
-        protein_pct: Math.round((snapshot.macros.protein[0] / Math.max(1, snapshot.macros.protein[1])) * 100),
+        // null, no 0: con el modo recuperación el expediente llega sin macros, y
+        // un 0 se leería en la analítica como "no comió proteína".
+        protein_pct: snapshot.macros
+          ? Math.round((snapshot.macros.protein[0] / Math.max(1, snapshot.macros.protein[1])) * 100)
+          : null,
         has_goal: !!snapshot.projection?.hasGoal,
         total_workouts: snapshot.totalWorkouts,
-        meals_today: snapshot.todayMeals.length,
+        meals_today: snapshot.todayMeals?.length ?? null,
         context_pressure: contextPressure,
         topic_changes_so_far: topicChangesRef.current,
         active_intents: activeIntents,

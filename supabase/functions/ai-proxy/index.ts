@@ -32,6 +32,7 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { leerCuerpoAcotado, inspectMessages } from '../_shared/payload.ts';
+import { resolverPolitica } from '../_shared/politica.ts';
 
 // Se admite el SNAPSHOT además del alias. El alias mueve el comportamiento del
 // modelo sin avisar, y esta app da recomendaciones de salud: la generación de
@@ -40,61 +41,8 @@ import { leerCuerpoAcotado, inspectMessages } from '../_shared/payload.ts';
 // conserva para el resto de funciones, menos sensibles.
 const ALLOWED_MODELS = new Set(['gpt-4o', 'gpt-4o-mini', 'gpt-4o-2024-08-06']);
 
-type FeaturePolicy = {
-  premiumOnly: boolean;
-  freeLimit: number;
-  trialLimit: number;
-  premiumLimit: number;
-};
-
-// Política por feature. premiumOnly => bloqueada para free.
-// Los tres números son topes DIARIOS de llamadas.
-//
-// Los topes anteriores (60 chats, 30 escaneos de comida) daban un peor caso de
-// ~$24 USD/mes por usuario contra ~$5 de ingreso neto. Se recortaron a partir
-// del costo real medido por llamada:
-//
-//   escaneo de comida  $0.0079    chat con el coach  $0.0080
-//   escaneo de nevera  $0.0105    coach de postura   $0.0080
-//   escaneo corporal   $0.0092    generar plan       $0.0338
-//
-// Aun así, estos topes NO son el techo del gasto: contar llamadas no distingue
-// un chat de un plan, que cuesta cuatro veces más. El techo de verdad es el
-// presupuesto en dólares de más abajo. Estos números están para que nadie
-// queme el mes en dos días y para que la experiencia sea predecible.
-// El plan GRATIS no consume IA salvo para generar su plan de entrenamiento.
-// No es tacañería: es que el valor del plan gratis no está en la IA. La
-// progresión (progressionEngine), el calentamiento filtrado por lesiones
-// (warmupMath), los récords, las rachas y el coach de reglas
-// (lib/coachReglas.ts) son deterministas y no cuestan un token. La IA es la
-// capa de más, y esa se paga.
-//
-// premiumOnly en vez de freeLimit: 0 a propósito. Un tope de cero devuelve 429
-// "alcanzaste el límite de hoy", que es mentira y encima sugiere que mañana
-// podrá. premiumOnly devuelve 402 y el cliente abre el paywall, que es lo
-// honesto y además lo que convierte.
-const FEATURE_POLICY: Record<string, FeaturePolicy> = {
-  body_scan:   { premiumOnly: true,  freeLimit: 0,  trialLimit: 1,  premiumLimit: 1 },
-  coach:       { premiumOnly: true,  freeLimit: 0,  trialLimit: 10, premiumLimit: 10 },
-  coach_chat:  { premiumOnly: true,  freeLimit: 0,  trialLimit: 10, premiumLimit: 10 },
-  food_scan:   { premiumOnly: true,  freeLimit: 0,  trialLimit: 3,  premiumLimit: 4 },
-  fridge_scan: { premiumOnly: true,  freeLimit: 0,  trialLimit: 1,  premiumLimit: 1 },
-  scoring:     { premiumOnly: false, freeLimit: 40, trialLimit: 80, premiumLimit: 80 }, // juez de calidad (telemetría)
-  // El plan SÍ es gratis: sin él la app está vacía y no hay nada que probar.
-  // Es costo de adquisición (~$0.034 por generación), no pérdida.
-  plan:        { premiumOnly: false, freeLimit: 1,  trialLimit: 1,  premiumLimit: 1 },
-  suggestion:  { premiumOnly: false, freeLimit: 3,  trialLimit: 20, premiumLimit: 20 },
-  notification:{ premiumOnly: false, freeLimit: 3,  trialLimit: 20, premiumLimit: 20 },
-  general:     { premiumOnly: false, freeLimit: 5,  trialLimit: 40, premiumLimit: 40 }, // incluye destilados de memoria
-};
-
-// Durante la prueba gratis, los tres escaneos de imagen COMPARTEN un solo cupo
-// diario. Con un tope por función, "3 al día" se convertían en 3 de comida + 1
-// de nevera + 1 corporal = 5 imágenes, que es justo lo caro. Comparten
-// contador, así que da igual cómo los reparta.
-const ESCANEOS_DE_IMAGEN = new Set(['body_scan', 'food_scan', 'fridge_scan']);
-const PRUEBA_ESCANEOS_DIA = 3;
-const CLAVE_ESCANEOS_PRUEBA = 'trial_scans';
+// La política (qué feature, qué tope, contra qué contador) vive en
+// _shared/politica.ts, para poder simular flujos enteros en un test.
 
 // ─── PRESUPUESTO EN DINERO: el techo de verdad ───────────
 // Ingreso neto por premium: 24.900 COP menos ~15% de Play ≈ $5.00 USD/mes.
@@ -132,22 +80,7 @@ function costoUsd(model: string | null, inTok: number, outTok: number): number {
   return (inTok * p.inPerM + outTok * p.outPerM) / 1_000_000;
 }
 
-// Ranking de COSTO por feature (mayor = más cara = más restrictiva). Se usa
-// cuando lo que declara el cliente y lo que se deriva del payload no coinciden:
-// el consumo se registra bajo la MÁS CARA de las dos. Si no, un body_scan
-// disfrazado de 'general' gastaría del cupo equivocado.
-const FEATURE_COST_RANK: Record<string, number> = {
-  body_scan:   100, // hasta 3 fotos en detail:high
-  fridge_scan:  80, // 1 foto high + 2000 tokens de salida
-  coach:        70, // 1 foto high (análisis de postura)
-  food_scan:    60, // 1 foto high, salida corta
-  coach_chat:   40,
-  plan:         30,
-  suggestion:   20,
-  notification: 20,
-  scoring:      10,
-  general:       0,
-};
+
 
 // Topes duros del payload. El más pesado que manda la app real es el análisis
 // corporal: 3 imágenes y ~4k caracteres de texto; todo lo demás cabe de sobra.
@@ -279,24 +212,7 @@ Deno.serve(async (req) => {
     body.temperature = Number.isFinite(t) ? Math.min(Math.max(t, 0), 2) : 1;
   }
 
-  // 3. Política EFECTIVA = la MÁS ESTRICTA entre la que declara el cliente y la
-  // que se deriva del payload real. Antes bastaba con etiquetar un body_scan de
-  // 2 imágenes (premium, caro) como 'general' (gratis, 20/día) para saltarse el
-  // paywall y el cupo: el servidor le creía al header. Ahora el header sirve
-  // para ENDURECER (validar 1 foto declarándola 'body_scan' sigue siendo
-  // premium) pero jamás para relajar.
-  const declaredHeader = req.headers.get('x-gymup-feature') ?? 'general';
-  const declaredFeature = FEATURE_POLICY[declaredHeader] ? declaredHeader : 'general';
-  const derivedFeature = deriveMinimumFeature(images);
-
-  const effectiveFeature = derivedFeature && rankOf(derivedFeature) > rankOf(declaredFeature)
-    ? derivedFeature
-    : declaredFeature;
-  const policy = derivedFeature
-    ? strictestPolicy(FEATURE_POLICY[declaredFeature], FEATURE_POLICY[derivedFeature])
-    : FEATURE_POLICY[declaredFeature];
-
-  // 4. Entitlement: ¿es premium? ¿está en la prueba gratis?
+  // 3. Entitlement: ¿es premium? ¿está en la prueba gratis?
   // is_trial lo escribe rc-webhook desde period_type. Durante la prueba
   // is_premium TAMBIÉN es true —RevenueCat concede el entitlement desde el
   // primer día— así que sin esta segunda columna quien no ha pagado nada entra
@@ -309,11 +225,27 @@ Deno.serve(async (req) => {
   const isPremium = profile?.is_premium === true;
   const esPrueba = isPremium && profile?.is_trial === true;
 
-  if (policy.premiumOnly && !isPremium) {
+  // 4. LA POLÍTICA EFECTIVA. El header x-gymup-feature es una DECLARACIÓN
+  // del cliente, no una verdad: resolverPolitica deriva un piso mirando el
+  // payload real (cuántas imágenes trae) y escala si lo declarado era más
+  // barato. Etiquetar un análisis corporal de 2 fotos como 'general' para
+  // quedarse con su cupo de texto sigue sin funcionar.
+  //
+  // Toda la decisión está en _shared/politica.ts para poder simular flujos
+  // enteros en un test: el del análisis corporal no cabía en su propio tope y
+  // no había manera de que nada lo detectara.
+  const { claveContador, limite: limit, exigePremium } = resolverPolitica({
+    headerDeclarado: req.headers.get('x-gymup-feature'),
+    imagenes: images,
+    isPremium,
+    esPrueba,
+  });
+
+  if (exigePremium) {
     return json({ error: 'Esta función es Premium.', code: 'premium_required' }, 402);
   }
 
-  // 4-bis. PRESUPUESTO DEL MES, en dinero. Va antes del contador de llamadas
+  // 5. PRESUPUESTO DEL MES, en dinero. Va antes del contador de llamadas
   // porque es el límite que de verdad protege el margen: los topes diarios
   // cuentan llamadas y no distinguen un chat de un plan, que cuesta cuatro
   // veces más.
@@ -342,24 +274,13 @@ Deno.serve(async (req) => {
     }, 429);
   }
 
-  // 5. Rate limit por feature EFECTIVA (fail-CLOSED: si la BD falla, no
+  // 6. Rate limit por feature EFECTIVA (fail-CLOSED: si la BD falla, no
   // gastamos IA). La RPC ya no recibe p_user_id: lo deriva del JWT (auth.uid()),
   // así el proxy no puede cobrarle el consumo a otro usuario ni por error.
   // Durante la prueba los tres escaneos de imagen comparten un único cupo: si
   // tuvieran uno cada uno, "3 al día" serían 5 imágenes. La clave del contador
   // cambia, y el reembolso de más abajo tiene que usar ESTA MISMA clave o
   // devolvería el cupo a un contador que nadie está mirando.
-  const esEscaneoDePrueba = esPrueba && ESCANEOS_DE_IMAGEN.has(effectiveFeature);
-  const claveContador = esEscaneoDePrueba ? CLAVE_ESCANEOS_PRUEBA : effectiveFeature;
-
-  const limit = esEscaneoDePrueba
-    ? PRUEBA_ESCANEOS_DIA
-    : esPrueba
-      ? policy.trialLimit
-      : isPremium
-        ? policy.premiumLimit
-        : policy.freeLimit;
-
   // Defensa en profundidad: un tope que no sea un número REAL no puede llegar
   // a la base. Ya pasó una vez —strictestPolicy olvidó trialLimit— y el
   // undefined resultante hacía que el control fallara ABIERTO.
@@ -381,7 +302,7 @@ Deno.serve(async (req) => {
     return json({ error: 'Alcanzaste el límite de hoy. Pásate a Premium para más.', code: 'limit_reached' }, 429);
   }
 
-  // 6. Blindaje server-side: inyectar las reglas de seguridad como PRIMER
+  // 7. Blindaje server-side: inyectar las reglas de seguridad como PRIMER
   // mensaje system. El cliente ya las incluye en sus prompts, pero un cliente
   // modificado podría quitarlas — aquí se re-imponen SIEMPRE (defensa en
   // profundidad). OpenAI prioriza los mensajes system iniciales.
@@ -416,7 +337,7 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
     }
   } catch { /* body no estándar: se reenvía tal cual */ }
 
-  // 7. Reenviar a OpenAI con la key del servidor.
+  // 8. Reenviar a OpenAI con la key del servidor.
   const openaiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiKey) return json({ error: 'IA no configurada en el servidor' }, 500);
 
@@ -529,38 +450,7 @@ function esRespuestaInservible(raw: string): boolean {
   }
 }
 
-// Piso de política derivado SOLO del payload, sin mirar el header. Las imágenes
-// delatan la feature cara: es lo que impide etiquetar un análisis corporal como
-// texto barato. Devuelve null cuando no hay imágenes (solo texto: cualquier
-// feature de texto es plausible, no hay nada que endurecer).
-function deriveMinimumFeature(images: number): string | null {
-  if (images >= 2) return 'body_scan';  // patrón real del análisis corporal: premium
-  if (images === 1) return 'food_scan'; // visión de una sola foto: con cupo
-  return null;
-}
 
-function rankOf(feature: string): number {
-  return FEATURE_COST_RANK[feature] ?? 0;
-}
-
-// "Más estricta" = premiumOnly gana y cada límite se toma al mínimo.
-function strictestPolicy(a: FeaturePolicy, b: FeaturePolicy): FeaturePolicy {
-  // TODOS los campos de FeaturePolicy, sin excepción. Al añadir trialLimit se
-  // olvidó aquí, y el objeto combinado salía con trialLimit: undefined. Eso
-  // llegaba a increment_ai_usage como p_limit null, y en Postgres
-  // `current_count <= NULL` es NULL, no false — así que la comprobación del
-  // proxy (`allowed === false`) lo dejaba pasar. No fallaba el trial: fallaba
-  // ABIERTO, con IA sin tope por ese camino.
-  //
-  // __tests__/aiProxyPolicy.test.ts comprueba que esta función cubra todos los
-  // campos del tipo, para que el próximo campo nuevo no repita la historia.
-  return {
-    premiumOnly: a.premiumOnly || b.premiumOnly,
-    freeLimit: Math.min(a.freeLimit, b.freeLimit),
-    trialLimit: Math.min(a.trialLimit, b.trialLimit),
-    premiumLimit: Math.min(a.premiumLimit, b.premiumLimit),
-  };
-}
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), {

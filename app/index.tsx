@@ -97,9 +97,11 @@ export default function Index() {
       // lib/health.ts). Un fallo de red no puede esconderle sus datos a nadie.
       loadHealthSafe(session.user.id).catch(() => {});
 
-      // Los interruptores remotos. Nunca lanza y cae a los valores compilados,
-      // así que un fallo de red no apaga nada ni abre nada.
-      cargarFlags().catch(() => {});
+      // Los interruptores remotos, ESPERADOS. Lanzarlos sin await dejaba la
+      // primera pantalla con los valores de partida —y las funciones de riesgo
+      // arrancan bloqueadas— así que el estado dependía de una carrera. Nunca
+      // lanza: si falla, usa la última respuesta buena de la caché.
+      await cargarFlags();
 
       // Recargar los registros de comida de HOY (antes arrancaban en 0).
       const todayLogs = await fetchTodayFoodLogs(session.user.id);

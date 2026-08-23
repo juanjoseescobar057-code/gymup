@@ -1,36 +1,51 @@
 // lib/replayRoutes.ts
 // ─────────────────────────────────────────────────────────
-// Qué pantallas NUNCA se graban, ni con el consentimiento dado.
+// Qué pantallas se pueden grabar. LISTA BLANCA.
 //
-// Vive aparte de posthog.ts (que arrastra el SDK nativo) porque esta lista es
-// una PROMESA ESCRITA en la política de privacidad publicada, y una promesa
-// sin test es una promesa hasta que alguien la rompe sin darse cuenta.
+// Era una lista NEGRA, y una lista negra en una app de salud está mal por
+// construcción: hay que acordarse de añadir cada pantalla nueva, y la que se
+// olvide se graba. Ya pasó una vez —la lista tenía '/coach-chat' pero no
+// '/coach', y el filtro es por prefijo— y el auditor encontró dos más:
+// '/profile' y la portada, que muestran peso, macros y datos personales, no
+// estaban excluidas.
 //
-// Ya pasó: la lista tenía '/coach-chat' pero no '/coach'. El filtro es por
-// prefijo y '/coach'.startsWith('/coach-chat') es false, así que la pestaña
-// Coach —donde se ve la foto de cuerpo completo que acabas de tomar para el
-// análisis de postura— se seguía grabando mientras la política decía que no.
+// Con lista blanca, olvidarse tiene el efecto contrario: la pantalla nueva NO
+// se graba hasta que alguien decida explícitamente que puede. El coste de
+// equivocarse pasa de "grabamos datos de salud" a "tenemos menos grabaciones".
+//
+// Esta lista es una PROMESA ESCRITA en la política de privacidad publicada, y
+// una promesa sin test es una promesa hasta que alguien la rompe sin darse
+// cuenta. __tests__/replayRoutes.test.ts la vigila.
 // ─────────────────────────────────────────────────────────
 
-export const RUTAS_SIN_GRABACION = [
-  '/body-scan',
-  '/food-scan',
-  '/fridge-scan',
-  '/health',
-  '/onboarding',
-  '/coach',        // la pestaña Coach: muestra la foto de postura
-  '/coach-chat',
-  '/progress',     // fotos de transformación
-  '/camera',
-  '/live-coach',
-  '/workout-session',
-  '/workout-complete',
-  '/food-manual',
-  '/history',
-  '/legal',
-  '/telemetry',
+/**
+ * Las ÚNICAS rutas donde se puede grabar la sesión.
+ *
+ * El criterio para entrar aquí: la pantalla no muestra peso, calorías, macros,
+ * fotos del cuerpo, tamizaje de salud, conversaciones con el coach, ni datos
+ * personales. En la práctica quedan las de navegación y las de pago.
+ *
+ * Si dudas si una pantalla puede entrar, la respuesta es que no.
+ */
+export const RUTAS_GRABABLES = [
+  '/paywall',   // pantalla de pago: precios de la tienda, nada personal
+  '/exercises', // catálogo de ejercicios
+  '/index',     // pantalla de arranque (splash), antes de cargar nada
 ];
 
+/**
+ * Compatibilidad: algún sitio sigue importando el nombre viejo. Ahora es
+ * derivado, no una fuente: lo que manda es la lista blanca.
+ */
+export const RUTAS_SIN_GRABACION: string[] = [];
+
+
+/**
+ * ¿Esta ruta NO se puede grabar?
+ *
+ * Todo lo que no esté en la lista blanca. Antes era al revés y por eso se
+ * colaban las pantallas que nadie se acordó de añadir.
+ */
 export function esRutaSensible(pathname: string): boolean {
-  return RUTAS_SIN_GRABACION.some((r) => pathname.startsWith(r));
+  return !RUTAS_GRABABLES.some((r) => pathname === r || pathname.startsWith(r + '/'));
 }

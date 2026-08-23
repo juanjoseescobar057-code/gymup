@@ -329,13 +329,18 @@ function CoachScreenContenido() {
       const data = await analyzePosture(uri, selectedEx.name, await currentHealthBlock());
 
       if (!data.is_exercise_visible) {
+        // SIN "ver análisis de todas formas". Ese botón era el fallo: el modelo
+        // acaba de decir que NO ve el ejercicio, y el esquema de respuesta le
+        // exige igualmente un score sobre 100, un nivel de riesgo y correcciones
+        // concretas. Producía una evaluación de una técnica que nadie vio, con
+        // exactamente la misma pinta que una de verdad.
+        //
+        // Sin evidencia no hay análisis. Se pide otra foto y se dice qué falta,
+        // que es lo único honesto que cabe aquí.
         Alert.alert(
-          '📸 No se detectó el ejercicio',
-          `La foto no muestra claramente a alguien haciendo "${selectedEx.name}".\n\nAsegúrate de que tu cuerpo completo sea visible y la posición del ejercicio sea clara.`,
-          [
-            { text: 'Reintentar', onPress: () => { setPhase('select'); setPhotoUri(null); } },
-            { text: 'Ver análisis de todas formas', onPress: () => { setResult(data); setPhase('result'); } },
-          ]
+          '📸 No se ve el ejercicio',
+          `La foto no muestra con claridad a alguien haciendo "${selectedEx.name}", así que no podemos analizar tu técnica: cualquier corrección sería inventada.\n\nPrueba con el cuerpo completo en el encuadre, buena luz, y de perfil o de frente según el ejercicio.`,
+          [{ text: 'Tomar otra foto', onPress: () => { setPhase('select'); setPhotoUri(null); } }]
         );
         return;
       }

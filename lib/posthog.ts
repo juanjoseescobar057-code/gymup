@@ -54,7 +54,17 @@ export async function initPostHog(distinctId?: string): Promise<void> {
       // PostHog capture navegación y toques por su cuenta duplicaría eventos y
       // rompería la correspondencia con `analytics_events`.
       captureAppLifecycleEvents: false,
-      enableSessionReplay: replayConsent,
+      // ARRANCA SIEMPRE DETENIDO, aunque haya consentimiento.
+      //
+      // Había una carrera: la navegación llama a ajustarReplayPorRuta, que
+      // retorna sin hacer nada porque PostHog aún no existe; PostHog termina de
+      // arrancar con la grabación activada; y nadie vuelve a comprobar la ruta.
+      // Resultado: se grababa la pantalla en la que estuviera la persona en ese
+      // instante, que puede ser el tamizaje de salud o el análisis corporal.
+      //
+      // Con esto, arrancar no puede grabar nada: la grabación solo empieza
+      // cuando ajustarReplayPorRuta ve una ruta de la lista blanca.
+      enableSessionReplay: false,
       sessionReplayConfig: {
         maskAllTextInputs: true,
         maskAllImages: true,
@@ -63,6 +73,11 @@ export async function initPostHog(distinctId?: string): Promise<void> {
       },
     });
     if (distinctId) ph.identify(distinctId);
+    // La grabación arrancó detenida, así que este es el estado real.
+    replayPausado = true;
+    // Y se evalúa la ruta ACTUAL, que es el paso que faltaba: sin esto, la
+    // grabación nunca empezaría (o empezaría donde no debe).
+    if (rutaActual !== null) ajustarReplayPorRuta(rutaActual);
   } catch (e) {
     // Que la analítica de terceros no arranque no puede tumbar la app.
     captureError(e, { scope: 'initPostHog' });
@@ -152,7 +167,16 @@ export function phReset(): void {
  * Apaga o reanuda la grabación según la pantalla.
  * Se llama en cada cambio de ruta, antes de que la pantalla sensible pinte.
  */
+/**
+ * La última ruta que nos dijeron, exista PostHog o no.
+ *
+ * Sin esto, las llamadas de antes del arranque se perdían y al inicializar no
+ * había forma de saber dónde estaba la persona.
+ */
+let rutaActual: string | null = null;
+
 export function ajustarReplayPorRuta(pathname: string): void {
+  rutaActual = pathname;
   if (!ph) return;
   try {
     const sensible = !replayConsent || esRutaSensible(pathname);

@@ -10,11 +10,11 @@
 // rota. Aquí se dice que fue una decisión y que los datos siguen ahí.
 // ─────────────────────────────────────────────────────────
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { flag, MOTIVO_POR_DEFECTO, type ClaveFlag } from '../lib/featureFlags';
+import { flag, suscribirseAFlags, MOTIVO_POR_DEFECTO, type ClaveFlag, type Flag } from '../lib/featureFlags';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../constants/theme';
 
 export default function GuardiaFlag({
@@ -26,7 +26,14 @@ export default function GuardiaFlag({
   titulo: string;
   children: ReactNode;
 }) {
-  const f = flag(clave);
+  // REACTIVO. Antes se leía la variable de módulo una sola vez, en el render:
+  // si la consulta de los interruptores terminaba después, la pantalla se
+  // quedaba con el valor de partida y no se enteraba nunca. Con las funciones de
+  // riesgo bloqueadas por defecto, eso significaba dejarlas bloqueadas para
+  // siempre — igual de roto que dejarlas abiertas, solo que hacia el otro lado.
+  const [f, setF] = useState<Flag>(() => flag(clave));
+  useEffect(() => suscribirseAFlags(() => setF(flag(clave))), [clave]);
+
   if (f.activo) return <>{children}</>;
 
   return (

@@ -280,6 +280,49 @@ Deno.serve(async (req) => {
     return json({ error: 'Esta función es Premium.', code: 'premium_required' }, 402);
   }
 
+  // 4-bis. EL INTERRUPTOR REMOTO, AQUÍ TAMBIÉN.
+  //
+  // Estaba solo en el cliente, y un interruptor que solo vive en el cliente no
+  // apaga nada: una app vieja, un enlace directo o una petición hecha a mano
+  // seguían gastando IA en una función supuestamente apagada. Y si hay que
+  // apagarla es porque está diciendo algo que no debería, así que el sitio donde
+  // tiene que cortar es este.
+  //
+  // Se comprueba ANTES de reservar presupuesto: apagar algo no puede costar
+  // dinero.
+  const FLAG_DE_FEATURE: Record<string, string> = {
+    body_scan: 'body_scan',
+    // La validación de foto se apaga CON el análisis: dejarla viva permitiría
+    // seguir mandando fotos corporales a la IA con la función "apagada".
+    scan_check: 'body_scan',
+    coach: 'postura',
+  };
+  const claveFlag = FLAG_DE_FEATURE[claveContador];
+  if (claveFlag) {
+    const { data: flagRow, error: flagError } = await supabase
+      .from('feature_flags')
+      .select('activo, motivo')
+      .eq('clave', claveFlag)
+      .maybeSingle();
+
+    // Fail-CLOSED para las funciones de riesgo: si no se puede leer la tabla, no
+    // se ejecutan. Es el mismo criterio que la compuerta clínica, y por el mismo
+    // motivo — son las que emiten estimaciones corporales y correcciones de
+    // técnica a partir de una foto.
+    if (flagError) {
+      console.error('feature_flags:', flagError.message);
+      return json({ error: 'No pudimos verificar el estado de esta función. Intenta luego.' }, 503);
+    }
+    if (!flagRow || flagRow.activo === false) {
+      console.log(`ai-proxy: ${claveContador} bloqueada por feature_flags(${claveFlag})`);
+      return json({
+        error: flagRow?.motivo ||
+          'Esta función está en pausa mientras la revisamos. Volverá pronto.',
+        code: 'feature_apagada',
+      }, 503);
+    }
+  }
+
   // 5. PRESUPUESTO DEL MES, en dinero. Va antes del contador de llamadas
   // porque es el límite que de verdad protege el margen: los topes diarios
   // cuentan llamadas y no distinguen un chat de un plan, que cuesta cuatro

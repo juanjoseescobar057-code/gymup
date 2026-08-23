@@ -43,7 +43,26 @@ test('las rutas con parámetros o subrutas también quedan cubiertas', () => {
 test('las pantallas sin datos sensibles SÍ se pueden grabar', () => {
   // La grabación existe para encontrar problemas de UX: excluirlo todo la
   // dejaría inútil. Estas no tienen fotos ni datos de salud.
-  for (const r of ['/', '/index', '/paywall', '/profile', '/exercises']) {
+  // '/' y '/profile' SALIERON de esta lista. Los tenía por inocuos y no lo son:
+  // la portada pinta el anillo de calorías y los macros del día, y el perfil
+  // muestra peso, altura, objetivo y los cuatro macros. Este test daba por buena
+  // exactamente la suposición que hacía falta corregir.
+  for (const r of ['/index', '/paywall', '/exercises']) {
     assert.equal(esRutaSensible(r), false, `${r} no debería estar excluida`);
   }
+});
+
+test('la portada y el perfil NO se graban', () => {
+  // La portada lleva el anillo de calorías y los macros; el perfil, el peso y
+  // el objetivo. Estaban fuera de la lista negra por descuido, que es
+  // precisamente el modo de fallo de una lista negra.
+  for (const r of ['/', '/profile']) {
+    assert.equal(esRutaSensible(r), true, `${r} muestra datos de salud`);
+  }
+});
+
+test('una ruta nueva NO se graba mientras nadie diga lo contrario', () => {
+  // Es la propiedad entera de la lista blanca: olvidarse deja de grabar en vez
+  // de grabar de más.
+  assert.equal(esRutaSensible('/pantalla-que-aun-no-existe'), true);
 });

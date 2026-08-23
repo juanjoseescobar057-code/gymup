@@ -106,6 +106,13 @@ export async function initPostHog(distinctId?: string): Promise<void> {
  * dimensión menos se arregla; un dato de salud enviado a un tercero, no.
  */
 const PROPS_SENSIBLES = new Set([
+  // El tamizaje diario de bienestar. workout_readiness_submitted los emite
+  // todos, y la lista no cubría ninguno: energía, sueño, estrés, agujetas y
+  // dolor nuevo salían enteros hacia un tercero. Lo delator es que la lista SÍ
+  // tenía 'pain' — se pensó en el dolor y se escribió la clave equivocada, que
+  // en el evento se llama 'pain_new'.
+  'energy', 'sleep_quality', 'sleep', 'stress', 'soreness', 'pain_new',
+  'available_minutes', 'risk_level', 'experience', 'training_experience',
   // Salud
   'risk_level', 'conditions', 'injuries', 'doctor_cleared', 'zone', 'zones',
   'condition', 'injury', 'pain', 'medical',

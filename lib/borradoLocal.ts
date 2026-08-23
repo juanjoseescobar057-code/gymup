@@ -47,6 +47,19 @@ export type ResultadoBorrado = { borradas: number; conservadas: number };
  * abandonar sería peor que dejar una caché.
  */
 export async function borrarDatosLocales(): Promise<ResultadoBorrado> {
+  // El fichero que deja "Exportar mis datos": un JSON EN CLARO con el perfil,
+  // el tamizaje PAR-Q+ entero, el peso, las comidas y los análisis corporales.
+  // Se escribe en la caché para poder compartirlo y nunca se borraba, así que
+  // sobrevivía al borrado de la cuenta en el disco del teléfono.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const FS = require('expo-file-system');
+    const dir = FS.cacheDirectory ?? FS.documentDirectory;
+    if (dir) {
+      await FS.deleteAsync(dir + 'gymup-mis-datos.json', { idempotent: true }).catch(() => {});
+    }
+  } catch { /* sin file-system no hay fichero que borrar */ }
+
   try {
     const todas = await AsyncStorage.getAllKeys();
     // Se borra por prefijo 'gymup_' y no todo: AsyncStorage lo comparten otras

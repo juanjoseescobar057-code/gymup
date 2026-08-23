@@ -129,6 +129,13 @@ export default function WorkoutSessionScreen() {
   //
   // Se sigue pudiendo saltar la pregunta: lo que no se puede es registrar una
   // respuesta que nadie dio.
+  // El factor de reincorporación, para el peso que se precarga. Se calculaba
+  // (0.9 / 0.8 / 0.7 según los días parado), se enseñaba en Inicio y se le
+  // contaba al coach — y la sesión seguía precargando la carga de antes de
+  // parar, sin tocar. El propio comentario de planCalendario dice que proponer
+  // las mismas cargas de hace tres semanas es cómo se lesiona la gente al volver.
+  const factorReincorporacion = estadoHoy?.reincorporacion?.factorCarga ?? 1;
+
   const [energyToday, setEnergyToday] = useState<number | null>(null);
   const [sorenessToday, setSorenessToday] = useState<number | null>(null);
   const [sleepToday, setSleepToday] = useState<number | null>(null);
@@ -260,7 +267,20 @@ export default function WorkoutSessionScreen() {
   useEffect(() => {
     if (!currentExName) return;
     const prev = lastPerf[currentExName];
-    setWeightInput(prev?.weight_kg != null ? String(prev.weight_kg) : '');
+    // EL PESO SE PRECARGA REDUCIDO tras una ausencia larga. planCalendario
+    // calcula un factor (0,9 / 0,8 / 0,7 según los días parado), la portada lo
+    // enseña y el coach lo sabe — y aquí se seguía proponiendo la carga de antes
+    // de parar, sin tocar. El propio comentario de planCalendario dice que
+    // proponer las mismas cargas de hace tres semanas es cómo se lesiona la
+    // gente al reincorporarse.
+    //
+    // Se redondea a 2,5 kg, que es el salto real de un disco.
+    const pesoPrevio = prev?.weight_kg;
+    const pesoSugerido =
+      pesoPrevio != null && factorReincorporacion < 1
+        ? Math.max(2.5, Math.round((pesoPrevio * factorReincorporacion) / 2.5) * 2.5)
+        : pesoPrevio;
+    setWeightInput(pesoSugerido != null ? String(pesoSugerido) : '');
     setRepsInput(prev?.reps != null ? String(prev.reps) : '');
     // El RIR se deja VACÍO a propósito. El campo pide un autoinforme
     // ("repeticiones que sentías que aún podías hacer"), así que rellenarlo con
@@ -269,7 +289,7 @@ export default function WorkoutSessionScreen() {
     // después las decisiones de progresión. El objetivo del plan se muestra
     // como pista al lado del campo, no dentro de él.
     setRirInput('');
-  }, [currentEx, currentSet, lastPerf, currentExName]);
+  }, [currentEx, currentSet, lastPerf, currentExName, factorReincorporacion]);
 
   function formatTime(secs: number) {
     const h = Math.floor(secs / 3600);

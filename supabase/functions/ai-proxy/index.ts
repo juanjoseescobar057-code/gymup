@@ -315,6 +315,11 @@ Deno.serve(async (req) => {
     // seguir mandando fotos corporales a la IA con la función "apagada".
     scan_check: 'body_scan',
     coach: 'postura',
+    // El chat con el coach. Estaba declarado en featureFlags, sembrado en la
+    // tabla y con test de su valor por defecto — y no lo leía NADIE. Una bandera
+    // que no consulta nadie no apaga nada: es la misma clase de fallo que
+    // sinRecompensasCorporales, que estuvo así desde el primer día.
+    coach_chat: 'coach_ia',
   };
   // Por FEATURE, no por claveContador. Durante la prueba gratis los escaneos de
   // imagen comparten un contador ('trial_scans'), así que claveContador NO es la

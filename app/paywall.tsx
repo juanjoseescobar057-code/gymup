@@ -114,7 +114,12 @@ export default function PaywallScreen() {
   const ahorroAnual = useMemo(() => {
     const mensual = precios.monthly?.valor;
     const anual = precios.yearly?.valor;
-    if (!mensual || !anual || mensual <= 0 || anual <= 0) return PLANS.yearly.save;
+    // SIN RESPALDO. Devolvía PLANS.yearly.save ('33%') cuando faltaba cualquiera
+    // de los dos precios, así que la tarjeta anual podía decir "— /año · ahorra
+    // 33%": un descuento afirmado sobre una cifra que no existe. El número no
+    // está inventado —sale de PRICING.md— pero afirmarlo sin precio real sí lo
+    // está.
+    if (!mensual || !anual || mensual <= 0 || anual <= 0) return null;
     const pct = Math.round((1 - anual / (mensual * 12)) * 100);
     return pct > 0 ? `${pct}%` : null;
   }, [precios]);

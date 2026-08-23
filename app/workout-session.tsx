@@ -117,16 +117,22 @@ export default function WorkoutSessionScreen() {
   // sesión interrumpida (ya calentó) y es saltable siempre — recomendarlo sí,
   // imponerlo no.
   const [faseCalentamiento, setFaseCalentamiento] = useState(true);
-  const [energyToday, setEnergyToday] = useState(3);
-  // 3 = "Media", que es uno de los chips reales. Antes arrancaba en 2, un
-  // valor que ningún chip representa: los tres salían apagados como si fuera
-  // una pregunta sin responder, y ese 2 invisible se guardaba igual en
-  // workout_readiness y entraba en el promedio de recuperación.
-  const [sorenessToday, setSorenessToday] = useState(3);
-  // 1-5, misma escala que energia y molestia. Lo lee chooseIntervention.
-  const [sleepToday, setSleepToday] = useState(3);
-  // Estres: la otra columna que adaptivePlan leia y nadie escribia.
-  const [stressToday, setStressToday] = useState(3);
+  // NULL = NO RESPONDIÓ. Los cuatro arrancaban en 3 ("Media"), que es un chip
+  // real y salía marcado — así que la pantalla parecía contestada antes de que
+  // nadie la contestara, y ese 3 se guardaba en workout_readiness y entraba en
+  // el promedio de recuperación como si fuera una respuesta.
+  //
+  // Es el mismo fallo que ya se corrigió aguas abajo en lib/readinessMath.ts,
+  // donde promediar con `?? 3` convertía "no lo sé" en "está normal" y dejaba
+  // muertas las reglas que bajan el volumen. Corregirlo allí no servía de nada
+  // mientras la entrada siguiera inventando el 3.
+  //
+  // Se sigue pudiendo saltar la pregunta: lo que no se puede es registrar una
+  // respuesta que nadie dio.
+  const [energyToday, setEnergyToday] = useState<number | null>(null);
+  const [sorenessToday, setSorenessToday] = useState<number | null>(null);
+  const [sleepToday, setSleepToday] = useState<number | null>(null);
+  const [stressToday, setStressToday] = useState<number | null>(null);
   const [availableMinutes, setAvailableMinutes] = useState(60);
   const [newPainToday, setNewPainToday] = useState(false);
   const ctxSalud = {
@@ -770,11 +776,20 @@ export default function WorkoutSessionScreen() {
         );
         return;
       }
-      const config = { minutes: availableMinutes, energy: energyToday, soreness: sorenessToday };
+      // El adaptador de ESTA sesión necesita un número, y sin respuesta lo
+      // correcto es no adaptar nada: 3 es justo el valor que no mueve el
+      // volumen. Aquí el neutro es una DECISIÓN DE COMPORTAMIENTO, no un dato
+      // inventado — y por eso se queda en memoria y no se escribe. Lo que no se
+      // puede es guardar ese 3 en workout_readiness y que entre en el promedio
+      // de varias sesiones como si alguien lo hubiera contestado.
+      const NEUTRO = 3;
+      const energiaParaAdaptar = energyToday ?? NEUTRO;
+      const molestiaParaAdaptar = sorenessToday ?? NEUTRO;
+      const config = { minutes: availableMinutes, energy: energiaParaAdaptar, soreness: molestiaParaAdaptar };
       const adapted = adaptSessionExercises(planExercises, {
         availableMinutes,
-        energy: energyToday,
-        soreness: sorenessToday,
+        energy: energiaParaAdaptar,
+        soreness: molestiaParaAdaptar,
       });
       setSessionConfig(config);
       // Al retomar tras una pausa larga se vuelve a pasar por aquí. Arrancar el
@@ -789,26 +804,44 @@ export default function WorkoutSessionScreen() {
       setCurrentEx((i) => Math.min(i, Math.max(0, adapted.length - 1)));
       track(saltado ? 'warmup_skipped' : 'warmup_done', { day_index: todayIndex });
       if (profile) {
-        supabase.from('workout_readiness').upsert({
-          user_id: profile.user_id,
-          client_session_key: clientSessionKeyRef.current,
-          energy: energyToday,
-          sleep_quality: sleepToday,
-          stress: stressToday,
-          soreness: sorenessToday,
-          available_minutes: availableMinutes,
-          pain_new: newPainToday,
-        }, { onConflict: 'user_id,client_session_key' }).then(({ error }) => {
-          if (error) captureError(error, { scope: 'workout_readiness.save' });
-        });
-        track('workout_readiness_submitted', {
-          energy: energyToday,
-          sleep_quality: sleepToday,
-          stress: stressToday,
-          soreness: sorenessToday,
-          available_minutes: availableMinutes,
-          pain_new: newPainToday,
-        });
+        // Se guarda lo que respondió y nada más. Los null viajan como null: la
+        // columna los admite y resumirReadiness los OMITE del promedio en vez de
+        // diluir la señal de quien sí contestó.
+        //
+        // Si no contestó ninguna, no se escribe fila: una fila de nulls no
+        // aporta nada y ensucia el conteo de sesiones con dato.
+        const respondioAlgo =
+          energyToday !== null || sleepToday !== null ||
+          stressToday !== null || sorenessToday !== null || newPainToday;
+
+        if (respondioAlgo) {
+          supabase.from('workout_readiness').upsert({
+            user_id: profile.user_id,
+            client_session_key: clientSessionKeyRef.current,
+            energy: energyToday,
+            sleep_quality: sleepToday,
+            stress: stressToday,
+            soreness: sorenessToday,
+            available_minutes: availableMinutes,
+            pain_new: newPainToday,
+          }, { onConflict: 'user_id,client_session_key' }).then(({ error }) => {
+            if (error) captureError(error, { scope: 'workout_readiness.save' });
+          });
+        }
+        // Solo si de verdad contestó. Antes se emitía siempre con los cuatro
+        // valores en 3, así que la analítica registraba respuestas que nadie
+        // dio. Se deja la MISMA forma de evento —los campos no cambian de
+        // tipo— y simplemente no se emite cuando no hay nada que contar.
+        if (respondioAlgo) {
+          track('workout_readiness_submitted', {
+            energy: energyToday ?? -1,
+            sleep_quality: sleepToday ?? -1,
+            stress: stressToday ?? -1,
+            soreness: sorenessToday ?? -1,
+            available_minutes: availableMinutes,
+            pain_new: newPainToday,
+          });
+        }
       }
       setFaseCalentamiento(false);
     }

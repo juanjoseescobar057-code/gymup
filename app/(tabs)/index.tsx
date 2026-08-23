@@ -326,6 +326,15 @@ export default function DashboardScreen() {
   // por franja (mañana/tarde-noche) para gastar máximo 2 llamadas de IA al día.
   async function loadSuggestion(force: boolean, yaEntreno = entrenoHoy) {
     if (!profile) return;
+    // SOLO SI SE VA A VER. La tarjeta del insight solo se pinta para Premium
+    // (más abajo, `profile.is_premium ? ...`), pero esta función corría para
+    // TODO EL MUNDO: se generaba un insight con gpt-4o —y se cobraba contra el
+    // presupuesto de la cuenta gratis— para tirarlo sin enseñarlo.
+    //
+    // Es dinero quemado dos veces: se gasta, y se gasta del techo de $0.15 que
+    // debería alcanzar para el plan de entrenamiento, que es lo único que el
+    // plan gratis promete con IA.
+    if (!profile.is_premium) return;
     const slot = new Date().getHours() < 15 ? 'am' : 'pm';
     // El día del plan y el "ya entrenó" van en la CLAVE. Sin ellos, el mensaje
     // se cacheaba por fecha+franja y seguía diciéndote que hoy te toca lo que

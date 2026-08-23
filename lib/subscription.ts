@@ -147,7 +147,15 @@ export function canUseFeature(
         ? { allowed: true }
         : { allowed: false, reason: `Llegaste al límite de ${FREE_LIMITS.coachMessagesPerDay} mensajes gratis con tu coach hoy.` };
     case 'regenerate_plan':
-      return { allowed: false, reason: 'Regenerar el plan es una función Premium.' };
+      // NO es Premium, y el servidor nunca lo trató como tal: en la política
+      // del proxy `plan` tiene premiumOnly:false y freeLimit:1. Es deliberado
+      // —sin plan la app está vacía y no hay nada que probar— pero esta línea
+      // mandaba al paywall a quien tenía derecho a hacerlo, y el paywall ya no
+      // lo vende. Tres versiones de la verdad para la misma función.
+      //
+      // El tope de 1 al día lo aplica el servidor; aquí no hace falta contarlo
+      // otra vez.
+      return { allowed: true };
     case 'food_scan':
       return usedToday < FREE_LIMITS.foodScansPerDay
         ? { allowed: true }

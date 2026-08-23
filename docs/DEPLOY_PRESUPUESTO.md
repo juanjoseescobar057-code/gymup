@@ -35,7 +35,7 @@ válido contra el esquema real.
 > **Por qué el archivo entero y no un trozo.** `setup.sql` es idempotente: se
 > puede correr las veces que haga falta, y es el **único** SQL que se ejecuta en
 > este proyecto. Este paso apuntó un tiempo a
-> `supabase/migraciones/2026-08-17-presupuesto-ia.sql`. Esa carpeta no la leía
+> supabase/migraciones/2026-08-17-presupuesto-ia.sql (sin comillas a propósito: es historia, no un paso que seguir). Esa carpeta no la leía
 > nadie —la CLI de Supabase solo mira `migrations`— así que ese archivo nunca
 > fue un paso de despliegue de verdad. Ahora vive en `supabase/historico/` como
 > registro de qué cambió ese día. **No lo pegues.**

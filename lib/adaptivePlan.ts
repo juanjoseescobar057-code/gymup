@@ -14,7 +14,7 @@ import { loadHealthSafe, clearPlanStaleForHealth, markPlanStaleForHealth } from 
 import { healthToPrompt, evaluateWorkoutAccess } from './healthMath';
 import type { UserProfile, WeeklyPlan, BiologicalSex } from './supabase';
 import { analyzeExerciseProgress, chooseIntervention, type PerformanceSet } from './progressionEngine';
-import { resumirReadiness, type FilaReadiness } from './readinessMath';
+import { resumirReadiness, calcularAdherencia, type FilaReadiness } from './readinessMath';
 
 // Re-export de la lógica pura (vive en adaptivePlanMath para ser testeable).
 export { parseRepsHigh, progressionAdvice, summarizePerformance } from './adaptivePlanMath';
@@ -66,7 +66,40 @@ export async function regenerateAdaptivePlan(
   // neutro, eso diluía las señales reales hasta apagarlas — dos sesiones de
   // energía 2 entre ocho sin dato salían en 2.8 y no disparaban nada.
   // Ahora los nulos se omiten y lo desconocido llega como undefined.
-  const readiness = resumirReadiness((readinessRows ?? []) as FilaReadiness[]);
+  const readinessBase = resumirReadiness((readinessRows ?? []) as FilaReadiness[]);
+
+  // LA ADHERENCIA, que hasta ahora no llegaba. chooseIntervention tiene una
+  // rama que hace el plan más ejecutable por debajo del 70% de cumplimiento, y
+  // el `?? 100` de progressionEngine la dejaba MUERTA: el motor presumía que
+  // todo el mundo cumplía perfectamente y proponía técnicas avanzadas a quien
+  // llevaba tres semanas sin aparecer. El propio código lo advertía en un
+  // comentario y nadie lo había cableado.
+  //
+  // Se calcula igual que en el coach gratis (lib/consejosGratis.ts) y solo se
+  // pasa cuando hay un número real: mandar un valor inventado sería volver
+  // justo al problema que se está corrigiendo.
+  const { data: sesiones } = await supabase
+    .from('workout_sessions')
+    .select('started_at')
+    .eq('user_id', profile.user_id)
+    .not('completed_at', 'is', null)
+    .gte('started_at', new Date(Date.now() - 28 * 86400000).toISOString());
+
+  const adherencia = calcularAdherencia({
+    diasDeEntrenoPorSemana: profile.days_per_week ?? 0,
+    sesionesCompletadas: (sesiones ?? []).map((r: { started_at: string }) => r.started_at),
+    semanas: 4,
+    hoyISO: new Date().toISOString(),
+  });
+
+  const readiness =
+    readinessBase || adherencia.pct !== null
+      ? {
+          ...(readinessBase ?? {}),
+          ...(adherencia.pct !== null ? { adherencePct: adherencia.pct } : {}),
+        }
+      : undefined;
+
   const diagnostics = exerciseNames.map((name) => {
     const progress = analyzeExerciseProgress(name, rows);
     const libraryName = name.toLowerCase();

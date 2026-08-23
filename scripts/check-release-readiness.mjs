@@ -19,6 +19,7 @@
 // ─────────────────────────────────────────────────────────
 
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 const root = process.cwd();
@@ -43,13 +44,45 @@ const privacy = leer(privacyPath);
 const terms = leer(termsPath);
 const avisos = [];
 
+/**
+ * Una aprobación vale si dice QUIÉN, CUÁNDO, QUÉ ALCANCE y SOBRE QUÉ COMMIT.
+ *
+ * El commit es la parte que faltaba, y es la que la hace verificable. El
+ * contenido clínico cambia con cada versión: una firma sin commit vale para
+ * cualquiera de ellas, o sea para ninguna. "Lo revisó un médico" no es lo mismo
+ * que "un médico revisó ESTO".
+ */
 function revisar(section, label) {
-  if (section?.status !== 'approved' || !section?.reviewer_name || !section?.approved_at) {
-    avisos.push(`${label}: pendiente (sin revisor ni fecha registrados).`);
+  const faltan = [];
+  if (section?.status !== 'approved') faltan.push('status: approved');
+  if (!section?.reviewer_name) faltan.push('reviewer_name');
+  if (!section?.approved_at) faltan.push('approved_at');
+  if (!section?.commit) faltan.push('commit revisado');
+  if (!section?.scope) faltan.push('alcance');
+  if (faltan.length > 0) {
+    avisos.push(`${label}: pendiente (falta ${faltan.join(', ')}).`);
+    return;
+  }
+  // Aprobada, pero ¿sobre este código? Un commit que ya no es el actual no
+  // invalida la revisión, pero sí hay que saberlo antes de publicar.
+  if (commitActual && section.commit !== commitActual) {
+    avisos.push(
+      `${label}: aprobada sobre ${section.commit}, y el commit actual es ${commitActual}. ` +
+        'Revisa si lo que cambió desde entonces afecta a lo revisado.',
+    );
   }
 }
 
+/** El commit del árbol de trabajo, si estamos en un repo git. */
+let commitActual = null;
+try {
+  commitActual = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+    cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim();
+} catch { /* fuera de git: se comprueba lo demás igual */ }
+
 revisar(approvals.clinical, 'Revisión clínica');
+revisar(approvals.nutrition, 'Revisión de nutrición');
 revisar(approvals.legal_privacy, 'Revisión legal/privacidad');
 
 if (approvals.clinical?.status === 'approved' && !health.includes("CLINICAL_REVIEW_STATUS = 'aprobado'")) {

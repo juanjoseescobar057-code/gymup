@@ -15,7 +15,7 @@ Proyecto `rpoqsanpyciecybpaget` confirmado y enlazado.
 
 ## Paso 2 · 🔴 Base de datos — MIGRACIÓN NUEVA PENDIENTE
 El hardening anterior está desplegado y Anonymous sign-ins está activo. Esta versión
-añade la migración `supabase/migrations/0007_world_class_safety_integrity.sql`: cierre
+se despliega pegando `supabase/setup.sql` entero, que es idempotente y es el ÚNICO SQL ejecutable del repo (ver supabase/historico/README.md). Incluye: cierre
 atómico e idempotente de entrenamientos, RIR/readiness, versiones de plan, integridad de
 XP y nuevos índices. Debe probarse primero en staging y luego aplicarse con
 `supabase db push` antes de distribuir el nuevo binario. No despliegues el cliente nuevo

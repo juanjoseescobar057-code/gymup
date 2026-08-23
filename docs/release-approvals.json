@@ -1,19 +1,40 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "//": "Cada aprobación queda atada a un COMMIT. Sin eso, 'aprobado' no dice qué se aprobó: el contenido clínico cambia con cada versión y una firma sin commit vale para cualquiera de ellas — o sea, para ninguna. Rellena commit con el hash exacto que revisó la persona.",
   "clinical": {
     "status": "pending",
     "content_version": "2026.07",
+    "commit": null,
+    "scope": null,
     "reviewer_name": null,
     "reviewer_role": null,
+    "reviewer_credential": null,
     "approved_at": null,
-    "notes": "Requiere revisión documentada por medicina del deporte/fisioterapia y nutrición cualificada."
+    "next_review_due": null,
+    "notes": "Requiere revisión documentada por medicina del deporte/fisioterapia. Alcance mínimo: tamizaje PAR-Q+, bloqueos de acceso, progresión, calentamiento, vuelta a la calma y textos de alarma."
+  },
+  "nutrition": {
+    "status": "pending",
+    "content_version": "2026.07",
+    "commit": null,
+    "scope": null,
+    "reviewer_name": null,
+    "reviewer_role": null,
+    "reviewer_credential": null,
+    "approved_at": null,
+    "next_review_due": null,
+    "notes": "Separada de la clínica a propósito: un fisioterapeuta no firma macros y un nutricionista no firma progresión de cargas. Alcance mínimo: cálculo de macros, pisos de seguridad, escaneo de comida y nevera, y los límites del coach al hablar de comida."
   },
   "legal_privacy": {
     "status": "pending",
     "privacy_policy_version": "1.3",
     "terms_version": "1.0",
+    "commit": null,
+    "scope": null,
     "reviewer_name": null,
+    "reviewer_credential": null,
     "approved_at": null,
-    "notes": "Requiere revisión jurídica para mercados de lanzamiento, datos sensibles, IA y suscripciones."
+    "next_review_due": null,
+    "notes": "Requiere revisión jurídica para mercados de lanzamiento, datos sensibles de salud (Ley 1581 y Decreto 1377), tratamiento por IA, retención en OpenAI y suscripciones."
   }
 }

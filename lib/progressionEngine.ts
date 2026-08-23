@@ -96,12 +96,15 @@ export function chooseIntervention(args: {
   if (progress.status === 'insufficient') {
     return { kind: 'collect_data', title: 'Aún no hay evidencia de meseta', detail: `Hay ${progress.exposures} exposiciones en ${progress.observationDays} días. Mantén la rutina y registra peso, reps y RIR.` };
   }
-  // OJO: hoy nadie calcula adherencePct (adaptivePlan no lo pasa), así que el
-  // `?? 100` hace que esta rama esté MUERTA y el motor asuma adherencia
-  // perfecta. Se deja la rama porque la lógica es correcta y el dato es
-  // calculable —sesiones planeadas contra completadas—, pero mientras no
-  // llegue, el motor NO debe presumir que la persona cumplió: por eso el
-  // dropset exige además datos de recuperación reales (ver más abajo).
+  // La adherencia YA LLEGA. La calculan lib/consejosGratis.ts (coach gratis) y
+  // lib/adaptivePlan.ts (replanificación) con calcularAdherencia, y solo la
+  // pasan cuando hay un número real — por debajo de dos semanas de historial
+  // devuelve null y no se manda nada.
+  //
+  // El `?? 100` se queda para ese caso: sin dato NO se recorta el plan. Recortar
+  // por defecto castigaría a quien acaba de empezar, que es justo cuando menos
+  // evidencia hay. Lo que ya no pasa es que el dato no llegue nunca y la rama
+  // esté muerta mientras el motor presume cumplimiento perfecto de todos.
   if ((readiness.adherencePct ?? 100) < 70) {
     return { kind: 'adherence', title: 'Hagamos el plan más ejecutable', detail: 'Antes de añadir técnicas, reduciremos fricción o duración para que puedas cumplirlo con constancia.' };
   }

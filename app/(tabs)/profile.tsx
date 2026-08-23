@@ -281,7 +281,7 @@ export default function ProfileScreen() {
             // Lo que sabíamos de la salud era de OTRA persona. Sin esto, el modo
             // recuperación (y el tamizaje en caché) sobrevivían al cambio de
             // cuenta en un teléfono compartido.
-            useUserStore.getState().olvidarSalud();
+            useUserStore.getState().olvidarSesion();
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);
@@ -376,7 +376,7 @@ export default function ProfileScreen() {
             // Lo que sabíamos de la salud era de OTRA persona. Sin esto, el modo
             // recuperación (y el tamizaje en caché) sobrevivían al cambio de
             // cuenta en un teléfono compartido.
-            useUserStore.getState().olvidarSalud();
+            useUserStore.getState().olvidarSesion();
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);

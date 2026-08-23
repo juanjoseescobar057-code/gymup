@@ -56,8 +56,15 @@ type UserStore = {
   setHealthProfile: (h: HealthProfile | null) => void;
   /** No se pudo leer el tamizaje y no hay caché. */
   marcarSaludDesconocida: () => void;
-  /** Al cerrar sesión: lo que sabíamos era de OTRA persona. */
-  olvidarSalud: () => void;
+  /**
+   * Al cerrar sesión: TODO lo que sabíamos era de otra persona.
+   *
+   * No solo la salud. En un teléfono compartido, el plan de entrenamiento, las
+   * comidas del día y el modo recuperación del anterior seguían en pantalla
+   * hasta que algo los sobrescribiera — y el modo recuperación es justo el que
+   * no puede heredarse.
+   */
+  olvidarSesion: () => void;
 };
 
 export type EstadoSalud = 'cargando' | 'conocido' | 'desconocido';
@@ -71,7 +78,14 @@ export const useUserStore = create<UserStore>((set, get) => ({
   saludEstado: 'cargando',
   setHealthProfile: (h) => set({ recuperacion: modoRecuperacion(h), saludEstado: 'conocido' }),
   marcarSaludDesconocida: () => set({ saludEstado: 'desconocido' }),
-  olvidarSalud: () => set({ recuperacion: modoRecuperacion(null), saludEstado: 'cargando' }),
+  olvidarSesion: () =>
+    set({
+      recuperacion: modoRecuperacion(null),
+      saludEstado: 'cargando',
+      profile: null,
+      trainingPlan: null,
+      todayFoodLogs: [],
+    }),
 
   trainingPlan: null,
   setTrainingPlan: (trainingPlan) => set({ trainingPlan }),

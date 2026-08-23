@@ -109,7 +109,7 @@ test('si no se pudo leer la salud, se marca desconocida', () => {
   assert.match(health.slice(Math.max(0, i - 200), i), /marcarSaludDesconocida\(\)/);
 });
 
-test('cerrar sesión olvida la salud', () => {
+test('cerrar sesión olvida TODO lo de la persona anterior', () => {
   // En un teléfono compartido, el modo de una persona sobrevivía al cambio de
   // cuenta.
   const perfil = leerCodigo('app', '(tabs)', 'profile.tsx');
@@ -118,7 +118,7 @@ test('cerrar sesión olvida la salud', () => {
   for (const m of salidas) {
     assert.match(
       perfil.slice(Math.max(0, m.index! - 300), m.index!),
-      /olvidarSalud\(\)/,
+      /olvidarSesion\(\)/,
       'cada signOut tiene que olvidar la salud antes',
     );
   }

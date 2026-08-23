@@ -42,11 +42,27 @@ export default function Index() {
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: errorPerfil } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('user_id', session.user.id)
         .single();
+
+      // UN ERROR NO ES "NO TIENE PERFIL". Se ignoraba el error y se miraba solo
+      // `!profile`, así que un fallo de red o un JWT vencido mandaban al
+      // onboarding a alguien que lleva meses usando la app — y el onboarding
+      // hace un upsert, o sea que le pide otra vez su edad, su peso y su
+      // tamizaje y se los sobrescribe. Parece que perdió todo.
+      //
+      // PGRST116 es "no hay filas", que sí es no tener perfil. Cualquier otro
+      // código es un fallo, y ante un fallo no se toca nada.
+      if (errorPerfil && errorPerfil.code !== 'PGRST116') {
+        captureError(errorPerfil, { scope: 'arranque.perfil', code: errorPerfil.code });
+        // La pantalla de error de conexión que ya existe más abajo: explica y
+        // ofrece reintentar, en vez de mandar a rehacer el registro.
+        setConnectionError(true);
+        return;
+      }
 
       if (!profile) {
         router.replace('/(auth)/onboarding' as any);

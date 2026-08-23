@@ -223,16 +223,23 @@ Deno.serve(async (req) => {
     return json({ error: `El campo messages debe ser un array de 1 a ${MAX_MESSAGES} elementos.` }, 400);
   }
 
-  // Campos que la app NUNCA manda y que abren superficie de ataque o de costo
-  // impredecible: tools/functions dejarían al modelo invocar cosas, n multiplica
-  // el gasto por respuesta. 'stream' se rechaza porque este proxy devuelve el
-  // cuerpo completo; si algún día el cliente lo necesita hay que reenviar el
-  // stream de verdad, no basta con dejar pasar el flag.
-  if (body.tools !== undefined || body.functions !== undefined || body.tool_choice !== undefined) {
-    return json({ error: 'Campos no permitidos: tools, functions, tool_choice.' }, 400);
+  // Lista BLANCA de campos. Era una lista negra de cinco (tools, functions,
+  // tool_choice, n, stream) y el resto del cuerpo se reenviaba entero a OpenAI.
+  // Eso dejaba pasar cualquier parámetro que existiera o llegara a existir:
+  // 'max_completion_tokens' (que esquiva el techo de 'max_tokens'), 'top_p',
+  // 'seed', 'logprobs', 'stream_options'... Enumerar lo prohibido es una carrera
+  // que se pierde sola; enumerar lo permitido no.
+  //
+  // Estos cinco son TODOS los que manda la app de verdad — comprobado en
+  // lib/openai.ts, openai-features.ts, coachChat.ts, coachMemory.ts, aiScore.ts
+  // y adaptivePlan.ts. Se RECHAZA lo desconocido en vez de descartarlo en
+  // silencio: si algún día hace falta uno nuevo, mejor un 400 con el nombre
+  // dentro que una función que deja de comportarse como se espera sin decir por qué.
+  const CAMPOS_PERMITIDOS = new Set(['model', 'messages', 'response_format', 'max_tokens', 'temperature']);
+  const sobran = Object.keys(body).filter((k) => !CAMPOS_PERMITIDOS.has(k));
+  if (sobran.length > 0) {
+    return json({ error: `Campos no permitidos: ${sobran.join(', ')}.`, code: 'campo_no_permitido' }, 400);
   }
-  if (Number(body.n) > 1) return json({ error: 'Solo se permite una respuesta por petición (n = 1).' }, 400);
-  if (body.stream === true) return json({ error: 'El proxy no soporta streaming.' }, 400);
 
   const { images, textChars, imagenInvalida } = inspectMessages(messages, MAX_IMAGE_BYTES);
   if (imagenInvalida) {
@@ -253,11 +260,23 @@ Deno.serve(async (req) => {
   }
   // El techo de salida se ACOTA en vez de rechazarse: la app pide entre 100 y
   // 2000, y un valor absurdo (o basura no numérica) solo debe costar el tope.
-  if (body.max_tokens !== undefined) {
-    const requested = Number(body.max_tokens);
-    body.max_tokens = Number.isFinite(requested) && requested > 0
-      ? Math.min(Math.trunc(requested), MAX_OUTPUT_TOKENS)
-      : MAX_OUTPUT_TOKENS;
+  //
+  // SE PONE SIEMPRE, aunque el cliente no lo mande. Antes el `if` de aquí solo
+  // corregía lo que llegaba: omitir el campo saltaba el techo entero y dejaba la
+  // salida en el máximo del modelo (16.384 tokens en gpt-4o), o sea cuatro veces
+  // lo declarado, ~$0,16 más por llamada. Un techo que se desactiva no mandándolo
+  // no es un techo.
+  const pedido = Number(body.max_tokens);
+  body.max_tokens = Number.isFinite(pedido) && pedido > 0
+    ? Math.min(Math.trunc(pedido), MAX_OUTPUT_TOKENS)
+    : MAX_OUTPUT_TOKENS;
+
+  // temperature se acota al rango que acepta OpenAI. No es cuestión de costo:
+  // un valor fuera de rango provoca un 400 del proveedor, y ese 400 entraba
+  // antes por la rama de reembolso como si el fallo hubiera sido nuestro.
+  if (body.temperature !== undefined) {
+    const t = Number(body.temperature);
+    body.temperature = Number.isFinite(t) ? Math.min(Math.max(t, 0), 2) : 1;
   }
 
   // 3. Política EFECTIVA = la MÁS ESTRICTA entre la que declara el cliente y la
@@ -408,53 +427,40 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
   });
   const text = await upstream.text();
 
-  // DEVOLVER EL CUPO SI NO ENTREGAMOS NADA. El contador se incrementa ANTES de
-  // llamar a OpenAI (para no gastar IA si la BD falla), pero eso hacía que una
-  // respuesta inservible costara igual que una buena. Pasó de verdad: la
-  // generación de planes devolvía un JSON vacío, la persona reintentaba, y al
-  // tercer intento se quedaba sin plan Y sin cupo hasta el día siguiente.
+  // ─── DINERO Y CUPO SON DOS DECISIONES DISTINTAS ───────
   //
-  // Solo se devuelve cuando el fallo es NUESTRO —error del proveedor o una
-  // respuesta vacía— nunca por criterios del cliente, que no son de fiar.
-  if (!upstream.ok || esRespuestaInservible(text)) {
-    // Con la clave de SERVICIO, no con el JWT de la persona. Si esta RPC fuera
-    // ejecutable por un usuario, un cliente modificado se devolvería cupo
-    // indefinidamente y tendría IA gratis ilimitada. El id va explícito y sale
-    // del JWT ya verificado más arriba, nunca del cuerpo de la petición.
-    const admin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
-    const { error: refundError } = await admin.rpc('refund_ai_usage', {
-      p_user_id: user.id,
-      p_feature: claveContador,
-    });
-    if (refundError) console.error('refund_ai_usage:', refundError.message);
-    else console.log(`ai-proxy: cupo devuelto (${claveContador}) por respuesta inservible`);
-  } else {
-    // COBRAR EL COSTO REAL AL PRESUPUESTO. Solo se puede hacer aquí, después
-    // de responder el proveedor, porque hasta ahora no se sabía cuántos tokens
-    // costaba: por eso el presupuesto se comprueba antes y se apunta después.
-    //
-    // El desbordamiento máximo es una llamada: alguien con $0.001 de saldo
-    // pasa el control y gasta $0.034 generando un plan. Acotado y aceptable —
-    // la alternativa sería estimar el costo antes, y una estimación que se
-    // quede corta deja de ser un techo.
-    //
-    // Con la clave de SERVICIO: si esta RPC fuera ejecutable por un usuario,
-    // se le podría inflar el gasto a otra persona hasta dejarla sin IA.
+  // Estaban pegadas al mismo if/else, y ahí estaba el agujero: la rama del
+  // reembolso NUNCA llamaba a record_ai_cost, porque esa llamada vivía en el
+  // else. Y record_ai_cost es lo único que escribe ai_cost_usage, o sea lo
+  // único que hace bajar el presupuesto en dólares.
+  //
+  // Resultado: pedir max_tokens: 1, recibir una respuesta de menos de 40
+  // caracteres que OpenAI SÍ factura, recuperar el cupo diario, y repetir. Ni
+  // el contador de llamadas ni el presupuesto se movían. Gasto sin techo, desde
+  // una cuenta gratis, sin necesidad de concurrencia ni de nada sofisticado.
+  //
+  // La regla correcta separa las dos cosas:
+  //   • el CUPO DIARIO es de experiencia — se devuelve si no entregamos nada;
+  //   • el PRESUPUESTO EN DÓLARES es de margen — se cobra siempre que OpenAI
+  //     nos haya cobrado, aunque la respuesta no valiera para nada.
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
+  // 1. COBRAR. Si el proveedor respondió, nos facturó: da igual lo que dijera.
+  if (upstream.ok) {
+    // Con la clave de SERVICIO: si esta RPC fuera ejecutable por un usuario, se
+    // le podría inflar el gasto a otra persona hasta dejarla sin IA.
     try {
-      const uso = JSON.parse(text)?.usage ?? {};
+      const respuesta = JSON.parse(text);
+      const uso = respuesta?.usage ?? {};
       const costo = costoUsd(
-        JSON.parse(text)?.model ?? body?.model ?? null,
+        respuesta?.model ?? body?.model ?? null,
         uso.prompt_tokens ?? 0,
         uso.completion_tokens ?? 0,
       );
       if (costo > 0) {
-        const admin = createClient(
-          Deno.env.get('SUPABASE_URL')!,
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-        );
         const { error: costError } = await admin.rpc('record_ai_cost', {
           p_user_id: user.id,
           p_cost_usd: costo,
@@ -467,6 +473,34 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
       // contando.
       console.error('ai-proxy: no se pudo registrar el costo:', e instanceof Error ? e.message : String(e));
     }
+  }
+
+  // 2. DEVOLVER EL CUPO, y solo cuando el fallo sea NUESTRO.
+  //
+  // Existe por un caso real: la generación de planes devolvía un JSON vacío, la
+  // persona reintentaba, y al tercer intento se quedaba sin plan Y sin cupo
+  // hasta el día siguiente. Eso hay que seguir cubriéndolo.
+  //
+  // Lo que ya no se cubre es la brevedad que pidió el propio cliente ni el 4xx
+  // que provocó él. Antes cualquiera de las dos devolvía cupo, así que bastaba
+  // con mandar basura para tener llamadas gratis en el contador.
+  const MIN_TOKENS_UTILES = 64;
+  const clientePidioCorto = body.max_tokens < MIN_TOKENS_UTILES;
+
+  // Un 4xx significa que lo que mandamos no era válido, y lo que mandamos sale
+  // del cliente. Un 5xx o un 429 sí son del proveedor.
+  const falloDelProveedor = !upstream.ok && (upstream.status >= 500 || upstream.status === 429);
+  const vacioSinCulpaDelCliente = upstream.ok && !clientePidioCorto && esRespuestaInservible(text);
+
+  if (falloDelProveedor || vacioSinCulpaDelCliente) {
+    const { error: refundError } = await admin.rpc('refund_ai_usage', {
+      p_user_id: user.id,
+      p_feature: claveContador,
+    });
+    if (refundError) console.error('refund_ai_usage:', refundError.message);
+    else console.log(`ai-proxy: cupo devuelto (${claveContador}) por ${falloDelProveedor ? 'fallo del proveedor' : 'respuesta vacía'}`);
+  } else if (!upstream.ok) {
+    console.log(`ai-proxy: ${upstream.status} de OpenAI; el cupo NO se devuelve (petición del cliente)`);
   }
 
   return new Response(text, {

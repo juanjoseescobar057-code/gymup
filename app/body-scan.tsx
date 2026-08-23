@@ -526,7 +526,7 @@ export default function BodyScanScreen() {
                 <Text style={s.privacyTxt}>
                   {`Rityvo toma la privacidad de tus datos corporales muy en serio.\n\n`}
                   {`• Las fotos se envían a OpenAI mediante nuestro servidor únicamente para producir el análisis. Rityvo no las guarda; OpenAI puede conservar datos de API temporalmente, normalmente hasta 30 días para prevención de abuso, salvo que se habiliten controles de retención reducida o cero.\n\n`}
-                  {`• Rityvo NO almacena tus fotos en ningún servidor. Solo guardamos los datos numéricos del análisis: score, % grasa estimado, zonas identificadas y notas del plan.\n\n`}
+                  {`• Rityvo NO almacena tus fotos en sus servidores. Solo guardamos los datos numéricos del análisis: score, % grasa estimado, zonas identificadas y notas del plan.\n\n`}
                   {`• No vendemos tus datos. Solo los comparten los proveedores necesarios descritos en la política (por ejemplo, Supabase y OpenAI) bajo sus medidas de seguridad.\n\n`}
                   {`• Puedes solicitar la eliminación completa de todos tus datos desde tu perfil en cualquier momento.\n\n`}
                   {`• El análisis es una estimación visual basada en inteligencia artificial. No es un diagnóstico médico y no reemplaza la evaluación de un profesional de la salud.\n\n`}
@@ -883,10 +883,20 @@ export default function BodyScanScreen() {
             ))}
           </View>
 
-          {/* Privacidad */}
+          {/* Privacidad.
+              La frase anterior decía "Tus fotos no fueron almacenadas en ningún
+              servidor", y era falsa: viajaron por nuestra Edge Function hasta
+              OpenAI, que puede conservarlas hasta 30 días. Lo peor es que la
+              propia app ya lo dice bien en el consentimiento y en el modal de
+              privacidad (líneas 418 y 528) — o sea que la pantalla contradecía
+              a la app, no la representaba. Una afirmación falsa sobre datos
+              biométricos, en pantalla y en pasado, no es un matiz de redacción.
+              Esto dice lo mismo que ya se aceptó al empezar. */}
           <View style={s.privacyNote}>
             <Text style={s.privacyNoteTxt}>
-              🔒 Tus fotos no fueron almacenadas en ningún servidor. Solo guardamos los datos numéricos del análisis.
+              🔒 Rityvo no guarda tus fotos: solo los datos numéricos de este análisis. Se enviaron a
+              OpenAI únicamente para generarlo, y el proveedor puede conservarlas hasta 30 días para
+              prevención de abuso.
             </Text>
           </View>
 

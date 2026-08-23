@@ -28,6 +28,7 @@ import { useSafeKeepAwake } from '../lib/useSafeKeepAwake';
 import { useUserStore } from '../store/userStore';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 import CameraDisclosureModal from '../Components/CameraDisclosureModal';
+import CompuertaDeSalud from '../Components/CompuertaDeSalud';
 import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../lib/cameraConsent';
 
 const OPTIONS = [
@@ -40,7 +41,15 @@ const OPTIONS = [
 
 const SEV_COLOR: Record<string, string> = { good: Colors.accent, warn: Colors.warning, error: Colors.error };
 
-export default function LiveCoachScreen() {
+/**
+ * El coach en vivo, YA con el tamizaje comprobado.
+ *
+ * Es función aparte para que nada de aquí dentro —ni la cámara, ni el modelo de
+ * pose, ni el keep-awake— llegue a montarse antes de saber si esta persona
+ * debería estar entrenando. Con un `if` dentro del propio componente, los hooks
+ * de arriba ya habrían corrido.
+ */
+function LiveCoachContenido() {
   useSafeKeepAwake('live-coach'); // que la pantalla no se apague en plena serie
   const [exId, setExId] = useState('squat');
   // 'preflight' es la fase nueva: la cámara ya está encendida pero NO se cuenta
@@ -635,3 +644,22 @@ const s = StyleSheet.create({
   overlayStop: { position: 'absolute', bottom: 32, alignSelf: 'center', backgroundColor: 'rgba(14,14,16,0.9)', borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.full, paddingHorizontal: 28, paddingVertical: 12 },
   overlayStopTxt: { fontFamily: Fonts.bodySemi, fontSize: 15, color: '#fff' },
 });
+
+/**
+ * COMPUERTA CLÍNICA. Esta pantalla no la tenía y la sesión de fuerza sí.
+ *
+ * La misma persona a la que app/workout-session.tsx le impedía empezar una
+ * rutina —por dolor de pecho, mareos o restricción médica declarados en el
+ * tamizaje— entraba aquí y hacía sentadillas contadas por voz, con la app
+ * animándola. El bloqueo existía, pero solo en una de las dos puertas.
+ *
+ * Va fuera del componente y no dentro: así el tamizaje se resuelve ANTES de que
+ * se monte la cámara.
+ */
+export default function LiveCoachScreen() {
+  return (
+    <CompuertaDeSalud titulo="SEGURIDAD DEL EJERCICIO">
+      <LiveCoachContenido />
+    </CompuertaDeSalud>
+  );
+}

@@ -99,6 +99,51 @@ grant update (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, act
   goal_start_weight_kg, updated_at)
   on public.user_profiles to anon, authenticated;
 
+-- Y lo mismo con INSERT y DELETE, que es por donde se colaba todo lo anterior.
+--
+-- Estrechar solo el UPDATE no servía de nada. El helper otorga los CUATRO
+-- verbos sobre la tabla entera, así que cualquiera con un JWT de 'authenticated'
+-- —la URL y la anon key salen del APK, son públicas por diseño— podía:
+--
+--   a) crear su perfil con `is_premium: true, is_trial: false` de un POST
+--      directo a PostgREST, sin pasar por la app; o
+--   b) si ya lo tenía, BORRARLO (ninguna tabla referencia user_profiles: todas
+--      cuelgan de auth.users) y volver a insertarlo igual.
+--
+-- La política de INSERT solo comprueba auth.uid() = user_id, que es cierto: se
+-- está regalando Premium a sí mismo, no a otro. Y no hay ningún trigger BEFORE
+-- INSERT que normalice esas columnas. El premio no era cosmético: ai-proxy lee
+-- ESTA fila para decidir si abre las funciones de pago y con qué presupuesto de
+-- OpenAI, así que el gasto era real y a nuestra cuenta. Con is_trial en false
+-- además caía en el presupuesto de premium ($2,00) en vez del de prueba ($0,25).
+revoke insert, delete on public.user_profiles from anon, authenticated;
+
+-- La lista es la MISMA que la de UPDATE a propósito: conceder INSERT sobre una
+-- columna que el cliente ya puede actualizar no le da ninguna capacidad nueva.
+-- Lo que importa es lo que NO está: is_premium e is_trial.
+--
+-- Omitirlas no rompe el alta. Las dos son NOT NULL DEFAULT false, y Postgres
+-- aplica el default sin exigir privilegio sobre la columna. Si alguien las manda
+-- explícitamente, el INSERT falla con 42501, que es exactamente lo que se quiere.
+grant insert (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,
+  training_experience, days_per_week, equipment,
+  daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,
+  current_plan_day, last_active_date, target_weight_kg, goal_why,
+  goal_start_weight_kg, updated_at)
+  on public.user_profiles to anon, authenticated;
+
+-- DELETE no se devuelve a nadie. El cliente nunca borra su perfil: la baja de
+-- cuenta va por la Edge Function delete-account, que usa el service role y
+-- llama a auth.admin.deleteUser — y el ON DELETE CASCADE sobre auth.users se
+-- lleva el perfil con todo lo demás. Un DELETE desde el cliente solo servía
+-- para volver a nacer premium.
+
+-- La política de DELETE que dejó el helper ya no la puede usar nadie sin el
+-- privilegio, pero se retira también para que el esquema no describa un permiso
+-- que no existe: leer la política y creer que el borrado está permitido es la
+-- clase de malentendido que reabre esto dentro de seis meses.
+drop policy if exists user_profiles_delete on public.user_profiles;
+
 -- ─── PLANES ──────────────────────────────────────────────
 create table if not exists public.training_plans (
   id uuid primary key default uuid_generate_v4(),
@@ -479,11 +524,6 @@ on conflict (id) do update
 -- Las ya concedidas se dejan en earned_badges de quien las tenga: quitarle
 -- XP a alguien por una decisión nuestra sería peor que el problema.
 delete from public.badge_catalog where id in ('body_scan_1', 'body_scan_4');
--- Y la misión 'hazte 1 análisis corporal', por lo mismo. Los builds antiguos
--- que la pidan recibirán 'unknown_mission' y no la mostrarán: es la única de
--- las tres viejas que empujaba a una función de pago disfrazada de meta.
-delete from public.mission_catalog where id = 'w_scan1';
-
 alter table public.badge_catalog enable row level security;
 drop policy if exists badge_catalog_read on public.badge_catalog;
 create policy badge_catalog_read on public.badge_catalog for select to authenticated using (true);
@@ -525,6 +565,21 @@ insert into public.mission_catalog (id, kind, target, xp) values
   ('w_rest',      'rest_day',         1,  60)
 on conflict (id) do update
   set kind = excluded.kind, target = excluded.target, xp = excluded.xp;
+
+-- La misión 'hazte 1 análisis corporal' se retira, igual que sus insignias de
+-- más arriba: empujaba a una función de pago disfrazada de meta. Los builds
+-- antiguos que la pidan recibirán 'unknown_mission' y no la mostrarán.
+--
+-- VA AQUÍ, DESPUÉS DEL CREATE Y DEL INSERT, y no allá arriba con el delete de
+-- badge_catalog aunque sean la misma decisión. Estuvo nueve líneas antes del
+-- create table y eso hacía que setup.sql ABORTARA con 42P01 contra una base
+-- vacía: el archivo entero se deshacía y no había forma de levantar un staging
+-- ni de recuperar la base desde cero. En producción no se notó nunca porque la
+-- tabla ya existía desde el 2 de agosto.
+--
+-- __tests__/esquemaOrdenado.test.ts comprueba que ninguna sentencia vuelva a
+-- referenciar una tabla antes de crearla.
+delete from public.mission_catalog where id = 'w_scan1';
 
 alter table public.mission_catalog enable row level security;
 drop policy if exists mission_catalog_read on public.mission_catalog;

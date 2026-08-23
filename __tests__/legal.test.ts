@@ -150,3 +150,41 @@ test('el borrado de la cuenta se lleva los consentimientos', () => {
   const bloque = setup.match(/create table if not exists public\.legal_consents[\s\S]*?\);/)?.[0] ?? '';
   assert.match(bloque, /on delete cascade/);
 });
+
+// ── El reconsentimiento, que estaba construido y sin cablear ──
+
+test('alguien pregunta de verdad qué documentos faltan', () => {
+  // documentosPendientes, leerConsentimientos y pendientesDeAceptar existían
+  // desde el primer día y NO LOS LLAMABA NADIE. Quien se registró con la
+  // política 1.3 seguiría dentro con la 1.9 sin haberla visto nunca, y en el
+  // registro constaría que aceptó la 1.3 — que es cierto, y por eso mismo no
+  // vale para la 1.9. El versionado sin reconsentimiento es un campo de más.
+  const aviso = fs.readFileSync(
+    path.join(process.cwd(), 'Components', 'AvisoReconsentimiento.tsx'),
+    'utf8',
+  );
+  assert.match(aviso, /pendientesDeAceptar\(profile\.user_id\)/);
+  assert.match(aviso, /registrarConsentimiento\(profile\.user_id\)/);
+
+  const inicio = fs.readFileSync(
+    path.join(process.cwd(), 'app', '(tabs)', 'index.tsx'),
+    'utf8',
+  );
+  assert.match(inicio, /<AvisoReconsentimiento \/>/, 'el aviso tiene que estar montado en alguna pantalla');
+});
+
+test('el aviso solo desaparece si de verdad quedó constancia', () => {
+  // Ocultarlo sin haber guardado dejaría a la persona creyendo que aceptó y a
+  // nosotros sin poder demostrarlo: las dos mitades del mismo error.
+  const aviso = fs.readFileSync(
+    path.join(process.cwd(), 'Components', 'AvisoReconsentimiento.tsx'),
+    'utf8',
+  );
+  assert.match(aviso, /if \(r\.ok\) setPendientes\(\[\]\)/);
+});
+
+test('un fallo de red no saca un muro legal', () => {
+  // pendientesDeAceptar devuelve [] cuando no se pudo leer, no la lista entera.
+  const cons = fs.readFileSync(path.join(process.cwd(), 'lib', 'consentimientos.ts'), 'utf8');
+  assert.match(cons, /if \(guardados === null\) return \[\]/);
+});

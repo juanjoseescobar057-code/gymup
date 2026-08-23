@@ -28,6 +28,7 @@ import { mensajeDeRegreso } from '../../lib/motivacion';
 import { consejosGratisDeHoy, type ConsejoCoach } from '../../lib/consejosGratis';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
 import { useRecuperacion } from '../../lib/useRecuperacion';
+import AvisoReconsentimiento from '../../Components/AvisoReconsentimiento';
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
   const size = 120;
@@ -405,6 +406,19 @@ export default function DashboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />
         }
       >
+        {/* Actualización de los documentos legales.
+            El registro de consentimientos guarda una fila por documento Y
+            VERSIÓN, y lib/legal.ts sabe calcular qué le falta a cada persona.
+            Eso se construyó entero y no lo llamaba nadie: quien se registró con
+            la política 1.3 seguiría dentro con la 1.9 sin haberla visto, y en el
+            registro constaría que aceptó la 1.3 — que es cierto, y por eso mismo
+            no vale para la 1.9. El versionado sin reconsentimiento es un campo
+            de más en una tabla.
+            Se muestra solo si falta algo, y no bloquea: un muro por un cambio de
+            redacción se acepta sin leer, que es justo lo que invalida un
+            consentimiento. */}
+        <AvisoReconsentimiento />
+
         {/* Header */}
         <View style={s.header}>
           <View>

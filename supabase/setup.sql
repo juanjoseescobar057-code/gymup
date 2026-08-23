@@ -1969,36 +1969,101 @@ begin
 end $$;
 grant execute on function public.ai_budget_restante(numeric) to authenticated;
 
--- ─── RESERVA ATÓMICA: el presupuesto bajo concurrencia ───
+-- ─── RESERVA ATÓMICA E IDEMPOTENTE ───────────────────────
 --
 -- ai_budget_restante SOLO LEE. El proxy leía el saldo, llamaba a OpenAI y
--- apuntaba el costo después, así que N peticiones simultáneas veían todas el
--- mismo saldo y pasaban todas. Con el techo casi agotado, una ráfaga concurrente
--- podía gastar muchas veces lo que quedaba: el tope dejaba de ser un tope justo
--- en el momento en que hacía falta.
+-- apuntaba el costo después, así que N peticiones simultáneas veían el mismo
+-- saldo y pasaban todas. Con el techo casi agotado, una ráfaga concurrente
+-- gastaba muchas veces lo que quedaba.
 --
--- Esto RESERVA antes de gastar. El insert...on conflict do update es una sola
--- sentencia y bloquea la fila, así que dos llamadas del mismo usuario se
--- serializan: la segunda ve el saldo que dejó la primera.
+-- Y con solo reservar tampoco bastaba: un timeout del proveedor seguido de un
+-- reintento del cliente reservaba DOS VECES la misma petición, así que un mal
+-- minuto de red le comía el presupuesto al usuario sin que él hiciera nada raro.
 --
--- Si no cabe, deshace su propia reserva y devuelve null. Deshacerla dentro de la
--- misma función es importante: una reserva huérfana le comería el presupuesto a
--- alguien sin haber gastado nada.
-create or replace function public.reservar_ai(p_budget_usd numeric, p_estimado_usd numeric)
+-- Esta tabla es la reserva y, de paso, el LIBRO MAYOR: una fila por petición,
+-- con lo que se reservó y lo que costó de verdad. Sin esto no se puede
+-- responder a "¿cuánto cuesta un usuario premium?" con un número medido.
+create table if not exists public.ai_reservas (
+  -- Lo manda el cliente y es la clave de idempotencia. Un reintento con el
+  -- mismo id no vuelve a cobrar.
+  request_id     text primary key,
+  user_id        uuid not null references auth.users(id) on delete cascade,
+  feature        text,
+  modelo         text,
+  reservado_usd  numeric(12,6) not null,
+  -- null = la petición sigue abierta (o murió sin cuadrarse).
+  real_usd       numeric(12,6),
+  creado_at      timestamptz not null default now(),
+  cerrado_at     timestamptz
+);
+alter table public.ai_reservas enable row level security; -- sin políticas: solo las RPC
+create index if not exists ai_reservas_user on public.ai_reservas(user_id, creado_at desc);
+-- Para el freno global por hora: contar lo reservado en una ventana.
+create index if not exists ai_reservas_creado on public.ai_reservas(creado_at desc);
+
+-- El techo GLOBAL por hora, para todos los usuarios juntos.
+--
+-- Los presupuestos por usuario acotan lo que puede costar UNA persona. No acotan
+-- lo que puede costar una mañana rara: mil cuentas anónimas nuevas, un bug en
+-- bucle, o un fallo nuestro que reintente. Esto es el freno de emergencia, y
+-- está en dólares porque es la unidad en la que duele.
+--
+-- 12 USD/hora ≈ 290 al día. Muy por encima del uso normal de una base pequeña y
+-- muy por debajo de una factura que asuste. Súbelo cuando crezcas.
+create or replace function public.techo_global_hora() returns numeric
+language sql immutable as $$ select 12.00::numeric $$;
+
+/**
+ * Reserva presupuesto antes de gastar. Devuelve el remanente, o null si no cabe.
+ *
+ * Es idempotente por request_id: el mismo id no reserva dos veces.
+ */
+create or replace function public.reservar_ai(
+  p_request_id text,
+  p_budget_usd numeric,
+  p_estimado_usd numeric,
+  p_feature text default null,
+  p_modelo text default null
+)
 returns numeric
 language plpgsql security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid();
   v_mes date := date_trunc('month', current_date)::date;
   v_total numeric;
+  v_global numeric;
+  v_ya numeric;
 begin
   if v_uid is null then
     raise exception 'reservar_ai requiere un usuario autenticado';
+  end if;
+  if p_request_id is null or length(p_request_id) < 8 then
+    raise exception 'reservar_ai requiere un request_id';
   end if;
   if p_budget_usd is null or p_estimado_usd is null or p_estimado_usd < 0 then
     raise exception 'reservar_ai necesita un presupuesto y un estimado numéricos';
   end if;
 
+  -- 1. IDEMPOTENCIA. Si esta petición ya reservó, se devuelve lo que quedaba y
+  --    no se cobra otra vez. Un reintento tras un timeout es la misma petición.
+  select reservado_usd into v_ya from public.ai_reservas where request_id = p_request_id;
+  if found then
+    select coalesce(cost_usd, 0) into v_total from public.ai_cost_usage
+     where user_id = v_uid and month = v_mes;
+    return p_budget_usd - coalesce(v_total, 0);
+  end if;
+
+  -- 2. FRENO GLOBAL. Antes que el del usuario: si la plataforma está en llamas,
+  --    da igual de quién sea la petición.
+  select coalesce(sum(coalesce(real_usd, reservado_usd)), 0) into v_global
+    from public.ai_reservas where creado_at > now() - interval '1 hour';
+  if v_global + p_estimado_usd > public.techo_global_hora() then
+    raise notice 'techo global por hora alcanzado: % + % > %', v_global, p_estimado_usd, public.techo_global_hora();
+    return null;
+  end if;
+
+  -- 3. RESERVA DEL USUARIO. El insert...on conflict do update es una sola
+  --    sentencia y bloquea la fila: dos llamadas se serializan de verdad.
   insert into public.ai_cost_usage (user_id, month, cost_usd, calls)
   values (v_uid, v_mes, p_estimado_usd, 1)
   on conflict (user_id, month) do update
@@ -2007,7 +2072,9 @@ begin
   returning cost_usd into v_total;
 
   if v_total > p_budget_usd then
-    -- No cabía. Se retira la reserva recién hecha y se dice que no.
+    -- No cabía. Se retira la reserva recién hecha y se dice que no. Deshacerla
+    -- aquí dentro es importante: una reserva huérfana le comería el presupuesto
+    -- a alguien sin haber gastado nada.
     update public.ai_cost_usage
        set cost_usd = cost_usd - p_estimado_usd,
            calls    = greatest(calls - 1, 0)
@@ -2015,32 +2082,51 @@ begin
     return null;
   end if;
 
+  insert into public.ai_reservas (request_id, user_id, feature, modelo, reservado_usd)
+  values (p_request_id, v_uid, p_feature, p_modelo, p_estimado_usd);
+
   return p_budget_usd - v_total;
 end $$;
-grant execute on function public.reservar_ai(numeric, numeric) to authenticated;
+grant execute on function public.reservar_ai(text, numeric, numeric, text, text) to authenticated;
+-- La firma vieja se elimina: dejarla viva sería un camino que reserva SIN
+-- idempotencia, y Postgres elegiría una u otra por resolución de sobrecarga.
+drop function if exists public.reservar_ai(numeric, numeric);
 
--- Cambia la reserva por el costo REAL, una vez que el proveedor respondió.
---
--- Va con service_role y con el user_id explícito, igual que record_ai_cost y por
--- el mismo motivo: el costo real solo se conoce cuando el proxy ya actúa como
--- servidor. Si fuera ejecutable por un cliente, cualquiera podría "ajustar" su
--- gasto a cero.
---
--- El ajuste puede ser negativo (lo normal: se reservó de más) o positivo. Nunca
--- deja el acumulado por debajo de cero.
+/**
+ * Cambia la reserva por el costo REAL, una vez que el proveedor respondió.
+ *
+ * Va con service_role y con el user_id explícito, igual que record_ai_cost: el
+ * costo real solo se conoce cuando el proxy ya actúa como servidor. Si fuera
+ * ejecutable por un cliente, cualquiera podría cuadrar su gasto a cero.
+ *
+ * También es idempotente: cuadrar dos veces la misma petición no resta dos veces.
+ */
 create or replace function public.ajustar_ai(
-  p_user_id uuid, p_reservado_usd numeric, p_real_usd numeric
+  p_request_id text, p_user_id uuid, p_real_usd numeric
 ) returns void
 language plpgsql security definer set search_path = public as $$
+declare v_reservado numeric;
 begin
-  if p_user_id is null or p_reservado_usd is null or p_real_usd is null then return; end if;
+  if p_request_id is null or p_user_id is null or p_real_usd is null then return; end if;
+
+  select reservado_usd into v_reservado
+    from public.ai_reservas
+   where request_id = p_request_id and user_id = p_user_id and real_usd is null
+     for update;
+  if not found then return; end if;   -- ya cuadrada, o nunca reservada
+
   update public.ai_cost_usage
-     set cost_usd = greatest(cost_usd - p_reservado_usd + p_real_usd, 0)
+     set cost_usd = greatest(cost_usd - v_reservado + p_real_usd, 0)
    where user_id = p_user_id
      and month = date_trunc('month', current_date)::date;
+
+  update public.ai_reservas
+     set real_usd = p_real_usd, cerrado_at = now()
+   where request_id = p_request_id;
 end $$;
-revoke all on function public.ajustar_ai(uuid, numeric, numeric) from public, anon, authenticated;
-grant execute on function public.ajustar_ai(uuid, numeric, numeric) to service_role;
+revoke all on function public.ajustar_ai(text, uuid, numeric) from public, anon, authenticated;
+grant execute on function public.ajustar_ai(text, uuid, numeric) to service_role;
+drop function if exists public.ajustar_ai(uuid, numeric, numeric);
 
 -- Suma el costo de una llamada ya hecha.
 --

@@ -45,14 +45,30 @@ export type AIFeature =
 
 /** Metadatos opcionales de observabilidad para una llamada. */
 export type AIMeta = {
-  turnCount?: number;                        // nº de turno (chat)
+  /**
+   * Id de idempotencia. Si la pantalla reintenta la MISMA petición, debe
+   * reutilizarlo: el servidor no volverá a cobrar la reserva.
+   */
+  requestId?: string;
+  turnCount?: number;                  // nº de turno (chat)
   conversationId?: string;                   // agrupa llamadas de una conversación
   decision?: Record<string, unknown>;        // insumos con los que decidió el agente
   onLogged?: (telemetryId: string | null) => void; // para adjuntar score después
 };
 
 // La llamada cruda, sin telemetría. Único camino: el proxy.
-async function aiChatRaw(body: object, feature: AIFeature): Promise<any> {
+/**
+ * Un identificador por petición, estable entre reintentos.
+ *
+ * No hace falta que sea criptográfico: solo que no choque. crypto.randomUUID no
+ * está garantizado en todos los runtimes de React Native, así que se compone de
+ * tiempo más azar.
+ */
+function nuevoRequestId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+async function aiChatRaw(body: object, feature: AIFeature, requestId?: string): Promise<any> {
   // Se valida en cada llamada y no al importar el módulo: sin proxy la app debe
   // arrancar igual, solo que las funciones de IA fallan con un mensaje entendible.
   if (!PROXY_URL) {
@@ -69,6 +85,11 @@ async function aiChatRaw(body: object, feature: AIFeature): Promise<any> {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
       'x-gymup-feature': feature,
+      // La clave de idempotencia del gasto. Se mantiene IGUAL entre reintentos
+      // de la misma petición: sin ella, un timeout del proveedor seguido del
+      // reintento reservaba dos veces y le comía el presupuesto a alguien que no
+      // hizo nada raro.
+      'x-gymup-request-id': requestId ?? nuevoRequestId(),
     },
     body: JSON.stringify(body),
   });
@@ -104,8 +125,12 @@ async function aiChatRaw(body: object, feature: AIFeature): Promise<any> {
 export async function aiChat(body: object, feature: AIFeature = 'general', meta?: AIMeta): Promise<any> {
   const t0 = Date.now();
   const requestedModel = (body as any)?.model ?? null;
+  // UN id por llamada de aiChat, no por intento de red. Si algún día esto
+  // reintenta —o si lo reintenta la pantalla llamando otra vez con el mismo
+  // meta.requestId— el servidor reconoce la misma petición y no cobra dos veces.
+  const requestId = meta?.requestId ?? nuevoRequestId();
   try {
-    const data = await aiChatRaw(body, feature);
+    const data = await aiChatRaw(body, feature, requestId);
     const usage = data?.usage ?? {};
     const model = data?.model ?? requestedModel;
     logAiCall({

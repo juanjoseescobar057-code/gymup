@@ -145,7 +145,7 @@ const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, x-gymup-feature',
+  'Access-Control-Allow-Headers': 'authorization, content-type, x-gymup-feature, x-gymup-request-id',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -341,9 +341,21 @@ Deno.serve(async (req) => {
   // que dos peticiones del mismo usuario se serializan de verdad.
   const estimado = estimarCostoUsd(body.model, textChars, images, Number(body.max_tokens));
 
+  // LA CLAVE DE IDEMPOTENCIA. Sin ella, un timeout del proveedor seguido del
+  // reintento del cliente reservaba DOS VECES la misma petición: un mal minuto
+  // de red le comía el presupuesto a alguien que no hizo nada raro.
+  //
+  // La manda el cliente en la cabecera. Si no viene —una app vieja— se genera
+  // aquí: eso no da idempotencia entre reintentos, pero sí deja la fila en el
+  // libro mayor, que es lo que permite saber cuánto cuesta cada cosa.
+  const requestId = (req.headers.get('x-gymup-request-id') ?? '').trim() || crypto.randomUUID();
+
   const { data: restante, error: budgetError } = await supabase.rpc('reservar_ai', {
+    p_request_id: requestId,
     p_budget_usd: presupuesto,
     p_estimado_usd: estimado,
+    p_feature: claveContador,
+    p_modelo: body.model,
   });
   if (budgetError) {
     console.error('reservar_ai:', budgetError.message);
@@ -450,7 +462,7 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
   } catch (e) {
     // No se entregó nada y no se gastó nada: se devuelven las dos cosas.
     const { error: eAjuste } = await admin.rpc('ajustar_ai', {
-      p_user_id: user.id, p_reservado_usd: estimado, p_real_usd: 0,
+      p_request_id: requestId, p_user_id: user.id, p_real_usd: 0,
     });
     if (eAjuste) console.error('ajustar_ai tras fallo del proveedor:', eAjuste.message);
 
@@ -521,8 +533,8 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
   }
 
   const { error: ajusteError } = await admin.rpc('ajustar_ai', {
+    p_request_id: requestId,
     p_user_id: user.id,
-    p_reservado_usd: estimado,
     p_real_usd: costoReal,
   });
   if (ajusteError) {

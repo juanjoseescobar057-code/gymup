@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { supabase, type BiologicalSex } from '../../lib/supabase';
 import { useUserStore } from '../../store/userStore';
+import { borrarDatosLocales } from '../../lib/borradoLocal';
 import { calculateDailyMacros } from '../../lib/openai';
 import { getAccountEmail, deleteAccountServerSide } from '../../lib/account';
 import { regenerateAdaptivePlan, restorePreviousPlan, saveAdaptedPlan } from '../../lib/adaptivePlan';
@@ -282,6 +283,13 @@ export default function ProfileScreen() {
             // recuperación (y el tamizaje en caché) sobrevivían al cambio de
             // cuenta en un teléfono compartido.
             useUserStore.getState().olvidarSesion();
+            // Y del DISPOSITIVO. El servidor ya borró sus filas y sus archivos,
+            // pero en AsyncStorage se quedaban el tamizaje de salud en caché, la
+            // conversación con el coach, la memoria destilada —con lesiones
+            // dentro—, la sesión a medias y las cuotas del día. La política
+            // promete borrarlo todo, y en un teléfono compartido o vendido eso
+            // no es un detalle.
+            await borrarDatosLocales();
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);
@@ -377,6 +385,13 @@ export default function ProfileScreen() {
             // recuperación (y el tamizaje en caché) sobrevivían al cambio de
             // cuenta en un teléfono compartido.
             useUserStore.getState().olvidarSesion();
+            // Y del DISPOSITIVO. El servidor ya borró sus filas y sus archivos,
+            // pero en AsyncStorage se quedaban el tamizaje de salud en caché, la
+            // conversación con el coach, la memoria destilada —con lesiones
+            // dentro—, la sesión a medias y las cuotas del día. La política
+            // promete borrarlo todo, y en un teléfono compartido o vendido eso
+            // no es un detalle.
+            await borrarDatosLocales();
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);

@@ -76,10 +76,27 @@ export default function PaywallScreen() {
           if (prod?.priceString) encontrados[k] = { texto: prod.priceString, valor: Number(prod.price) };
         });
         if (!vivo) return;
-        if (Object.keys(encontrados).length > 0) {
+        // HACEN FALTA LOS DOS. Bastaba con encontrar uno para dar la tienda por
+        // buena, y entonces el plan que faltaba se quedaba con precio "—", el
+        // ahorro anual seguía afirmando "33%" desde el respaldo, la tarjeta se
+        // podía seleccionar y el botón de comprar salía activo. La pantalla
+        // arranca con el anual elegido, así que si el que faltaba era ese, lo
+        // primero que veía la persona era "—/año · ahorra 33%" y un botón que
+        // solo servía para enseñarle un error.
+        //
+        // Es el mismo fallo que este archivo ya había cerrado para el caso de
+        // cero paquetes, entrando por la puerta de al lado.
+        const completos = (['monthly', 'yearly'] as PlanKey[]).every((k) => encontrados[k]);
+        if (completos) {
           setPrecios(encontrados);
           setEstadoTienda('ok');
         } else {
+          if (Object.keys(encontrados).length > 0) {
+            console.warn(
+              'paywall: la tienda devolvió solo ' + Object.keys(encontrados).join(', ') +
+              '. Falta configurar el otro producto en Play Console.',
+            );
+          }
           setEstadoTienda('sin_tienda');
         }
       } catch {
@@ -243,7 +260,7 @@ export default function PaywallScreen() {
         </TouchableOpacity>
 
         <Text style={s.legal}>
-          El precio mostrado es el de la tienda en tu moneda; si aparece con «≈» todavía lo estamos consultando y es solo orientativo. Las funciones con IA tienen los cupos diarios indicados arriba. La suscripción se renueva automáticamente salvo que la canceles al menos 24h antes del fin del periodo. Puedes gestionarla en la tienda.
+          El precio mostrado es el de la tienda en tu moneda. Las funciones con IA tienen los cupos diarios indicados arriba y, además, un tope mensual de uso para mantener el servicio sostenible; si lo alcanzas te avisamos y se renueva el día 1. La suscripción se renueva automáticamente salvo que la canceles al menos 24h antes del fin del periodo. Puedes gestionarla en la tienda.
         </Text>
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 10 }}>
           <TouchableOpacity onPress={() => router.push('/legal?doc=terms' as any)} accessibilityRole="link" accessibilityLabel="Leer términos de uso">

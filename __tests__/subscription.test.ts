@@ -79,8 +79,17 @@ test('cada tope que promete el paywall sale de PREMIUM_LIMITS', () => {
 });
 
 test('lo que se anuncia como gratis no requiere pagar', () => {
+  // 'coach en vivo' SALIÓ de esta lista. Estaba aquí porque este test daba por
+  // sentado lo mismo que el paywall —que era una función de pago— y ninguno de
+  // los dos había mirado app/live-coach.tsx: no comprueba Premium por ningún
+  // lado y no llama al proxy, cuenta repeticiones con la cámara del teléfono.
+  // Le estábamos cobrando a la gente por algo que ya tenía, y este test
+  // protegía el error en vez de encontrarlo.
+  //
+  // Que de verdad sea gratis lo comprueba manifiestoProducto.test.ts contra el
+  // código, no contra una suposición.
   const texto = FREE_HIGHLIGHTS.join(' ').toLowerCase();
-  for (const esPremium of ['escane', 'chat', 'coach en vivo', 'análisis corporal', 'nevera']) {
+  for (const esPremium of ['escane', 'análisis corporal', 'nevera']) {
     assert.ok(!texto.includes(esPremium), `se anuncia "${esPremium}" como gratis y es de pago`);
   }
 });

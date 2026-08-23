@@ -82,7 +82,7 @@ hasta $2.500/mes de ingresos).
 **Pasos operativos que te tocan a ti** (en orden, ~1-2 h + esperas de las tiendas):
 1. Cuentas de desarrollador: Google Play Console ($25 única vez) y/o App Store ($99/año).
    Inscribirse al **Small Business Program** de cada una (comisión 15% en vez de 30%).
-2. Crear las suscripciones en cada tienda con ids `gymup_premium_monthly` y `gymup_premium_yearly`.
+2. Crear las suscripciones en cada tienda con ids `premium_monthly` y `premium_yearly`.
 3. Cuenta RevenueCat → proyecto GymUp → conectar ambas tiendas → entitlement **`premium`**
    → offering `default` con los 2 paquetes.
 4. Keys en `.env`: `EXPO_PUBLIC_RC_API_KEY_ANDROID=goog_...` y `EXPO_PUBLIC_RC_API_KEY_IOS=appl_...`.

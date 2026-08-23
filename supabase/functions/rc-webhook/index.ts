@@ -124,6 +124,11 @@ Deno.serve(async (req) => {
   const esPeriodoDePrueba: boolean | null =
     typeof event.period_type === 'string' ? event.period_type === 'TRIAL' : null;
 
+  // Si CUALQUIER llamada a la RPC falla, hay que devolver 5xx para que
+  // RevenueCat reintente. Se acumula en vez de devolverse porque el TRANSFER
+  // hace varias llamadas y un `||` sobre el resultado enmascararía la que falló.
+  let huboError = false;
+
   async function aplicar(
     lockKey: string,
     userId: string | null,
@@ -142,7 +147,12 @@ Deno.serve(async (req) => {
       p_is_trial: esPeriodoDePrueba,
     });
     if (error) {
+      // Marca de fallo REAL, distinta de "no cambió el estado". Antes las dos
+      // devolvían false y el webhook contestaba 200 igual: RevenueCat daba el
+      // evento por entregado y no lo reintentaba nunca. Una compra o una
+      // renovación podían perderse porque la base tuvo un mal segundo.
       console.error('rc-webhook apply_rc_event:', error.message);
+      huboError = true;
       return false;
     }
     const fila = Array.isArray(data) ? data[0] : data;
@@ -194,6 +204,13 @@ Deno.serve(async (req) => {
   // de la misma transacción que la escritura. Insertarlo aparte, después, era
   // justo la ventana por la que dos entregas concurrentes se pisaban.
 
+  // 500 SOLO si la RPC falló. Un evento no aplicado por duplicado, por llegar
+  // fuera de orden o por ser de otro entitlement es un 200 legítimo: se procesó
+  // correctamente y la decisión fue no cambiar nada. Devolver 500 ahí haría que
+  // RevenueCat reintentara para siempre algo que ya está bien.
+  if (huboError) {
+    return json({ ok: false, handled, type, environment, retry: true }, 500);
+  }
   return json({ ok: true, handled, type, environment });
 });
 

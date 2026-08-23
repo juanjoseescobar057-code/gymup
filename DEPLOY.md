@@ -141,8 +141,8 @@ supabase secrets set REVENUECAT_SECRET_KEY=sk_XXXXXXXXXXXX
    exactos (el código matchea con `id === planId || id.startsWith(planId + ':')`, así
    que base plans con sufijo `:tipo` también funcionan):
    ```
-   gymup_premium_monthly
-   gymup_premium_yearly
+   premium_monthly
+   premium_yearly
    ```
    Luego en RevenueCat: Product catalog → Products → + New → vincula ambos con esos
    mismos IDs, adjunta cada uno al entitlement `premium`.

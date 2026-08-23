@@ -88,11 +88,22 @@ export const PLANS = {
 // __tests__/topesIA.test.ts comprueba que esos topes son los que aplica el proxy.
 export const PREMIUM_BENEFITS = [
   `💬 Pregúntale lo que quieras a tu coach: ${PREMIUM_LIMITS.coachMessagesPerDay} mensajes al día`,
-  `🎥 Coach en vivo: te cuenta las repeticiones y te corrige la técnica con la cámara, ${PREMIUM_LIMITS.coachPosturePerDay} veces al día`,
+  // NO decía la verdad. Describía el Coach en vivo (app/live-coach.tsx), que es
+  // LOCAL, GRATIS y sin ninguna comprobación de Premium: cuenta repeticiones con
+  // la cámara del teléfono sin gastar un token. Le estábamos cobrando a la gente
+  // por algo que ya tenía.
+  //
+  // Lo que sí se paga es el análisis de postura por IA: mandas una foto y te
+  // dice qué corregir. Es otra función, y ahora se describe como lo que es.
+  `🎥 Análisis de tu técnica: manda una foto de tu postura y la IA te dice qué corregir, ${PREMIUM_LIMITS.coachPosturePerDay} al día`,
   `🍽️ Apunta la comida con una foto en vez de escribirla: ${PREMIUM_LIMITS.foodScansPerDay} escaneos al día`,
   `🥗 Fotografía tu nevera y te dice qué cocinar: ${PREMIUM_LIMITS.fridgeScansPerDay} al día`,
   `📷 Análisis corporal con IA: ${PREMIUM_LIMITS.bodyScansPerDay} al día`,
-  `🔄 Rehaz tu plan con IA cuando cambien tus circunstancias: ${PREMIUM_LIMITS.planRegensPerDay} al día`,
+  // Rehacer el plan SE QUITA de aquí: en el servidor plan.premiumOnly es false
+  // y freeLimit es 1, o sea que quien no paga tiene exactamente lo mismo. Es una
+  // decisión deliberada —sin plan la app está vacía y no hay nada que probar—
+  // pero venderlo como beneficio de pago era cobrar por algo que se regala.
+  // Está donde le toca, en FREE_HIGHLIGHTS.
 ];
 
 // Lo que el plan GRATIS ya incluye. No es relleno del paywall: quien está
@@ -102,6 +113,8 @@ export const PREMIUM_BENEFITS = [
 // que es la que hace desinstalar.
 export const FREE_HIGHLIGHTS = [
   '🏋️ Tu plan de entrenamiento completo, generado con IA',
+  '🔄 Rehazlo cuando cambien tus circunstancias: 1 al día',
+  '🎥 Coach en vivo: cuenta tus repeticiones con la cámara, sin límite',
   '📈 Progresión automática: cuándo subir el peso y cuándo bajar, según tus series',
   '🔥 Calentamiento y estiramientos filtrados por tus lesiones y condiciones',
   '📊 Registro de series, récords, historial y proyección hacia tu meta',

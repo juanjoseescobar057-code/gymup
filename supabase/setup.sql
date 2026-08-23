@@ -2215,17 +2215,27 @@ begin
 
   return p_budget_usd - v_total;
 end $$;
+-- PRIMERO se borran las firmas viejas, DESPUÉS se dan los permisos de la nueva.
+--
+-- El orden importa y estaba al revés: el revoke apuntaba a la firma de ayer
+-- —(text, numeric, numeric, text, text)— y `revoke on function` sobre una
+-- función que no existe lanza 42883 y ABORTA el archivo entero. Contra una base
+-- que nunca tuvo esa versión, setup.sql se deshacía completo en esta línea.
+--
+-- Y aunque existiera, el revoke se aplicaba a la función vieja y dos líneas
+-- después se borraba: la NUEVA se quedaba sin permisos explícitos.
+--
+-- `drop function if exists` no lanza si falta. `revoke` sí. Esa es toda la
+-- diferencia y es la que había que respetar.
+drop function if exists public.reservar_ai(numeric, numeric);
+drop function if exists public.reservar_ai(text, numeric, numeric, text, text);
+
 -- NO se concede a 'authenticated'. Recibe el presupuesto y el estimado como
 -- parámetros: con el grant, cualquiera podía llamarla a mano con un estimado
 -- enorme y agotar el freno global por hora de TODA la plataforma en una sola
 -- llamada. Solo el proxy la invoca, y el proxy usa el service role.
-revoke all on function public.reservar_ai(text, numeric, numeric, text, text) from public, anon, authenticated;
-grant execute on function public.reservar_ai(text, numeric, numeric, text, text) to service_role;
--- La firma vieja se elimina: dejarla viva sería un camino que reserva SIN
--- idempotencia, y Postgres elegiría una u otra por resolución de sobrecarga.
-drop function if exists public.reservar_ai(numeric, numeric);
--- Y la de ayer, que derivaba el usuario de auth.uid() y era del cliente.
-drop function if exists public.reservar_ai(text, numeric, numeric, text, text);
+revoke all on function public.reservar_ai(uuid, text, numeric, numeric, text, text) from public, anon, authenticated;
+grant execute on function public.reservar_ai(uuid, text, numeric, numeric, text, text) to service_role;
 
 /**
  * Cambia la reserva por el costo REAL, una vez que el proveedor respondió.

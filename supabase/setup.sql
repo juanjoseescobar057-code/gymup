@@ -1986,7 +1986,7 @@ grant execute on function public.ai_budget_restante(numeric) to authenticated;
 -- alguien sin haber gastado nada.
 create or replace function public.reservar_ai(p_budget_usd numeric, p_estimado_usd numeric)
 returns numeric
-language plpgsql security definer set search_path = public as $
+language plpgsql security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid();
   v_mes date := date_trunc('month', current_date)::date;
@@ -2016,7 +2016,7 @@ begin
   end if;
 
   return p_budget_usd - v_total;
-end $;
+end $$;
 grant execute on function public.reservar_ai(numeric, numeric) to authenticated;
 
 -- Cambia la reserva por el costo REAL, una vez que el proveedor respondió.
@@ -2031,14 +2031,14 @@ grant execute on function public.reservar_ai(numeric, numeric) to authenticated;
 create or replace function public.ajustar_ai(
   p_user_id uuid, p_reservado_usd numeric, p_real_usd numeric
 ) returns void
-language plpgsql security definer set search_path = public as $
+language plpgsql security definer set search_path = public as $$
 begin
   if p_user_id is null or p_reservado_usd is null or p_real_usd is null then return; end if;
   update public.ai_cost_usage
      set cost_usd = greatest(cost_usd - p_reservado_usd + p_real_usd, 0)
    where user_id = p_user_id
      and month = date_trunc('month', current_date)::date;
-end $;
+end $$;
 revoke all on function public.ajustar_ai(uuid, numeric, numeric) from public, anon, authenticated;
 grant execute on function public.ajustar_ai(uuid, numeric, numeric) to service_role;
 

@@ -1,0 +1,192 @@
+# .github/workflows/esquema.yml
+# ─────────────────────────────────────────────────────────
+# Correr setup.sql contra un PostgreSQL DE VERDAD.
+#
+# El analizador de libpg-query (__tests__/esquemaCompila.test.ts) atrapa los
+# errores de sintaxis y corre en cada `npm run verify`, que es lo que hacía
+# falta el día que dos funciones acabaron con `as $` en vez de `as $$` y el
+# archivo canónico abortaba sin que nada lo dijera.
+#
+# Pero analizar no es ejecutar. Esto comprueba lo que solo se ve al aplicarlo:
+#
+#   • que las referencias existan y en el orden correcto;
+#   • que se pueda correr DOS VECES seguidas, que es como se despliega;
+#   • que la reserva de presupuesto aguante peticiones concurrentes de verdad;
+#   • que las revocaciones dejen los permisos donde se cree.
+#
+# Ojo con una diferencia real: Supabase trae los esquemas `auth` y `storage` y
+# los roles anon/authenticated/service_role. Aquí se crean vacíos lo justo para
+# que el archivo aplique — no es un clon de Supabase, es una comprobación de
+# que el SQL es aplicable y repetible.
+# ─────────────────────────────────────────────────────────
+
+name: Esquema contra PostgreSQL
+
+on:
+  push:
+    paths: ['supabase/setup.sql', '.github/workflows/esquema.yml']
+  pull_request:
+    paths: ['supabase/setup.sql', '.github/workflows/esquema.yml']
+  workflow_dispatch:
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports: ['5432:5432']
+
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar lo que Supabase da por hecho
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          -- Los roles que Supabase crea por su cuenta. Sin ellos, cada grant y
+          -- cada revoke del archivo fallaría por un motivo que no es el suyo.
+          do $$ begin
+            if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
+            if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
+            if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin bypassrls; end if;
+          end $$;
+
+          -- El esquema auth y la tabla de usuarios: 21 tablas la referencian.
+          create schema if not exists auth;
+          create table if not exists auth.users (
+            id uuid primary key default gen_random_uuid(),
+            email text
+          );
+          -- auth.uid() la aporta Supabase; aquí basta con que exista y devuelva
+          -- null, porque lo que se comprueba es que el SQL aplique.
+          create or replace function auth.uid() returns uuid
+            language sql stable as $fn$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $fn$;
+
+          -- El esquema storage, para las políticas del bucket de fotos.
+          create schema if not exists storage;
+          create table if not exists storage.buckets (id text primary key, name text, public boolean default false);
+          create table if not exists storage.objects (
+            id uuid primary key default gen_random_uuid(),
+            bucket_id text references storage.buckets(id),
+            name text,
+            owner uuid
+          );
+          alter table storage.objects enable row level security;
+
+          create extension if not exists "uuid-ossp";
+          SQL
+
+      - name: Aplicar setup.sql (primera pasada, base vacía)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/setup.sql
+
+      - name: Aplicar setup.sql OTRA VEZ (así se despliega de verdad)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/setup.sql
+
+      - name: Comprobar que las funciones de dinero existen
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare faltan text := '';
+          begin
+            foreach faltan in array array['reservar_ai','ajustar_ai','increment_ai_usage','ai_budget_restante','apply_rc_event','record_ai_cost','refund_ai_usage']
+            loop
+              if not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                             where n.nspname = 'public' and p.proname = faltan) then
+                raise exception 'falta la función public.%', faltan;
+              end if;
+            end loop;
+          end $$;
+          SQL
+
+      - name: Comprobar los permisos que protegen el dinero
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            -- is_premium no puede ser escribible por el cliente, por ningún verbo.
+            if has_column_privilege('authenticated', 'public.user_profiles', 'is_premium', 'UPDATE')
+            or has_column_privilege('authenticated', 'public.user_profiles', 'is_premium', 'INSERT') then
+              raise exception 'el cliente puede escribir is_premium';
+            end if;
+            if has_table_privilege('authenticated', 'public.user_profiles', 'DELETE') then
+              raise exception 'el cliente puede borrar su perfil (y renacer premium)';
+            end if;
+
+            -- Las RPC de servicio no son del cliente.
+            if has_function_privilege('authenticated', 'public.record_ai_cost(uuid, numeric)', 'EXECUTE')
+            or has_function_privilege('authenticated', 'public.ajustar_ai(uuid, numeric, numeric)', 'EXECUTE')
+            or has_function_privilege('anon', 'public.refund_ai_usage(uuid, text)', 'EXECUTE') then
+              raise exception 'una RPC de servicio es ejecutable por el cliente';
+            end if;
+
+            -- Y el webhook sí puede aplicar compras.
+            if not has_function_privilege('service_role',
+                 'public.apply_rc_event(text,uuid,text,bigint,text,boolean,boolean,boolean)', 'EXECUTE') then
+              raise exception 'service_role NO puede ejecutar apply_rc_event: el webhook no aplicaría nada';
+            end if;
+
+            -- El XP no se reinicia borrando la fila.
+            if has_table_privilege('authenticated', 'public.user_stats', 'DELETE') then
+              raise exception 'se puede borrar user_stats y reclamar las misiones otra vez';
+            end if;
+          end $$;
+          SQL
+
+      - name: La reserva de presupuesto aguanta concurrencia
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          -- Un usuario de prueba y una versión de reservar_ai que recibe el uid,
+          -- porque auth.uid() aquí no tiene JWT detrás.
+          insert into auth.users (id) values ('11111111-1111-1111-1111-111111111111');
+
+          create or replace function public._reservar_test(p_uid uuid, p_budget numeric, p_est numeric)
+          returns numeric language plpgsql as $fn$
+          declare v_mes date := date_trunc('month', current_date)::date; v_total numeric;
+          begin
+            insert into public.ai_cost_usage (user_id, month, cost_usd, calls)
+            values (p_uid, v_mes, p_est, 1)
+            on conflict (user_id, month) do update
+              set cost_usd = public.ai_cost_usage.cost_usd + excluded.cost_usd,
+                  calls = public.ai_cost_usage.calls + 1
+            returning cost_usd into v_total;
+            if v_total > p_budget then
+              update public.ai_cost_usage set cost_usd = cost_usd - p_est, calls = greatest(calls - 1, 0)
+               where user_id = p_uid and month = v_mes;
+              return null;
+            end if;
+            return p_budget - v_total;
+          end $fn$;
+          SQL
+
+          # 100 reservas de $0.05 contra un techo de $1.00: solo deben caber 20.
+          for i in $(seq 1 100); do
+            psql -q -c "select public._reservar_test('11111111-1111-1111-1111-111111111111', 1.00, 0.05);" &
+          done
+          wait
+
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare v_total numeric;
+          begin
+            select cost_usd into v_total from public.ai_cost_usage
+             where user_id = '11111111-1111-1111-1111-111111111111';
+            raise notice 'reservado tras 100 intentos concurrentes: %', v_total;
+            if v_total > 1.00 then
+              raise exception 'el techo se superó bajo concurrencia: % > 1.00', v_total;
+            end if;
+          end $$;
+          SQL

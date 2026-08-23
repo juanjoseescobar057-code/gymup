@@ -52,9 +52,20 @@ const ALLOWED_MODELS = new Set(['gpt-4o', 'gpt-4o-mini', 'gpt-4o-2024-08-06']);
 const PRESUPUESTO_PREMIUM_USD = 2.00;
 
 // La prueba de 7 días no paga nada, así que su techo es lo que estamos
-// dispuestos a invertir en adquirir a esa persona. Con 3 escaneos y 10 chats
-// diarios, agotarlo del todo cuesta ~$0.21 en los siete días.
-const PRESUPUESTO_PRUEBA_USD = 0.25;
+// dispuestos a invertir en adquirir a esa persona.
+//
+// ESTABA EN 0.25 CON UNA CUENTA MAL HECHA. El comentario decía que agotarlo del
+// todo costaba "~$0.21 en los siete días"; $0.21 es lo que cuesta UN día al
+// tope (10 chats a $0.008 son ya $0.08, más 10 análisis de postura, más los 3
+// escaneos compartidos, más el plan). El número estaba mal por un factor de
+// siete, así que la prueba de 7 días entregaba IA día y medio y luego respondía
+// "Agotaste la IA incluida en la prueba" — justo en la ventana donde la persona
+// decide si paga. Difícil imaginar un peor sitio para equivocarse.
+//
+// 0.60 cubre siete días de uso intensivo real (~$0.062/día, ver
+// __tests__/economiaPremium.test.ts) con margen. Sigue siendo un costo de
+// adquisición ridículo frente a ~$5.00 netos al mes por quien convierte.
+const PRESUPUESTO_PRUEBA_USD = 0.60;
 
 // El plan gratis casi no toca la IA (solo genera su plan de entrenamiento),
 // así que su techo es pequeño. Sigue haciendo falta: sin él, crear cuentas

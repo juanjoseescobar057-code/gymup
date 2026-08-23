@@ -14,7 +14,8 @@
     "release:check": "node scripts/check-release-readiness.mjs",
     "eas-build-pre-install": "node scripts/check-release-readiness.mjs --eas-hook",
     "verify": "npm run check:secrets && npm run check:syntax && npm run typecheck && npm test",
-    "build:android": "node scripts/build-android.mjs"
+    "build:android": "node scripts/build-android.mjs",
+    "eval:modelos": "node scripts/evaluar-modelos.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/barlow-condensed": "^0.4.1",

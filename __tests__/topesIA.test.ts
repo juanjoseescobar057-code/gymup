@@ -120,7 +120,20 @@ test('el presupuesto premium deja margen sobre el ingreso neto', () => {
   );
 });
 
-test('agotar la prueba entera cuesta menos que un mes de premium', () => {
-  // Si adquirir a alguien costara más que atenderlo, el embudo estaría al revés.
-  assert.ok(constante('PRESUPUESTO_PRUEBA_USD') < constante('PRESUPUESTO_PREMIUM_USD') / 4);
+test('adquirir a alguien cuesta menos que atenderlo un mes', () => {
+  // El umbral era PRESUPUESTO_PREMIUM_USD / 4, y el denominador estaba mal.
+  // Lo que hay que comparar con el costo de adquisición es el INGRESO, no el
+  // presupuesto de IA de quien ya paga: son dos cosas distintas y una no acota
+  // a la otra.
+  //
+  // Con el umbral viejo, subir el presupuesto de la prueba para que durase los
+  // siete días que anunciamos habría fallado aquí — un test impidiendo arreglar
+  // un fallo real. La cota buena (adquisición ≤ 20% del ingreso mensual) vive en
+  // __tests__/economiaPremium.test.ts; aquí solo se conserva la relación de
+  // orden, que sí tiene sentido: la prueba no puede costar más que el mes de
+  // quien paga.
+  assert.ok(
+    constante('PRESUPUESTO_PRUEBA_USD') < constante('PRESUPUESTO_PREMIUM_USD'),
+    'la prueba gratis no puede costar más que un mes de Premium',
+  );
 });

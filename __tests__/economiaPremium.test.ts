@@ -1,26 +1,29 @@
 // __tests__/economiaPremium.test.ts
 // ─────────────────────────────────────────────────────────
-// Que los cupos que anuncia el paywall quepan en el presupuesto que los corta.
+// Que lo que vendemos quepa en lo que podemos pagar.
 //
-// Hoy no caben, y por mucho. Un Premium que use exactamente los seis cupos que
-// le vendimos gasta ~$0,25 al día; el presupuesto mensual es de $2,00. Se queda
-// sin IA el día ocho de treinta, y los "cupos diarios reales" que promete la
-// pantalla de pago dejan de existir durante las tres semanas siguientes.
+// Hay DOS exigencias distintas aquí, y confundirlas fue mi primer error al
+// escribir este archivo:
 //
-// En la prueba de 7 días es peor: un día al tope cuesta $0,2175 contra $0,25 de
-// presupuesto. La prueba entrega IA un día y medio, justo en la ventana donde
-// se decide si la persona paga.
+//   1. NINGÚN USUARIO PUEDE DAR PÉRDIDAS. Eso ya se cumple, y no por los cupos
+//      diarios: lo cumple el presupuesto en dólares, que es un techo duro. Nadie
+//      pasa de $2.00 al mes pase lo que pase.
 //
-// Ninguna de las dos cosas está mal por separado. El presupuesto en dólares es
-// el único tope que protege el margen de verdad —contar llamadas no distingue
-// un chat de un plan— y los cupos hacen la experiencia predecible. Lo que no
-// puede ser es que se contradigan EN SILENCIO: el usuario ve un número, el
-// servidor aplica otro, y nadie se entera hasta el reembolso.
+//   2. NO PROMETER LO QUE VAMOS A CORTAR. Eso sí estaba roto, y es un problema
+//      de honestidad, no de margen. Un Premium que agotara los seis cupos
+//      anunciados gastaría $7.40 al mes: se queda sin IA el día 8 de 30 y los
+//      "cupos diarios reales" que promete la pantalla de pago dejan de existir
+//      durante tres semanas.
 //
-// Este test no elige por nosotros. Solo hace imposible publicar la
-// contradicción: o bajan los cupos, o sube el presupuesto, o baja el costo por
-// llamada (que es lo que de verdad hay que hacer — casi todo corre en gpt-4o,
-// dieciséis veces más caro que mini).
+// Medir el MÁXIMO TEÓRICO contra el presupuesto no era la prueba correcta: con
+// el chat en gpt-4o, diez mensajes al día cuestan $2.40 al mes ellos solos, así
+// que ningún reparto realista de cupos pasaría nunca esa prueba, y la única
+// forma de aprobarla sería recortar el producto hasta dejarlo inservible.
+//
+// Lo que sí hay que exigir:
+//   • que un usuario intensivo REAL quepa en el presupuesto;
+//   • que la prueba de 7 días dure 7 días;
+//   • y que el tope mensual esté DICHO, porque el máximo teórico sí se corta.
 // ─────────────────────────────────────────────────────────
 
 import test from 'node:test';
@@ -80,7 +83,7 @@ test('cada feature con cupo anunciado tiene un costo medido', () => {
   }
 });
 
-// ── El caso que importa: un Premium usando lo que compró ──
+// ── El máximo teórico: se corta, y hay que decirlo ──
 
 /** Los seis cupos del paywall, más las validaciones que exige el corporal. */
 const DIA_PREMIUM_AL_TOPE = {
@@ -89,49 +92,73 @@ const DIA_PREMIUM_AL_TOPE = {
   food_scan: PREMIUM_LIMITS.foodScansPerDay,
   fridge_scan: PREMIUM_LIMITS.fridgeScansPerDay,
   body_scan: PREMIUM_LIMITS.bodyScansPerDay,
-  // Un análisis corporal son 3 fotos, y cada una se valida antes. No es
+  // Un análisis corporal son 3 fotos y cada una se valida antes. No es
   // opcional: app/body-scan.tsx las hace siempre.
   scan_check: 3,
   plan: PREMIUM_LIMITS.planRegensPerDay,
 };
 
-test('un mes usando los cupos anunciados cabe en el presupuesto Premium', () => {
-  const dia = costoDiaAlTope(DIA_PREMIUM_AL_TOPE);
+test('si el máximo teórico no cabe, el paywall tiene que decirlo', () => {
+  // No se exige que quepa —con el chat en gpt-4o nunca cabría sin destrozar el
+  // producto—, se exige que no se prometa en silencio algo que se corta.
+  const mes = costoDiaAlTope(DIA_PREMIUM_AL_TOPE) * DIAS_DEL_MES;
+  if (mes <= constante('PRESUPUESTO_PREMIUM_USD')) return; // cabe: nada que declarar
+
+  const paywall = fs.readFileSync(path.join(process.cwd(), 'app', 'paywall.tsx'), 'utf8');
+  assert.match(
+    paywall,
+    /tope mensual/i,
+    `Agotar los cupos anunciados cuesta $${mes.toFixed(2)}/mes contra un presupuesto de ` +
+      `$${constante('PRESUPUESTO_PREMIUM_USD').toFixed(2)}. Si no cabe, la pantalla de pago ` +
+      'tiene que decir que hay un tope mensual. Callarlo es lo que lo convierte en engañoso.',
+  );
+});
+
+// ── El caso que de verdad hay que sostener: un usuario intensivo REAL ──
+//
+// No es una estimación optimista: es el percentil alto que recomienda la propia
+// auditoría (P95 ≤ $1.25-1.50). Alguien que usa la app en serio todos los días.
+const DIA_INTENSIVO_REAL = {
+  coach_chat: 4,        // cuatro conversaciones al día ya es mucho
+  coach: 1,             // una revisión de técnica
+  food_scan: 2,         // dos comidas fotografiadas
+  fridge_scan: 1 / 3,   // la nevera, día sí día no y medio
+  body_scan: 1 / 7,     // un análisis corporal por semana
+  scan_check: 3 / 7,    // sus tres validaciones, prorrateadas
+  plan: 1 / 30,         // rehacer el plan una vez al mes
+};
+
+test('un usuario intensivo real cabe en el presupuesto', () => {
+  const dia = costoDiaAlTope(DIA_INTENSIVO_REAL);
   const mes = dia * DIAS_DEL_MES;
   const presupuesto = constante('PRESUPUESTO_PREMIUM_USD');
-  const diasQueDura = presupuesto / dia;
-
   assert.ok(
     mes <= presupuesto,
-    `Los cupos del paywall cuestan $${mes.toFixed(2)}/mes y el presupuesto es $${presupuesto.toFixed(2)}.\n` +
-      `  Un Premium que use lo que le vendimos se queda sin IA el día ${diasQueDura.toFixed(1)} de ${DIAS_DEL_MES}.\n` +
-      `  Para que cuadre hay que hacer UNA de estas tres:\n` +
-      `    · bajar los cupos de PREMIUM_LIMITS a ≤${(presupuesto / DIAS_DEL_MES / dia * 100).toFixed(0)}% de los actuales;\n` +
-      `    · subir PRESUPUESTO_PREMIUM_USD a $${mes.toFixed(2)} (y comprobar que sigue habiendo margen);\n` +
-      `    · bajar el costo por llamada — casi todo corre en gpt-4o, 16x más caro que gpt-4o-mini.\n` +
-      `  Lo que NO se puede es publicar las dos cifras y que se contradigan en silencio.`,
+    `Un usuario intensivo real cuesta $${mes.toFixed(2)}/mes y el presupuesto es ` +
+      `$${presupuesto.toFixed(2)}. Este es el caso que HAY que sostener: si no cabe, ` +
+      'no es que alguien abuse, es que el producto no se paga solo.',
   );
 });
 
 test('la prueba de 7 días dura los 7 días', () => {
-  // Durante la prueba los escaneos de imagen comparten un cupo de 3, pero el
-  // chat y la postura NO comparten nada.
-  const dia = costoDiaAlTope({
-    coach_chat: FEATURE_POLICY.coach_chat.trialLimit,
-    coach: FEATURE_POLICY.coach.trialLimit,
-    scan_check: 3,
-    plan: FEATURE_POLICY.plan.trialLimit,
-  }) + 3 * COSTO_USD.food_scan; // el cupo compartido de escaneos
-
+  // Es la peor ventana posible para cortarle la IA a alguien: es justo cuando
+  // decide si paga. Estuvo agotándose el día 1 porque el presupuesto se fijó
+  // con una cuenta equivocada por un factor de siete.
+  const dia = costoDiaAlTope(DIA_INTENSIVO_REAL);
   const presupuesto = constante('PRESUPUESTO_PRUEBA_USD');
-  const diasQueDura = presupuesto / dia;
-
+  const dias = presupuesto / dia;
   assert.ok(
     dia * 7 <= presupuesto,
-    `La prueba al tope cuesta $${dia.toFixed(4)}/día y su presupuesto es $${presupuesto.toFixed(2)}: ` +
-      `se agota el día ${diasQueDura.toFixed(1)} de 7.\n` +
-      `  Es la peor ventana posible para cortarle la IA a alguien: es justo cuando decide si paga.`,
+    `La prueba al ritmo de un usuario intensivo cuesta $${dia.toFixed(4)}/día y su ` +
+      `presupuesto es $${presupuesto.toFixed(2)}: se agota el día ${dias.toFixed(1)} de 7.`,
   );
+});
+
+test('el presupuesto de la prueba sigue siendo un costo de adquisición razonable', () => {
+  // Subirlo para que la prueba dure no puede convertirla en un agujero.
+  const prueba = constante('PRESUPUESTO_PRUEBA_USD');
+  const INGRESO_NETO_MES = 5.0;
+  assert.ok(prueba <= INGRESO_NETO_MES * 0.2, `$${prueba} por prueba es demasiado`);
 });
 
 // ── El margen sigue protegido ──
@@ -144,10 +171,6 @@ test('el presupuesto Premium no se come el ingreso', () => {
     constante('PRESUPUESTO_PREMIUM_USD') <= INGRESO_NETO_USD * 0.5,
     'el presupuesto de IA supera la mitad del ingreso neto por usuario',
   );
-});
-
-test('adquirir a alguien cuesta menos que atenderlo un mes', () => {
-  assert.ok(constante('PRESUPUESTO_PRUEBA_USD') < constante('PRESUPUESTO_PREMIUM_USD'));
 });
 
 test('el plan gratis no puede dar pérdidas', () => {

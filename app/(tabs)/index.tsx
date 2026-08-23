@@ -27,6 +27,7 @@ import { calcularDiaDeHoy, type EstadoDelDia } from '../../lib/diaDeHoy';
 import { mensajeDeRegreso } from '../../lib/motivacion';
 import { consejosGratisDeHoy, type ConsejoCoach } from '../../lib/consejosGratis';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../../constants/theme';
+import { useRecuperacion } from '../../lib/useRecuperacion';
 
 function CalorieRing({ consumed, target }: { consumed: number; target: number }) {
   const size = 120;
@@ -85,7 +86,7 @@ export default function DashboardScreen() {
   const setProfile = useUserStore((s: any) => s.setProfile);
   const hydrateTodayLogs = useUserStore((s: any) => s.hydrateTodayLogs);
   const loadedDate = useUserStore((s: any) => s.loadedDate);
-  const recuperacion = useUserStore((s: any) => s.recuperacion);
+  const recuperacion = useRecuperacion();
 
   const [aiSuggestion, setAiSuggestion] = useState('');
   const [refreshing, setRefreshing] = useState(false);

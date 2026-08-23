@@ -260,7 +260,7 @@ test('el perfil ya conoce el modo', () => {
   // No lo importaba en absoluto: mostraba el peso, y los cuatro macros en
   // números grandes, y dejaba editar el peso —que además recalcula calorías.
   const perfil = leer('app', '(tabs)', 'profile.tsx');
-  assert.match(perfil, /s\.recuperacion/);
+  assert.match(perfil, /useRecuperacion\(\)/);
   assert.match(perfil, /recuperacion\.ocultarPeso/);
   assert.match(perfil, /recuperacion\.ocultarCalorias/);
 });

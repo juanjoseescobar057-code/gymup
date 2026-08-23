@@ -13,6 +13,7 @@ import { Colors, Fonts, Radii, Spacing, Type } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
 import OfflineBanner from '../../Components/OfflineBanner';
 import { AVISO_RECUPERACION } from '../../lib/recoveryMode';
+import { useRecuperacion } from '../../lib/useRecuperacion';
 
 const SCAN_OPTIONS = [
   {
@@ -49,7 +50,7 @@ const SCAN_OPTIONS = [
 
 export default function CameraScreen() {
   const profile = useUserStore((s: any) => s.profile);
-  const recuperacion = useUserStore((s: any) => s.recuperacion);
+  const recuperacion = useRecuperacion();
   const getDailyTotals = useUserStore((s: any) => s.getDailyTotals);
   // Suscripción a los logs del día: sin esto el hub nunca re-renderiza al
   // agregar una comida y "Progreso de hoy" queda congelado.
@@ -194,7 +195,13 @@ export default function CameraScreen() {
           </View>
         )}
 
-        {/* Tip del día */}
+        {/* Tip del día.
+            Se escondía la tarjeta de PROGRESO DE HOY con ocultarCalorias y se
+            dejaba ESTA, que dice el porcentaje exacto de proteína, las kcal
+            consumidas, "estás cerca del límite de calorías" y "un shake o
+            pechuga y cierras la meta". Es el mismo dato con otro envoltorio, y
+            encima en tono de meta que cumplir. */}
+        {!recuperacion.ocultarCalorias && (
         <View style={s.tipCard}>
           <View style={s.aiDotRow}>
             <View style={s.aiDot} />
@@ -210,6 +217,7 @@ export default function CameraScreen() {
                   : `📊 Llevas ${Math.round(totals.calories)} kcal y ${Math.round(totals.protein_g)}g de proteína. Escanea tu próxima comida.`}
           </Text>
         </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>

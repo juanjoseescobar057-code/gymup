@@ -28,6 +28,7 @@ import ReportContentButton from '../Components/ReportContentButton';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 import { AI_SAFETY_RULES, clampFatPct, MEDICAL_DISCLAIMER, BODY_SCAN_CONSENT, MIN_AGE, MIN_FAT_PCT, MAX_FAT_PCT } from '../lib/safety';
 import GuardiaRecuperacion from '../Components/GuardiaRecuperacion';
+import GuardiaFlag from '../Components/GuardiaFlag';
 
 const POSES = [
   { id: 'front', label: 'Frente',  emoji: '🧍', instruction: 'Párate derecho mirando la cámara, brazos a los lados, cuerpo completo visible' },
@@ -147,7 +148,12 @@ async function analyzeBodyPhotos(
 
   content.push({
     type: 'text',
-    text: `Eres un coach de fitness y nutricionista experto con 20 años de experiencia.
+    // NO "coach y nutricionista experto con 20 años de experiencia". Esa frase
+    // contradecía al aviso que la propia pantalla enseña dos bloques más abajo
+    // —que esto no es un profesional certificado— y le pedía al modelo el
+    // registro de quien sí puede prescribir. Lo que hace de verdad es describir
+    // lo que se ve en una foto sin calibrar.
+    text: `Eres un asistente de fitness que DESCRIBE lo que se ve en fotos. No eres médico, ni nutricionista, ni entrenador certificado, y no diagnosticas ni prescribes.
 ${AI_SAFETY_RULES}
 
 Analiza estas ${photos.length} foto(s) corporales disponibles.
@@ -195,7 +201,7 @@ SOLO JSON sin texto adicional:
       "label": "Abdomen",
       "status": "priority",
       "message": "Acumulación de grasa visible en zona baja y media.",
-      "tip": "Déficit calórico de 300kcal diarios + HIIT 2 veces por semana."
+      "tip": "Trabaja este patrón 2 veces por semana con series controladas y buen rango."
     }
   ],
   "strengths": [
@@ -320,10 +326,30 @@ function BodyScanScreenContenido() {
 
     } catch (e: any) {
       console.log('[BodyScan] Error validando foto:', e.message);
-      // Si falla la validación por error de red, aceptar la foto de todas formas
-      const newPhoto: PosePhoto = { poseId: pose.id, uri, base64 };
-      setPhotos((prev) => [...prev.filter((p) => p.poseId !== pose.id), newPhoto]);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // El catch aceptaba la foto pasara lo que pasara, y era MÁS ANCHO de lo
+      // que decía su comentario: no solo fallos de red, también un 429 (sin
+      // cupo), un 402 (no es premium) o un JSON que no se pudo parsear. O sea
+      // que "no se pudo validar" incluía "el servidor dijo que no".
+      //
+      // Ahora se distingue. Un fallo de red o de tiempo se acepta avisando, que
+      // es lo razonable; un rechazo del servidor no se acepta, porque no es un
+      // fallo de la comprobación sino su resultado.
+      const mensaje = String(e?.message ?? '');
+      const esDeCuota = /429|402|límite|premium/i.test(mensaje);
+      if (esDeCuota) {
+        Alert.alert(
+          'No pudimos comprobar la foto',
+          'Alcanzaste el límite de comprobaciones por hoy. Intenta de nuevo mañana.',
+        );
+      } else {
+        const newPhoto: PosePhoto = { poseId: pose.id, uri, base64 };
+        setPhotos((prev) => [...prev.filter((p) => p.poseId !== pose.id), newPhoto]);
+        Alert.alert(
+          'Foto guardada sin comprobar',
+          'No pudimos revisar la foto (parece un problema de conexión). La usaremos tal cual: si sale borrosa o incompleta, el análisis lo dirá.',
+        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
     } finally {
       setValidating(false);
     }
@@ -430,12 +456,17 @@ function BodyScanScreenContenido() {
             ))}
           </View>
 
+          {/* Se RECOMENDABA hacerlo cada 15 días. Recomendar una frecuencia de
+              autoobservación corporal es empujar el hábito, no informarlo — y en
+              una app que también atiende a gente con trastornos de la conducta
+              alimentaria, eso lo decide la persona, no nosotros. Se dice cuánto
+              tarda en verse un cambio, que es el dato útil, y ya. */}
           <View style={s.infoCard}>
-            <Text style={s.infoCardTitle}>📅 Frecuencia recomendada</Text>
+            <Text style={s.infoCardTitle}>📅 Cada cuánto tiene sentido</Text>
             <Text style={s.infoCardDesc}>
-              Para poder comparar, recomendamos hacer el análisis cada{' '}
-              <Text style={{ color: Colors.accent, fontFamily: Fonts.bodySemi }}>15 días</Text>.
-              Si no hay cambios visibles, te lo dirá con claridad — en dos semanas eso es lo normal.
+              Los cambios en el cuerpo tardan semanas en verse en una foto. Repetirlo
+              antes de dos semanas casi siempre muestra ruido —luz, hora del día,
+              retención de líquidos— y no progreso. Hazlo cuando te sirva, no por rutina.
             </Text>
           </View>
 
@@ -1029,8 +1060,10 @@ const s = StyleSheet.create({
  */
 export default function BodyScanScreen() {
   return (
-    <GuardiaRecuperacion area="cuerpo" titulo="ANÁLISIS CORPORAL">
-      <BodyScanScreenContenido />
-    </GuardiaRecuperacion>
+    <GuardiaFlag clave="body_scan" titulo="ANÁLISIS CORPORAL">
+      <GuardiaRecuperacion area="cuerpo" titulo="ANÁLISIS CORPORAL">
+        <BodyScanScreenContenido />
+      </GuardiaRecuperacion>
+    </GuardiaFlag>
   );
 }

@@ -3,6 +3,7 @@ import { View, ActivityIndicator, Text, TouchableOpacity, StyleSheet } from 'rea
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { loadHealthSafe } from '../lib/health';
+import { cargarFlags } from '../lib/featureFlags';
 import { useUserStore } from '../store/userStore';
 import { fetchTodayFoodLogs, localDateKey } from '../lib/foodLogs';
 import { registerForPushNotifications } from '../lib/push';
@@ -79,6 +80,10 @@ export default function Index() {
       // la caché local, y si tampoco la hay deja el modo como estaba (ver
       // lib/health.ts). Un fallo de red no puede esconderle sus datos a nadie.
       loadHealthSafe(session.user.id).catch(() => {});
+
+      // Los interruptores remotos. Nunca lanza y cae a los valores compilados,
+      // así que un fallo de red no apaga nada ni abre nada.
+      cargarFlags().catch(() => {});
 
       // Recargar los registros de comida de HOY (antes arrancaban en 0).
       const todayLogs = await fetchTodayFoodLogs(session.user.id);

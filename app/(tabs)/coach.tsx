@@ -25,6 +25,8 @@ import { calcularDiaDeHoy, type EstadoDelDia } from '../../lib/diaDeHoy';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
 import HelpButton from '../../Components/HelpButton';
 import OfflineBanner from '../../Components/OfflineBanner';
+import CompuertaDeSalud from '../../Components/CompuertaDeSalud';
+import GuardiaFlag from '../../Components/GuardiaFlag';
 
 const EXERCISES = [
   { id: 'squat',    name: 'Sentadilla',      emoji: '🦵', muscles: 'Cuádriceps, Glúteos' },
@@ -149,7 +151,18 @@ Incluye 3-6 corrections y 2-3 stretches relevantes para el ejercicio.`,
   return parseAI(PostureResultSchema, data.choices[0].message.content, 'análisis de postura') as PostureResult;
 }
 
-export default function CoachScreen() {
+/**
+ * El coach de postura, YA con el tamizaje comprobado.
+ *
+ * La pantalla sí cargaba loadHealthSafe, pero solo para METER el resumen de
+ * salud en el prompt de la IA. Eso es una instrucción al modelo, no una
+ * compuerta: quien declaró dolor de pecho, mareos o restricción médica entraba
+ * igual, mandaba su foto y recibía correcciones de técnica y estiramientos.
+ *
+ * evaluateWorkoutAccess —el mismo que bloquea la sesión de fuerza y ahora el
+ * coach en vivo— es determinista y no depende de que un modelo obedezca.
+ */
+function CoachScreenContenido() {
   const profile = useUserStore((s: any) => s.profile);
   const trainingPlan = useUserStore((s: any) => s.trainingPlan);
 
@@ -818,3 +831,19 @@ const s = StyleSheet.create({
   motivationCard: { backgroundColor: Colors.bgCard, borderRadius: Radii.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: 12 },
   motivationTxt: { fontFamily: Fonts.bodyMedium, fontSize: 14, color: Colors.textSecondary, lineHeight: 22, fontStyle: 'italic' },
 });
+
+/**
+ * COMPUERTA CLÍNICA. Era la tercera puerta de entrenamiento sin ella.
+ *
+ * Va fuera del componente para que el tamizaje se resuelva ANTES de montar la
+ * cámara y de que se pueda mandar una sola foto.
+ */
+export default function CoachScreen() {
+  return (
+    <GuardiaFlag clave="postura" titulo="ANÁLISIS DE TÉCNICA">
+      <CompuertaDeSalud titulo="SEGURIDAD DEL ANÁLISIS">
+        <CoachScreenContenido />
+      </CompuertaDeSalud>
+    </GuardiaFlag>
+  );
+}

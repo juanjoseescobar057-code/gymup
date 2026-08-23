@@ -23,6 +23,7 @@ import OfflineBanner from '../../Components/OfflineBanner';
 import { AVISO_RECUPERACION } from '../../lib/recoveryMode';
 import CameraDisclosureModal from '../../Components/CameraDisclosureModal';
 import { hasSeenCameraDisclosure, markCameraDisclosureSeen } from '../../lib/cameraConsent';
+import { useRecuperacion } from '../../lib/useRecuperacion';
 
 const { width } = Dimensions.get('window');
 const CHART_W = width - 48;
@@ -132,7 +133,7 @@ export default function ProgressScreen() {
   const [goalModal, setGoalModal] = useState(false);
   const [goalTargetInput, setGoalTargetInput] = useState('');
   const [goalWhyInput, setGoalWhyInput] = useState('');
-  const recuperacion = useUserStore((s: any) => s.recuperacion);
+  const recuperacion = useRecuperacion();
   const [showDisclosure, setShowDisclosure] = useState(false);
   const disclosureResolver = useRef<((aceptado: boolean) => void) | null>(null);
 

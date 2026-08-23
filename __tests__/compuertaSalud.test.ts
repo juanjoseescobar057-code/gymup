@@ -28,7 +28,14 @@ const leer = (rel: string) => fs.readFileSync(path.join(RAIZ, rel), 'utf8');
  * alguien levante peso, se agache o se esfuerce, necesita saber si puede. Ver
  * un plan, mirar el historial o hablar con el coach por texto no cuentan.
  */
-const RUTAS_DE_ENTRENO = ['app/workout-session.tsx', 'app/live-coach.tsx'];
+const RUTAS_DE_ENTRENO = [
+  'app/workout-session.tsx',
+  'app/live-coach.tsx',
+  // El análisis de postura también: da correcciones de técnica y estiramientos
+  // a partir de una foto. Cargaba la salud, sí — pero solo para METERLA EN EL
+  // PROMPT. Eso es una instrucción al modelo, no una compuerta.
+  'app/(tabs)/coach.tsx',
+];
 
 /** Las dos formas válidas de tener compuerta: el componente, o el bloque propio. */
 function tieneCompuerta(codigo: string): boolean {

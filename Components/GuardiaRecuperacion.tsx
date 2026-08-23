@@ -26,6 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUserStore } from '../store/userStore';
 import { AVISO_RECUPERACION, bloqueada, type AreaSensible } from '../lib/recoveryMode';
 import { Colors, Fonts, Radii, Spacing, Type, A11y } from '../constants/theme';
+import { useRecuperacion, useEstadoSalud } from '../lib/useRecuperacion';
 
 export default function GuardiaRecuperacion({
   area,
@@ -38,9 +39,65 @@ export default function GuardiaRecuperacion({
   titulo: string;
   children: ReactNode;
 }) {
-  const recuperacion = useUserStore((s: any) => s.recuperacion);
+  const recuperacion = useRecuperacion();
+  const saludEstado = useEstadoSalud();
 
-  if (!bloqueada(recuperacion, area)) return <>{children}</>;
+  // MIENTRAS NO SE SEPA, SE BLOQUEA.
+  //
+  // Antes solo se miraba la bandera, y la bandera arranca en NEUTRO — el mismo
+  // valor que devuelve modoRecuperacion(null). O sea que "todavía no lo sé" y
+  // "sé que no tiene nada" eran indistinguibles, y el arranque de la app no
+  // espera a nadie: navega y punto. Quien acababa de declarar un trastorno de
+  // la conducta alimentaria entraba aquí durante la ventana de la consulta.
+  //
+  // 'desconocido' también bloquea. Es el mismo criterio que la compuerta
+  // clínica del entreno (Components/CompuertaDeSalud): ante la duda, no. Un
+  // fallo de red que impide registrar una comida se arregla reintentando; abrir
+  // el análisis corporal a quien no debe verlo, no.
+  const sabemos = saludEstado === 'conocido';
+
+  if (sabemos && !bloqueada(recuperacion, area)) return <>{children}</>;
+
+  if (!sabemos) {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.header}>
+          <TouchableOpacity
+            style={s.cerrar}
+            onPress={() => router.back()}
+            hitSlop={A11y.hitSlopLg}
+            accessibilityRole="button"
+            accessibilityLabel="Volver"
+          >
+            <Text style={s.cerrarTxt}>✕</Text>
+          </TouchableOpacity>
+          <Text style={s.headerTitulo} accessibilityRole="header">{titulo}</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <ScrollView contentContainerStyle={s.centro}>
+          <Text style={s.icono}>{saludEstado === 'cargando' ? '···' : '🩺'}</Text>
+          <Text style={s.titulo}>
+            {saludEstado === 'cargando' ? 'Un momento' : 'No pudimos comprobar tu perfil'}
+          </Text>
+          <Text style={s.texto}>
+            {saludEstado === 'cargando'
+              ? 'Estamos cargando tu perfil de salud para adaptar lo que ves.'
+              : 'No vamos a abrir esta pantalla sin haber podido leer tu tamizaje. Reintenta cuando tengas conexión; no se pierde nada.'}
+          </Text>
+          {saludEstado === 'desconocido' && (
+            <TouchableOpacity
+              style={s.btn}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Volver"
+            >
+              <Text style={s.btnTxt}>VOLVER</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.container}>

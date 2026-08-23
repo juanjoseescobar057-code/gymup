@@ -30,6 +30,7 @@ import { exportarMisDatos } from '../../lib/exportData';
 import { captureError } from '../../lib/monitoring';
 import * as ExpoFS from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { useRecuperacion } from '../../lib/useRecuperacion';
 
 const GOAL_LABELS: Record<string, { label: string; emoji: string }> = {
   muscle_gain: { label: 'Ganar músculo', emoji: '💪' },
@@ -92,7 +93,7 @@ export default function ProfileScreen() {
   // Esta pantalla no sabía nada del modo recuperación: enseñaba el peso, la
   // meta y los cuatro macros en números grandes, y dejaba editar el peso, que
   // además recalcula las calorías al guardar.
-  const recuperacion = useUserStore((s: any) => s.recuperacion);
+  const recuperacion = useRecuperacion();
   const setProfile = useUserStore((s: any) => s.setProfile);
   const setOnboardingComplete = useUserStore((s: any) => s.setOnboardingComplete);
   const trainingPlan = useUserStore((s: any) => s.trainingPlan);
@@ -277,6 +278,10 @@ export default function ProfileScreen() {
             phReset(); // y PostHog: sin esto el próximo usuario hereda la identidad del anterior
             await cancelDailyNotifications(); // el dispositivo seguía recordándole a quien ya se fue
             await resetAnalyticsIdentity(); // la cola pendiente no puede acabar a nombre del siguiente
+            // Lo que sabíamos de la salud era de OTRA persona. Sin esto, el modo
+            // recuperación (y el tamizaje en caché) sobrevivían al cambio de
+            // cuenta en un teléfono compartido.
+            useUserStore.getState().olvidarSalud();
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);
@@ -368,6 +373,10 @@ export default function ProfileScreen() {
             phReset();
             await cancelDailyNotifications();
             await resetAnalyticsIdentity();
+            // Lo que sabíamos de la salud era de OTRA persona. Sin esto, el modo
+            // recuperación (y el tamizaje en caché) sobrevivían al cambio de
+            // cuenta en un teléfono compartido.
+            useUserStore.getState().olvidarSalud();
             await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);

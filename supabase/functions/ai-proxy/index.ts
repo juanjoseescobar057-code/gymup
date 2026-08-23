@@ -80,6 +80,29 @@ const MODEL_PRICING: Record<string, { inPerM: number; outPerM: number }> = {
   'gpt-4o-mini': { inPerM: 0.15, outPerM: 0.6 },
 };
 
+/**
+ * Cota superior del costo de una petición, ANTES de mandarla.
+ *
+ * Hace falta para poder RESERVAR. Sin reserva, el presupuesto se leía, se
+ * llamaba a OpenAI y se apuntaba después: N peticiones simultáneas veían el
+ * mismo saldo y pasaban todas.
+ *
+ * Se estima con lo que ya se sabe del payload, no con el peor caso absoluto:
+ *   • entrada ≈ 4 caracteres por token, que es la regla de OpenAI para español;
+ *   • cada imagen en detail:high son ~1105 tokens (85 de base + 4 tiles de 170
+ *     para 1024 px, que es lo que manda lib/image.ts);
+ *   • salida = max_tokens, que a estas alturas ya está impuesto y acotado.
+ *
+ * Reservar el peor caso absoluto (120.000 caracteres y 4096 de salida, ~$0.116)
+ * dejaría a un premium con 17 llamadas al mes. Esto reserva lo que de verdad
+ * puede costar esta petición y se ajusta al costo real en cuanto se conoce.
+ */
+function estimarCostoUsd(model: string, textChars: number, images: number, maxTokens: number): number {
+  const TOKENS_POR_IMAGEN = 1105;
+  const entrada = Math.ceil(textChars / 4) + images * TOKENS_POR_IMAGEN;
+  return costoUsd(model, entrada, maxTokens);
+}
+
 /** Costo real de una llamada. Mismo criterio que lib/aiMetrics.ts: gana el prefijo MÁS LARGO. */
 function costoUsd(model: string | null, inTok: number, outTok: number): number {
   if (!model) return 0;
@@ -268,14 +291,22 @@ Deno.serve(async (req) => {
       ? PRESUPUESTO_PREMIUM_USD
       : PRESUPUESTO_GRATIS_USD;
 
-  const { data: restante, error: budgetError } = await supabase.rpc('ai_budget_restante', {
+  // RESERVA ATÓMICA, no lectura. La lectura dejaba pasar ráfagas concurrentes:
+  // todas veían el mismo saldo y todas creían que cabían. reservar_ai suma el
+  // estimado y lee el total en la MISMA sentencia, con la fila bloqueada, así
+  // que dos peticiones del mismo usuario se serializan de verdad.
+  const estimado = estimarCostoUsd(body.model, textChars, images, Number(body.max_tokens));
+
+  const { data: restante, error: budgetError } = await supabase.rpc('reservar_ai', {
     p_budget_usd: presupuesto,
+    p_estimado_usd: estimado,
   });
   if (budgetError) {
-    console.error('ai_budget_restante:', budgetError.message);
+    console.error('reservar_ai:', budgetError.message);
     return json({ error: 'No se pudo verificar el presupuesto. Intenta luego.' }, 503);
   }
-  if (typeof restante === 'number' && restante <= 0) {
+  // null = no cabía, y reservar_ai ya deshizo su propia reserva.
+  if (restante === null || (typeof restante === 'number' && restante <= 0)) {
     console.log(`ai-proxy: presupuesto agotado (${user.id}, ${esPrueba ? 'prueba' : isPremium ? 'premium' : 'gratis'})`);
     return json({
       error: esPrueba
@@ -373,38 +404,56 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
   //
   // La regla correcta separa las dos cosas:
   //   • el CUPO DIARIO es de experiencia — se devuelve si no entregamos nada;
-  //   • el PRESUPUESTO EN DÓLARES es de margen — se cobra siempre que OpenAI
-  //     nos haya cobrado, aunque la respuesta no valiera para nada.
+  //   • el PRESUPUESTO EN DÓLARES es de margen — ya está cobrado por adelantado
+  //     (la reserva de reservar_ai) y aquí solo se cuadra con el costo real.
+  //
+  // record_ai_cost ya no se llama desde aquí: sumar después era justo lo que
+  // permitía la ráfaga concurrente. La suma ahora ocurre ANTES, con la fila
+  // bloqueada, y esto la ajusta.
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  // 1. COBRAR. Si el proveedor respondió, nos facturó: da igual lo que dijera.
+  // 1. CUADRAR LA RESERVA CON EL COSTO REAL.
+  //
+  // El estimado ya está apuntado desde antes de llamar (esa es la reserva). Aquí
+  // se cambia por lo que de verdad cobró OpenAI: casi siempre menos, porque el
+  // estimado usa max_tokens y la respuesta rara vez lo agota.
+  //
+  // SE HACE PASE LO QUE PASE, incluso si la petición falló: una reserva que no
+  // se cuadra le come el presupuesto a alguien por una llamada que no gastó
+  // nada. Si upstream falló, el costo real es cero y la reserva se devuelve
+  // entera.
+  //
+  // Con la clave de SERVICIO: si esta RPC fuera ejecutable por un usuario,
+  // cualquiera podría cuadrar su gasto a cero.
+  let costoReal = 0;
   if (upstream.ok) {
-    // Con la clave de SERVICIO: si esta RPC fuera ejecutable por un usuario, se
-    // le podría inflar el gasto a otra persona hasta dejarla sin IA.
     try {
       const respuesta = JSON.parse(text);
       const uso = respuesta?.usage ?? {};
-      const costo = costoUsd(
+      costoReal = costoUsd(
         respuesta?.model ?? body?.model ?? null,
         uso.prompt_tokens ?? 0,
         uso.completion_tokens ?? 0,
       );
-      if (costo > 0) {
-        const { error: costError } = await admin.rpc('record_ai_cost', {
-          p_user_id: user.id,
-          p_cost_usd: costo,
-        });
-        if (costError) console.error('record_ai_cost:', costError.message);
-      }
     } catch (e) {
-      // Nunca romper la respuesta del usuario por no haber podido contabilizar.
-      // Se pierde el apunte de UNA llamada, no el techo: el resto del mes sigue
-      // contando.
-      console.error('ai-proxy: no se pudo registrar el costo:', e instanceof Error ? e.message : String(e));
+      // Si no se pudo leer el uso, se deja la reserva puesta: cobrar el estimado
+      // es lo conservador. Perder el apunte hacia arriba abriría el techo.
+      costoReal = estimado;
+      console.error('ai-proxy: no se pudo leer el uso:', e instanceof Error ? e.message : String(e));
     }
+  }
+
+  const { error: ajusteError } = await admin.rpc('ajustar_ai', {
+    p_user_id: user.id,
+    p_reservado_usd: estimado,
+    p_real_usd: costoReal,
+  });
+  if (ajusteError) {
+    // La reserva se queda puesta. Es lo correcto: cobra de más, nunca de menos.
+    console.error('ajustar_ai:', ajusteError.message);
   }
 
   // 2. DEVOLVER EL CUPO, y solo cuando el fallo sea NUESTRO.

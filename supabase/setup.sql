@@ -1392,6 +1392,37 @@ create table if not exists public.push_tokens (
 select public._apply_owner_rls('push_tokens');
 create index if not exists push_tokens_user on public.push_tokens(user_id);
 
+-- ─── INTERRUPTORES REMOTOS ───────────────────────────────
+-- Poder apagar una función sin publicar una versión.
+--
+-- Hoy, si el análisis corporal o el de postura resultan dar un consejo que no
+-- debían, la única salida es un build nuevo: compilar, subir a Play, esperar la
+-- revisión y esperar a que la gente actualice. Días. Para funciones que emiten
+-- estimaciones corporales y correcciones de técnica, eso no es un plan.
+--
+-- Solo de LECTURA para el cliente: apagar algo es una decisión de operación.
+-- Y el cliente falla al valor COMPILADO si no puede leer la tabla, así que un
+-- problema de red no apaga la app entera ni la abre de par en par.
+create table if not exists public.feature_flags (
+  clave      text primary key,
+  activo     boolean not null default true,
+  -- Qué se le dice a la persona cuando está apagada. Un botón que no hace nada
+  -- se lee como una app rota; esto explica que fue una decisión.
+  motivo     text,
+  updated_at timestamptz not null default now()
+);
+alter table public.feature_flags enable row level security;
+grant select on public.feature_flags to anon, authenticated;
+revoke insert, update, delete on public.feature_flags from anon, authenticated;
+drop policy if exists feature_flags_read on public.feature_flags;
+create policy feature_flags_read on public.feature_flags for select to anon, authenticated using (true);
+
+insert into public.feature_flags (clave, activo, motivo) values
+  ('body_scan', true, null),
+  ('postura',   true, null),
+  ('coach_ia',  true, null)
+on conflict (clave) do nothing;   -- do nothing: no reactivar lo que se apagó a mano
+
 -- ─── AUTORIZACIÓN DE TRATAMIENTO DE DATOS ────────────────
 -- La casilla del onboarding era un useState(false). Bloqueaba el botón y no se
 -- guardaba en ningún sitio: al cerrar la pantalla no quedaba rastro de que
@@ -1792,6 +1823,14 @@ begin
 end $$;
 revoke all on function public.apply_rc_event(text,uuid,text,bigint,text,boolean,boolean,boolean) from anon, authenticated;
 revoke all on function public.apply_rc_event(text,uuid,text,bigint,text,boolean,boolean,boolean) from public;
+-- Y CONCEDER EXPLÍCITAMENTE a service_role, que es quien la llama desde
+-- rc-webhook. En un proyecto Supabase el ALTER DEFAULT PRIVILEGES suele
+-- concedérselo al crear la función, así que en la práctica funcionaba — pero
+-- "suele" no es un contrato. Si el revoke a public alcanzara también a
+-- service_role en algún proyecto, el webhook dejaría de aplicar compras y no
+-- habría forma de saberlo mirando este archivo. Es una línea; la duda no vale
+-- lo que cuesta.
+grant execute on function public.apply_rc_event(text,uuid,text,bigint,text,boolean,boolean,boolean) to service_role;
 -- La firma vieja (sin p_is_trial) se elimina: dejarla viva sería un camino que
 -- escribe is_premium sin tocar is_trial, y Postgres elegiría una u otra por
 -- resolución de sobrecarga según cómo llame el cliente.
@@ -1867,6 +1906,79 @@ begin
   return p_budget_usd - coalesce(v_gastado, 0);
 end $$;
 grant execute on function public.ai_budget_restante(numeric) to authenticated;
+
+-- ─── RESERVA ATÓMICA: el presupuesto bajo concurrencia ───
+--
+-- ai_budget_restante SOLO LEE. El proxy leía el saldo, llamaba a OpenAI y
+-- apuntaba el costo después, así que N peticiones simultáneas veían todas el
+-- mismo saldo y pasaban todas. Con el techo casi agotado, una ráfaga concurrente
+-- podía gastar muchas veces lo que quedaba: el tope dejaba de ser un tope justo
+-- en el momento en que hacía falta.
+--
+-- Esto RESERVA antes de gastar. El insert...on conflict do update es una sola
+-- sentencia y bloquea la fila, así que dos llamadas del mismo usuario se
+-- serializan: la segunda ve el saldo que dejó la primera.
+--
+-- Si no cabe, deshace su propia reserva y devuelve null. Deshacerla dentro de la
+-- misma función es importante: una reserva huérfana le comería el presupuesto a
+-- alguien sin haber gastado nada.
+create or replace function public.reservar_ai(p_budget_usd numeric, p_estimado_usd numeric)
+returns numeric
+language plpgsql security definer set search_path = public as $
+declare
+  v_uid uuid := auth.uid();
+  v_mes date := date_trunc('month', current_date)::date;
+  v_total numeric;
+begin
+  if v_uid is null then
+    raise exception 'reservar_ai requiere un usuario autenticado';
+  end if;
+  if p_budget_usd is null or p_estimado_usd is null or p_estimado_usd < 0 then
+    raise exception 'reservar_ai necesita un presupuesto y un estimado numéricos';
+  end if;
+
+  insert into public.ai_cost_usage (user_id, month, cost_usd, calls)
+  values (v_uid, v_mes, p_estimado_usd, 1)
+  on conflict (user_id, month) do update
+    set cost_usd = public.ai_cost_usage.cost_usd + excluded.cost_usd,
+        calls    = public.ai_cost_usage.calls + 1
+  returning cost_usd into v_total;
+
+  if v_total > p_budget_usd then
+    -- No cabía. Se retira la reserva recién hecha y se dice que no.
+    update public.ai_cost_usage
+       set cost_usd = cost_usd - p_estimado_usd,
+           calls    = greatest(calls - 1, 0)
+     where user_id = v_uid and month = v_mes;
+    return null;
+  end if;
+
+  return p_budget_usd - v_total;
+end $;
+grant execute on function public.reservar_ai(numeric, numeric) to authenticated;
+
+-- Cambia la reserva por el costo REAL, una vez que el proveedor respondió.
+--
+-- Va con service_role y con el user_id explícito, igual que record_ai_cost y por
+-- el mismo motivo: el costo real solo se conoce cuando el proxy ya actúa como
+-- servidor. Si fuera ejecutable por un cliente, cualquiera podría "ajustar" su
+-- gasto a cero.
+--
+-- El ajuste puede ser negativo (lo normal: se reservó de más) o positivo. Nunca
+-- deja el acumulado por debajo de cero.
+create or replace function public.ajustar_ai(
+  p_user_id uuid, p_reservado_usd numeric, p_real_usd numeric
+) returns void
+language plpgsql security definer set search_path = public as $
+begin
+  if p_user_id is null or p_reservado_usd is null or p_real_usd is null then return; end if;
+  update public.ai_cost_usage
+     set cost_usd = greatest(cost_usd - p_reservado_usd + p_real_usd, 0)
+   where user_id = p_user_id
+     and month = date_trunc('month', current_date)::date;
+end $;
+revoke all on function public.ajustar_ai(uuid, numeric, numeric) from public, anon, authenticated;
+grant execute on function public.ajustar_ai(uuid, numeric, numeric) to service_role;
 
 -- Suma el costo de una llamada ya hecha.
 --

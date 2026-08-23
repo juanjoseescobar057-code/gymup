@@ -63,7 +63,41 @@ export type VeredictoPremium = {
   motivo: string | null;
   /** Entitlements activos que NO reconocemos. Casi siempre un nombre mal puesto. */
   noReconocidos: string[];
+  /**
+   * ¿Está dentro de la prueba gratis?
+   *
+   *   true  → sí. Le toca el presupuesto de prueba.
+   *   false → paga (o pagó). Presupuesto de premium.
+   *   null  → RevenueCat no lo dice en esta respuesta: no se toca is_trial.
+   *
+   * Sin esto, sync-premium escribía is_premium y NUNCA is_trial. Y sync-premium
+   * es el camino de rescate que corre justo después de comprar, así que si el
+   * webhook llegaba tarde —que es exactamente el caso para el que existe— la
+   * fila quedaba con is_premium=true e is_trial=false: alguien en su primer día
+   * de prueba entraba con el presupuesto de OpenAI de quien paga.
+   *
+   * Solo 'trial' cuenta. 'intro' es un precio introductorio: paga menos, pero
+   * paga.
+   */
+  esPrueba: boolean | null;
 };
+
+/**
+ * El period_type del producto que concede el entitlement.
+ *
+ * RevenueCat pone el period_type en la SUSCRIPCIÓN, no en el entitlement: hay
+ * que saltar por product_identifier para encontrarlo.
+ */
+function periodoDe(
+  subscriber: Record<string, any>,
+  productId: unknown,
+): boolean | null {
+  if (typeof productId !== 'string') return null;
+  const sub = subscriber?.subscriptions?.[productId];
+  const periodo = sub?.period_type;
+  if (typeof periodo !== 'string') return null;
+  return periodo.toLowerCase() === 'trial';
+}
 
 /**
  * El veredicto sobre un `subscriber` de la API v1 de RevenueCat.
@@ -78,14 +112,19 @@ export function veredictoPremium(
   permitidos: string[],
   ahoraMs: number,
 ): VeredictoPremium {
-  if (!subscriber) return { premium: false, motivo: null, noReconocidos: [] };
+  if (!subscriber) return { premium: false, motivo: null, noReconocidos: [], esPrueba: null };
 
   const ents: Record<string, Entrada> = subscriber.entitlements ?? {};
   const claves = Object.keys(ents);
 
   for (const key of claves) {
     if (permitidos.includes(key) && entradaVigente(ents[key], ahoraMs)) {
-      return { premium: true, motivo: `entitlement:${key}`, noReconocidos: [] };
+      return {
+        premium: true,
+        motivo: `entitlement:${key}`,
+        noReconocidos: [],
+        esPrueba: periodoDe(subscriber, (ents[key] as Record<string, unknown>)?.product_identifier),
+      };
     }
   }
 
@@ -104,12 +143,20 @@ export function veredictoPremium(
     const subs: Record<string, Entrada> = subscriber.subscriptions ?? {};
     for (const key of Object.keys(subs)) {
       if (entradaVigente(subs[key], ahoraMs)) {
-        return { premium: true, motivo: `suscripcion:${key}`, noReconocidos };
+        return {
+          premium: true,
+          motivo: `suscripcion:${key}`,
+          noReconocidos,
+          esPrueba: periodoDe(subscriber, key),
+        };
       }
     }
   }
 
-  return { premium: false, motivo: null, noReconocidos };
+  // Sin Premium no hay prueba que marcar: false, no null. Dejarlo en null haría
+  // que is_trial conservara un true viejo de una prueba ya expirada, y con él el
+  // presupuesto de prueba en vez del de premium cuando volviera a comprar.
+  return { premium: false, motivo: null, noReconocidos, esPrueba: false };
 }
 
 /**

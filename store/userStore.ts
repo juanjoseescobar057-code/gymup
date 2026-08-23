@@ -37,14 +37,41 @@ type UserStore = {
    * número de la báscula justo donde no debe.
    */
   recuperacion: ModoRecuperacion;
+  /**
+   * SI YA SABEMOS de la salud de esta persona, o todavía no.
+   *
+   * Sin esto había una carrera: `recuperacion` arrancaba en NEUTRO —que es lo
+   * mismo que devuelve modoRecuperacion(null)— así que "todavía no lo sé" y
+   * "sé que no tiene nada" eran EL MISMO VALOR. Las pantallas leían la bandera
+   * mientras la consulta seguía en vuelo y enseñaban calorías, peso y el botón
+   * de escanear el cuerpo a quien acababa de declarar un trastorno de la
+   * conducta alimentaria. El arranque no espera a nadie: se navega y punto.
+   *
+   *   'cargando'    → aún no se sabe. Se bloquea.
+   *   'conocido'    → se leyó el tamizaje (de red o de caché). Manda la bandera.
+   *   'desconocido' → no se pudo leer y no hay caché. Se bloquea, igual que la
+   *                   compuerta clínica del entreno: ante la duda, no.
+   */
+  saludEstado: EstadoSalud;
   setHealthProfile: (h: HealthProfile | null) => void;
+  /** No se pudo leer el tamizaje y no hay caché. */
+  marcarSaludDesconocida: () => void;
+  /** Al cerrar sesión: lo que sabíamos era de OTRA persona. */
+  olvidarSalud: () => void;
 };
+
+export type EstadoSalud = 'cargando' | 'conocido' | 'desconocido';
 
 export const useUserStore = create<UserStore>((set, get) => ({
   profile: null,
   setProfile: (profile) => set({ profile }),
   recuperacion: modoRecuperacion(null),
-  setHealthProfile: (h) => set({ recuperacion: modoRecuperacion(h) }),
+  // Arranca en 'cargando', NO en 'conocido'. Ese era el fallo: el valor inicial
+  // era indistinguible de "ya comprobado y está sano".
+  saludEstado: 'cargando',
+  setHealthProfile: (h) => set({ recuperacion: modoRecuperacion(h), saludEstado: 'conocido' }),
+  marcarSaludDesconocida: () => set({ saludEstado: 'desconocido' }),
+  olvidarSalud: () => set({ recuperacion: modoRecuperacion(null), saludEstado: 'cargando' }),
 
   trainingPlan: null,
   setTrainingPlan: (trainingPlan) => set({ trainingPlan }),

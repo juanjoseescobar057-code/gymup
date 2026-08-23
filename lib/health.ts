@@ -93,6 +93,14 @@ function publicarModoRecuperacion(h: HealthProfile | null): void {
   } catch {}
 }
 
+/** No se pudo leer el tamizaje y no hay caché: el contenido sensible se bloquea. */
+function marcarSaludDesconocida(): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('../store/userStore').useUserStore.getState().marcarSaludDesconocida();
+  } catch {}
+}
+
 export async function loadHealthSafe(userId: string): Promise<HealthLoad> {
   try {
     const { data, error } = await supabase
@@ -119,8 +127,12 @@ export async function loadHealthSafe(userId: string): Promise<HealthLoad> {
   } catch {
     const cached = await cachedHealth(userId);
     if (cached) { publicarModoRecuperacion(cached); return { status: 'cached', profile: cached }; }
-    // 'unknown' NO toca el modo: esconderle sus datos por un fallo de red le
-    // haría pensar que perdió su historial.
+    // 'unknown' no cambia la BANDERA —modoRecuperacion(null) es NEUTRO a
+    // propósito— pero sí tiene que cambiar el ESTADO: no sabemos. Antes se
+    // devolvía sin tocar el store, y quedaba en NEUTRO, que las pantallas leían
+    // como "comprobado y sano". Ahora el contenido sensible se bloquea, igual
+    // que hace la compuerta clínica del entreno ante el mismo caso.
+    marcarSaludDesconocida();
     return { status: 'unknown' };
   }
 }
@@ -226,6 +238,12 @@ export async function saveHealthProfile(
   if (error) return { ok: false, error: error.message };
   // Refrescar el último-contexto-bueno local con lo recién guardado.
   cacheHealth(userId, { ...h, doctor_cleared: doctorCleared }, clearedAt);
+  // Y PUBLICAR EL MODO YA. Guardar el tamizaje sin publicarlo era la otra mitad
+  // de la carrera: el onboarding guarda que la persona declaró un trastorno de
+  // la conducta alimentaria y entra directo a las pestañas, donde el store
+  // seguía diciendo NEUTRO hasta que algo llamara a loadHealthSafe. La primera
+  // pantalla que veía era el anillo de calorías.
+  publicarModoRecuperacion({ ...h, doctor_cleared: doctorCleared });
   return { ok: true };
 }
 

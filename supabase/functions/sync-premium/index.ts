@@ -115,12 +115,23 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   );
+  // is_trial VA AQUÍ TAMBIÉN. Este archivo escribía is_premium y nunca is_trial
+  // — y es el camino de rescate que el cliente invoca justo después de comprar,
+  // o sea precisamente cuando el webhook aún no ha llegado. La fila quedaba con
+  // is_premium=true e is_trial=false, así que alguien en su primer día de prueba
+  // entraba con el presupuesto de OpenAI de quien paga ($2.00 en vez de $0.60).
+  //
+  // Si RevenueCat no dice el periodo (esPrueba null) no se toca la columna: se
+  // deja lo que escribiera el webhook, que sí lo recibe en el evento.
+  const cambios: Record<string, unknown> = { is_premium: premium };
+  if (veredicto.esPrueba !== null) cambios.is_trial = premium && veredicto.esPrueba;
+
   const { error: upErr } = await admin
     .from('user_profiles')
-    .update({ is_premium: premium })
+    .update(cambios)
     .eq('user_id', user.id);
 
   if (upErr) return json({ error: 'No se pudo guardar el estado', detail: upErr.message }, 500);
 
-  return json({ ok: true, is_premium: premium });
+  return json({ ok: true, is_premium: premium, is_trial: cambios.is_trial ?? null });
 });

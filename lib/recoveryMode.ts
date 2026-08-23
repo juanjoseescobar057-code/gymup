@@ -57,6 +57,15 @@ const ACTIVO: ModoRecuperacion = {
  * datos a alguien por un fallo de red sería tan malo como el problema que
  * intenta evitar, y además le haría pensar que perdió su historial.
  */
+/**
+ * Lo que se aplica cuando NO SE PUDO LEER el tamizaje.
+ *
+ * Distinto de modoRecuperacion(null), que devuelve NEUTRO a propósito para el
+ * caso "no tiene tamizaje" (esconderle sus datos a alguien por eso sería
+ * gratuito). Aquí es al revés: sabemos que hay un tamizaje y no lo pudimos leer.
+ */
+export const MODO_MIENTRAS_NO_SE_SEPA: ModoRecuperacion = ACTIVO;
+
 export function modoRecuperacion(health: HealthProfile | null | undefined): ModoRecuperacion {
   if (!health) return NEUTRO;
   return health.conditions.includes('trastorno_alimentario') ? ACTIVO : NEUTRO;
@@ -146,6 +155,10 @@ const CAMPOS_CORPORALES: readonly (keyof CoachSnapshot)[] = [
   'macros',          // kcal y macros consumidos contra la meta
   'lastBodyScan',    // score y "~X% de grasa" del último análisis
   'todayMeals',      // las comidas del día con sus calorías
+  // El "porqué" lo escribe la persona en texto libre, y ahí es donde suele estar
+  // el número que se acaba de borrar de targetWeight: "quiero llegar a 55 kg".
+  // Filtrar la meta numérica y dejar la frase que la contiene no filtra nada.
+  'goalWhy',
 ] as const;
 
 /**

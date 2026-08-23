@@ -100,7 +100,26 @@ const MODEL_PRICING: Record<string, { inPerM: number; outPerM: number }> = {
  */
 function estimarCostoUsd(model: string, textChars: number, images: number, maxTokens: number): number {
   const TOKENS_POR_IMAGEN = 1105;
-  const entrada = Math.ceil(textChars / 4) + images * TOKENS_POR_IMAGEN;
+
+  // 4 caracteres por token es la MEDIA para prosa en español. Una reserva no se
+  // hace con la media: se hace con el peor caso razonable, porque lo que se
+  // reserva de menos se gasta igual y nadie lo apunta.
+  //
+  // Un payload lleno de JSON, nombres de campo y puntuación tokeniza mucho peor
+  // que la prosa —hasta ~1,5 caracteres por token en el peor caso—, y el estimado
+  // tampoco veía el response_format ni el prompt de seguridad que este mismo
+  // archivo inyecta después. Con 2 caracteres por token el margen cubre las tres
+  // cosas sin dispararse: sigue siendo la mitad del peor caso teórico.
+  const CARACTERES_POR_TOKEN = 2;
+
+  // Y el prompt de seguridad se suma explícitamente: lo añade el servidor
+  // DESPUÉS de medir el cuerpo, así que el cliente nunca lo paga en el estimado.
+  const TOKENS_PROMPT_SEGURIDAD = 600;
+
+  const entrada =
+    Math.ceil(textChars / CARACTERES_POR_TOKEN) +
+    images * TOKENS_POR_IMAGEN +
+    TOKENS_PROMPT_SEGURIDAD;
   return costoUsd(model, entrada, maxTokens);
 }
 
@@ -269,7 +288,7 @@ Deno.serve(async (req) => {
   // Toda la decisión está en _shared/politica.ts para poder simular flujos
   // enteros en un test: el del análisis corporal no cabía en su propio tope y
   // no había manera de que nada lo detectara.
-  const { claveContador, limite: limit, exigePremium } = resolverPolitica({
+  const { feature, claveContador, limite: limit, exigePremium } = resolverPolitica({
     headerDeclarado: req.headers.get('x-gymup-feature'),
     imagenes: images,
     isPremium,
@@ -297,7 +316,12 @@ Deno.serve(async (req) => {
     scan_check: 'body_scan',
     coach: 'postura',
   };
-  const claveFlag = FLAG_DE_FEATURE[claveContador];
+  // Por FEATURE, no por claveContador. Durante la prueba gratis los escaneos de
+  // imagen comparten un contador ('trial_scans'), así que claveContador NO es la
+  // feature: el lookup no encontraba nada y el interruptor del análisis corporal
+  // no se aplicaba a NADIE que estuviera en el trial. Un kill switch con un
+  // agujero del tamaño de los siete primeros días.
+  const claveFlag = FLAG_DE_FEATURE[feature];
   if (claveFlag) {
     const { data: flagRow, error: flagError } = await supabase
       .from('feature_flags')
@@ -350,7 +374,19 @@ Deno.serve(async (req) => {
   // libro mayor, que es lo que permite saber cuánto cuesta cada cosa.
   const requestId = (req.headers.get('x-gymup-request-id') ?? '').trim() || crypto.randomUUID();
 
-  const { data: restante, error: budgetError } = await supabase.rpc('reservar_ai', {
+  // El cliente de SERVICIO. Se crea aquí porque es el primer punto que lo
+  // necesita: la reserva la hace él, y las devoluciones de más abajo también.
+  const admin = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+
+  // Con el SERVICE ROLE, no con el JWT de la persona. reservar_ai recibe el
+  // presupuesto y el estimado como parámetros: si fuera ejecutable por el
+  // cliente, cualquiera podría llamarla a mano con un estimado enorme y agotar el
+  // freno global por hora de toda la plataforma en una sola llamada.
+  const { data: restante, error: budgetError } = await admin.rpc('reservar_ai', {
+    p_user_id: user.id,
     p_request_id: requestId,
     p_budget_usd: presupuesto,
     p_estimado_usd: estimado,
@@ -397,6 +433,14 @@ Deno.serve(async (req) => {
   // `!== true` y no `=== false`: la RPC devuelve NULL si el tope llega nulo, y
   // NULL no es false. Comparar contra false dejaba pasar ese caso.
   if (allowed !== true) {
+    // DEVOLVER LA RESERVA. Se hizo antes del contador diario, así que salir por
+    // aquí sin deshacerla cobraba dinero por una llamada que nunca se hizo — y
+    // al repetirlo, el presupuesto del mes entero. Era el único retorno posterior
+    // a la reserva que no la liberaba.
+    const { error: eAjuste } = await admin.rpc('ajustar_ai', {
+      p_request_id: requestId, p_user_id: user.id, p_real_usd: 0,
+    });
+    if (eAjuste) console.error('ajustar_ai tras tope diario:', eAjuste.message);
     return json({ error: 'Alcanzaste el límite de hoy. Pásate a Premium para más.', code: 'limit_reached' }, 429);
   }
 
@@ -438,13 +482,6 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
   // 8. Reenviar a OpenAI con la key del servidor.
   const openaiKey = Deno.env.get('OPENAI_API_KEY');
   if (!openaiKey) return json({ error: 'IA no configurada en el servidor' }, 500);
-
-  // El cliente de servicio hace falta ya aquí: si OpenAI no responde hay que
-  // devolver la reserva de presupuesto y el cupo diario, que se tomaron antes.
-  const admin = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-  );
 
   // CON TIEMPO LÍMITE. Sin él, un OpenAI que acepta la conexión y se calla
   // dejaba la función colgada hasta que la matara la plataforma — con la reserva

@@ -20,8 +20,52 @@ const cliente = leer('lib', 'aiClient.ts');
 // ── Idempotencia ──
 
 test('la reserva exige un request_id', () => {
-  assert.match(setup, /function public\.reservar_ai\(\s*\n?\s*p_request_id text/);
+  // El usuario va PRIMERO y explícito: la función pasó a service_role, y con
+  // service role auth.uid() es null.
+  assert.match(setup, /function public\.reservar_ai\(\s*\n?\s*p_user_id uuid,\s*\n?\s*p_request_id text/);
   assert.match(setup, /raise exception 'reservar_ai requiere un request_id'/);
+});
+
+test('la idempotencia está atada al dueño y a una reserva viva', () => {
+  // Buscar solo por request_id era el agujero: el id lo elige el cliente y viaja
+  // en una cabecera, así que fijarlo a una constante hacía que TODAS las
+  // llamadas siguientes salieran por la rama de idempotencia — devolviendo saldo
+  // y sin sumar nada. El gasto dejaba de apuntarse en ningún sitio.
+  assert.match(setup, /where request_id = p_request_id and user_id = v_uid and real_usd is null/);
+  assert.match(setup, /raise exception 'request_id ya usado'/);
+});
+
+test('reservar_ai no la puede llamar el cliente', () => {
+  // Recibe el presupuesto y el estimado como parámetros: con el grant a
+  // 'authenticated', una sola llamada con un estimado enorme agotaba el freno
+  // global por hora de TODA la plataforma.
+  assert.match(setup, /revoke all on function public\.reservar_ai\([^)]*\) from public, anon, authenticated/);
+  assert.match(setup, /grant execute on function public\.reservar_ai\([^)]*\) to service_role/);
+  assert.ok(
+    !/grant execute on function public\.reservar_ai\([^)]*\) to authenticated/.test(setup),
+    'reservar_ai no puede concederse a authenticated',
+  );
+});
+
+test('el proxy reserva con el service role', () => {
+  assert.match(proxy, /admin\.rpc\('reservar_ai'/);
+  assert.match(proxy, /p_user_id: user\.id/);
+});
+
+test('si el contador diario corta, la reserva se devuelve', () => {
+  // Era el único retorno posterior a la reserva que no la liberaba: cobraba
+  // dinero por una llamada que nunca se hizo, y repitiéndolo, el mes entero.
+  const i = proxy.indexOf("code: 'limit_reached'");
+  assert.ok(i > 0);
+  assert.match(proxy.slice(Math.max(0, i - 600), i), /ajustar_ai/);
+});
+
+test('el estimado es conservador, no la media', () => {
+  // 4 caracteres por token es la MEDIA para prosa. Una reserva se hace con el
+  // peor caso razonable: lo que se reserva de menos se gasta igual y nadie lo
+  // apunta. Y el prompt de seguridad lo añade el servidor DESPUÉS de medir.
+  assert.match(proxy, /CARACTERES_POR_TOKEN = 2/);
+  assert.match(proxy, /TOKENS_PROMPT_SEGURIDAD/);
 });
 
 test('el mismo request_id no reserva dos veces', () => {

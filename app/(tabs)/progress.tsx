@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { useUserStore } from '../../store/userStore';
-import { BADGES, loadUserStats, type UserStats, type BadgeId, xpProgress } from '../../lib/streaks';
+import { BADGES, insigniasDisponibles, loadUserStats, type UserStats, type BadgeId, xpProgress } from '../../lib/streaks';
 import { loadWeeklyMissions, claimMission, type MissionProgress } from '../../lib/missions';
 import { uploadTransformPhoto, signPhotoUrls } from '../../lib/transformPhotos';
 import { projectGoal } from '../../lib/goalMath';
@@ -408,8 +408,13 @@ export default function ProgressScreen() {
 
   const xpInfo = xpProgress(stats?.total_xp ?? 0);
   const earnedIds = (stats?.earned_badges ?? []) as BadgeId[];
-  const earnedBadges = BADGES.filter((b: any) => earnedIds.includes(b.id));
-  const nextBadges = BADGES.filter((b: any) => !earnedIds.includes(b.id)).slice(0, 6);
+  // Filtradas por el modo recuperación. `sinRecompensasCorporales` se cableó en
+  // el registro de comida y en las misiones, pero ESTA pantalla —la que de verdad
+  // las PINTA— seguía enseñando las insignias de comidas y de "días macro ✓". Y
+  // el test solo comprobaba los dos archivos donde sí se había cableado.
+  const catalogo = insigniasDisponibles(recuperacion.sinRecompensasCorporales);
+  const earnedBadges = catalogo.filter((b: any) => earnedIds.includes(b.id));
+  const nextBadges = catalogo.filter((b: any) => !earnedIds.includes(b.id)).slice(0, 6);
   const curW = weights.length > 0 ? weights[weights.length - 1].weight : profile?.weight_kg ?? 0;
   const wChange = weights.length >= 2 ? curW - weights[0].weight : 0;
 
@@ -496,9 +501,14 @@ export default function ProgressScreen() {
         <View style={s.grid4}>
           {[
             { icon: '🏋️', val: stats?.total_workouts ?? 0, lbl: 'Entrenos' },
-            { icon: '📸', val: stats?.total_meals_logged ?? 0, lbl: 'Comidas' },
-            { icon: '🎯', val: stats?.total_macro_perfect_days ?? 0, lbl: 'Días macro ✓' },
-            { icon: '🏆', val: earnedIds.length, lbl: 'Logros' },
+            // Los dos contadores de comida desaparecen con el modo activo. "Días
+            // macro ✓" es una racha de cumplimiento nutricional pintada como
+            // logro: exactamente el mecanismo que el modo existe para apagar.
+            ...(recuperacion.sinRecompensasCorporales ? [] : [
+              { icon: '📸', val: stats?.total_meals_logged ?? 0, lbl: 'Comidas' },
+              { icon: '🎯', val: stats?.total_macro_perfect_days ?? 0, lbl: 'Días macro ✓' },
+            ]),
+            { icon: '🏆', val: earnedBadges.length, lbl: 'Logros' },
           ].map((st) => (
             <View key={st.lbl} style={s.statCell} accessible
               accessibilityLabel={`${st.val} ${st.lbl.replace(' ✓', ' perfectos')}`}>

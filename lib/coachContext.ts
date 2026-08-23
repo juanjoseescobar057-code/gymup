@@ -14,7 +14,7 @@ import { loadUserStats } from './streaks';
 import { bestFromSets } from './prs';
 import { getWaterCount } from './water';
 import { loadHealthSafe } from './health';
-import { modoRecuperacion, filtrarExpediente } from './recoveryMode';
+import { modoRecuperacion, filtrarExpediente, MODO_MIENTRAS_NO_SE_SEPA } from './recoveryMode';
 import { healthToPrompt, HEALTH_UNKNOWN_DIRECTIVE } from './healthMath';
 import { projectGoal, type WeightPoint, type GoalProjection } from './goalMath';
 import { estadoDelDia, type Reincorporacion } from './planCalendario';
@@ -303,7 +303,14 @@ export async function fetchCoachSnapshot(args: {
   //
   // Los campos no se ponen a null: se QUITAN. Un campo presente valiendo null
   // sigue diciéndole al modelo que existe una báscula de la que se puede hablar.
-  const modo = modoRecuperacion(healthLoad.status === 'unknown' ? null : healthLoad.profile);
+  // FALLA CERRADO, como el resto de la app. modoRecuperacion(null) devuelve
+  // NEUTRO —correcto para "no tiene tamizaje"— y eso convertía "no pude leerlo"
+  // en "no tiene nada": con la salud ilegible, el peso, la meta, los macros y el
+  // "~X% de grasa" salían del teléfono hacia OpenAI aunque la persona estuviera
+  // en modo recuperación. Es justo el caso en el que menos se puede comprobar.
+  const modo = healthLoad.status === 'unknown'
+    ? MODO_MIENTRAS_NO_SE_SEPA
+    : modoRecuperacion(healthLoad.profile);
 
   const expediente: CoachSnapshot = {
     name: profile.name,

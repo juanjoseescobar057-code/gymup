@@ -116,8 +116,17 @@ export function validarPlan(plan: PlanSemanal, ctx: ContextoValidacion): Resulta
   const correcciones: Correccion[] = [];
   const vetadas = vetosDe(ctx.injuries, ctx.conditions, ctx.saludDesconocida === true);
 
-  // 65+ y quien no pudo enseñar su tamizaje: nada de técnicas de intensidad.
-  const sinTecnicasAvanzadas = ctx.age >= 65 || ctx.saludDesconocida === true;
+  // 65+, tamizaje ilegible, y CUALQUIER condición que vete la intensidad alta.
+  //
+  // Este último faltaba y era el importante: 'intensidad_alta' está vetada para
+  // embarazo, cardiopatía, asma, hipertensión —controlada o no— y cirugía
+  // reciente, pero el veto solo se consumía comparándolo con el NOMBRE del
+  // ejercicio. Un plan con `intensity_method: 'drop_set'` o `target_rir: 0`
+  // pasaba entero, porque "Curl con mancuerna" no suena a intensidad alta.
+  //
+  // El veto es sobre la INTENSIDAD, no sobre cómo se llame el movimiento.
+  const sinTecnicasAvanzadas =
+    ctx.age >= 65 || ctx.saludDesconocida === true || vetadas.has('intensidad_alta');
 
   const dias = plan.days.map((dia) => {
     if (dia.type !== 'workout') return dia;
@@ -170,17 +179,29 @@ export function validarPlan(plan: PlanSemanal, ctx: ContextoValidacion): Resulta
         continue;
       }
 
-      // Técnicas de intensidad donde no tocan.
-      if (sinTecnicasAvanzadas && ej.intensity_method && ej.intensity_method !== 'none') {
+      // Técnicas de intensidad, y RIR al fallo, donde no tocan.
+      //
+      // target_rir 0 o 1 es "hasta el fallo o casi", que es intensidad alta
+      // escrita en otro campo. Normalizar solo intensity_method dejaba la mitad
+      // del problema en pie.
+      const alFallo = (ej.target_rir ?? 2) < 2;
+      const conTecnica = !!ej.intensity_method && ej.intensity_method !== 'none';
+      if (sinTecnicasAvanzadas && (conTecnica || alFallo)) {
         correcciones.push({
           dia: dia.day,
           ejercicio: ej.name,
           motivo: ctx.age >= 65
             ? 'las técnicas de intensidad no se programan a partir de los 65'
-            : 'no se pudo leer tu tamizaje, así que nada de técnicas de intensidad',
+            : ctx.saludDesconocida
+              ? 'no se pudo leer tu tamizaje, así que nada de técnicas de intensidad'
+              : 'lo que declaraste desaconseja llegar a intensidades altas',
           accion: 'ajustado',
         });
-        ejercicios.push({ ...ej, intensity_method: 'none' });
+        ejercicios.push({
+          ...ej,
+          intensity_method: 'none',
+          target_rir: Math.max(ej.target_rir ?? 2, 2),
+        });
         continue;
       }
 

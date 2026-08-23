@@ -241,6 +241,11 @@ create table if not exists public.food_logs (
 );
 alter table public.food_logs add column if not exists xp_credited_at timestamptz;
 select public._apply_owner_rls('food_logs');
+-- Mismo motivo: xp_credited_at ancla el XP de la comida. Se conserva INSERT
+-- —registrar una comida es la función— y DELETE, que es su derecho a borrarla;
+-- lo que se retira es el UPDATE, que permitía devolver la marca a null y volver
+-- a cobrar, o inflar los macros de una comida ya registrada.
+revoke update on public.food_logs from anon, authenticated;
 
 -- ─── SESIONES ────────────────────────────────────────────
 create table if not exists public.workout_sessions (
@@ -266,6 +271,17 @@ create unique index if not exists workout_session_idempotency
   where client_session_key is not null;
 
 select public._apply_owner_rls('workout_sessions');
+-- La MARCA DE ACREDITACIÓN no la toca el cliente. xp_credited_at es lo que
+-- impide cobrar dos veces el XP de la misma sesión: apply_workout_stats la pone
+-- y solo paga si estaba en null. Con UPDATE de tabla completa, un cliente
+-- modificado la devolvía a null y reclamaba el XP otra vez — y de paso podía
+-- reescribir duration_min, exercises_completed y el grado de finalización, que
+-- son justo la evidencia sobre la que se calcula todo.
+--
+-- INSERT tampoco: las sesiones las abre complete_workout_session, que valida las
+-- series, el plan y el rango temporal. Poder insertarlas a mano sería saltarse
+-- esa validación entera.
+revoke insert, update on public.workout_sessions from anon, authenticated;
 
 -- ─── SERIES (peso × reps) ────────────────────────────────
 create table if not exists public.set_logs (
@@ -808,6 +824,9 @@ declare
   v_uid uuid := auth.uid();
   v_date date := coalesce(p_workout_date, current_date);
   v_xp integer := 0;
+  -- null = build antiguo que no mandó las series planeadas: se trata como
+  -- completa, igual que antes. Inventarle un grado sería el mismo error.
+  v_grado text;
   v_last date;
   v_streak integer;
   v_freezes integer;
@@ -845,19 +864,24 @@ begin
 
   -- Reclamar evidencia ANTES de calcular nada. La fecha también sale de la
   -- sesión del servidor; p_workout_date se conserva solo por compatibilidad.
+  -- El GRADO viaja con la evidencia. Ayer se calculó completion_status y se
+  -- guardó, pero no llegaba hasta aquí: una sesión de una serie seguía cobrando
+  -- el XP entero, sumando a la racha y contando como entreno completo. Solo se
+  -- había frenado el avance del día del plan, y el comentario de más arriba
+  -- afirmaba lo contrario. Se lee de la MISMA fila que ya se reclama.
   v_date := null;
   if p_session_id is not null then
     update public.workout_sessions w set xp_credited_at = now()
     where w.id = p_session_id and w.user_id = v_uid
       and w.completed_at is not null and w.xp_credited_at is null
-    returning w.completed_at::date into v_date;
+    returning w.completed_at::date, w.completion_status into v_date, v_grado;
   else
     update public.workout_sessions w set xp_credited_at = now()
     where w.id = (
       select x.id from public.workout_sessions x
       where x.user_id = v_uid and x.completed_at is not null and x.xp_credited_at is null
       order by x.completed_at desc limit 1 for update skip locked
-    ) returning w.completed_at::date into v_date;
+    ) returning w.completed_at::date, w.completion_status into v_date, v_grado;
   end if;
   if v_date is null then
     return query
@@ -900,9 +924,32 @@ begin
       when v_new_streak >= 3 then 25
       else 0
     end;
+
+    -- EL GRADO ESCALA EL PAGO. Una sesión de una serie cobraba lo mismo que una
+    -- entera: se calculaba completion_status, se guardaba, y no llegaba hasta
+    -- aquí. Solo se había frenado el avance del día del plan.
+    --
+    -- Se reconoce el trabajo hecho, no se castiga: una parcial cobra la mitad y
+    -- una mínima un cuarto. Cero sería borrar el esfuerzo de alguien que tuvo un
+    -- mal día, y eso es justo lo que hace que la gente deje de registrar.
+    --
+    -- null = build antiguo que no manda las series planeadas: paga entero, igual
+    -- que antes. Inventarle un grado sería el mismo error en la otra dirección.
+    v_xp := case v_grado
+      when 'parcial' then floor(v_xp * 0.5)::integer
+      when 'minima'  then floor(v_xp * 0.25)::integer
+      else v_xp
+    end;
   end if;
 
-  select coalesce(s.total_workouts, 0) + 1
+  -- Y una sesión mínima NO cuenta como entrenamiento para la racha ni para el
+  -- total. La racha mide constancia, y una serie suelta no es un entrenamiento;
+  -- dejarla contar convertía la racha en un contador de aperturas de la app.
+  if v_grado = 'minima' then
+    v_new_streak := v_streak;   -- se queda como estaba: ni suma ni rompe
+  end if;
+
+  select coalesce(s.total_workouts, 0) + case when v_grado = 'minima' then 0 else 1 end
     into v_new_sessions
   from public.user_stats s where s.user_id = v_uid;
 
@@ -1311,6 +1358,9 @@ create table if not exists public.body_scans (
 );
 alter table public.body_scans add column if not exists xp_credited_at timestamptz;
 select public._apply_owner_rls('body_scans');
+-- Igual. Se conserva DELETE: borrar su historial de análisis corporal es un
+-- derecho, y la pantalla de perfil lo ofrece.
+revoke update on public.body_scans from anon, authenticated;
 create index if not exists body_scans_user_date on public.body_scans(user_id, scanned_at desc);
 
 -- Versión blindada de la acreditación no deportiva. Conserva todos los
@@ -1342,6 +1392,9 @@ declare
   v_uid uuid := auth.uid();
   v_claimed boolean := false;
   v_xp integer := 0;
+  -- null = build antiguo que no mandó las series planeadas: se trata como
+  -- completa, igual que antes. Inventarle un grado sería el mismo error.
+  v_grado text;
   v_streak integer;
   v_sessions integer;
   v_meals integer;
@@ -2073,6 +2126,7 @@ language sql immutable as $$ select 12.00::numeric $$;
  * Es idempotente por request_id: el mismo id no reserva dos veces.
  */
 create or replace function public.reservar_ai(
+  p_user_id uuid,
   p_request_id text,
   p_budget_usd numeric,
   p_estimado_usd numeric,
@@ -2082,14 +2136,17 @@ create or replace function public.reservar_ai(
 returns numeric
 language plpgsql security definer set search_path = public as $$
 declare
-  v_uid uuid := auth.uid();
+  -- El id llega EXPLÍCITO porque ahora la llama el service role, y con service
+  -- role auth.uid() es null. El proxy lo saca del JWT que ya verificó, nunca del
+  -- cuerpo de la petición: es el mismo criterio que record_ai_cost.
+  v_uid uuid := p_user_id;
   v_mes date := date_trunc('month', current_date)::date;
   v_total numeric;
   v_global numeric;
   v_ya numeric;
 begin
   if v_uid is null then
-    raise exception 'reservar_ai requiere un usuario autenticado';
+    raise exception 'reservar_ai requiere un usuario';
   end if;
   if p_request_id is null or length(p_request_id) < 8 then
     raise exception 'reservar_ai requiere un request_id';
@@ -2098,13 +2155,30 @@ begin
     raise exception 'reservar_ai necesita un presupuesto y un estimado numéricos';
   end if;
 
-  -- 1. IDEMPOTENCIA. Si esta petición ya reservó, se devuelve lo que quedaba y
-  --    no se cobra otra vez. Un reintento tras un timeout es la misma petición.
-  select reservado_usd into v_ya from public.ai_reservas where request_id = p_request_id;
+  -- 1. IDEMPOTENCIA, ATADA AL DUEÑO Y A UNA RESERVA VIVA.
+  --
+  -- La primera versión buscaba SOLO por request_id, sin mirar de quién era ni si
+  -- ya se había cuadrado. Como el id lo elige el cliente y viaja en una cabecera,
+  -- bastaba con fijarlo a una constante: la segunda llamada y todas las
+  -- siguientes entraban por aquí, devolvían saldo y salían ANTES del freno global
+  -- y ANTES de sumar nada. El gasto dejaba de apuntarse en ningún sitio.
+  --
+  -- Un reintento de verdad es: mismo id, MISMO USUARIO, y la reserva todavía
+  -- abierta (real_usd null, o sea que la petición anterior no llegó a cuadrarse).
+  -- Cualquier otra cosa es una petición nueva y se cobra como tal.
+  select reservado_usd into v_ya
+    from public.ai_reservas
+   where request_id = p_request_id and user_id = v_uid and real_usd is null;
   if found then
     select coalesce(cost_usd, 0) into v_total from public.ai_cost_usage
      where user_id = v_uid and month = v_mes;
     return p_budget_usd - coalesce(v_total, 0);
+  end if;
+
+  -- Un id ya CERRADO (o de otra persona) no puede volver a usarse: si lo
+  -- dejáramos pasar, reutilizarlo sería exactamente el agujero de arriba.
+  if exists (select 1 from public.ai_reservas where request_id = p_request_id) then
+    raise exception 'request_id ya usado';
   end if;
 
   -- 2. FRENO GLOBAL. Antes que el del usuario: si la plataforma está en llamas,
@@ -2141,10 +2215,17 @@ begin
 
   return p_budget_usd - v_total;
 end $$;
-grant execute on function public.reservar_ai(text, numeric, numeric, text, text) to authenticated;
+-- NO se concede a 'authenticated'. Recibe el presupuesto y el estimado como
+-- parámetros: con el grant, cualquiera podía llamarla a mano con un estimado
+-- enorme y agotar el freno global por hora de TODA la plataforma en una sola
+-- llamada. Solo el proxy la invoca, y el proxy usa el service role.
+revoke all on function public.reservar_ai(text, numeric, numeric, text, text) from public, anon, authenticated;
+grant execute on function public.reservar_ai(text, numeric, numeric, text, text) to service_role;
 -- La firma vieja se elimina: dejarla viva sería un camino que reserva SIN
 -- idempotencia, y Postgres elegiría una u otra por resolución de sobrecarga.
 drop function if exists public.reservar_ai(numeric, numeric);
+-- Y la de ayer, que derivaba el usuario de auth.uid() y era del cliente.
+drop function if exists public.reservar_ai(text, numeric, numeric, text, text);
 
 /**
  * Cambia la reserva por el costo REAL, una vez que el proveedor respondió.

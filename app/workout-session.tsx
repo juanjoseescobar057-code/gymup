@@ -390,6 +390,11 @@ export default function WorkoutSessionScreen() {
     // usuario, está completada y no ha cobrado antes. Sin él, un bucle de
     // llamadas a la RPC subía de nivel sin entrenar.
     let sessionId: string | null = null;
+    // El grado de finalización, fuera del bloque de guardado: lo necesita el
+    // avance del día, que ocurre bastante más abajo. null = build antiguo o
+    // salida sin series, y en los dos casos se comporta como antes.
+    let gradoSesion: 'completa' | 'parcial' | 'minima' | null = null;
+    let pctSesion: number | null = null;
 
     try {
       // 1. Guardar la sesión en Supabase (con id para enlazar las series).
@@ -430,8 +435,14 @@ export default function WorkoutSessionScreen() {
           completedAt: new Date().toISOString(),
           durationMin,
           sets: loggedSetsRef.current,
+          // Las series que tenía el día según el plan ADAPTADO, que es el que se
+          // le enseñó. Comparar contra el plan original sería medirle contra una
+          // sesión que nunca vio.
+          plannedSets: exercises.reduce((t: number, e: any) => t + (e.sets ?? 0), 0),
         });
         sessionId = saved.sessionId;
+        gradoSesion = saved.completionStatus;
+        pctSesion = saved.completionPct;
         if (saved.alreadyCompleted) track('workout_save_idempotent', { session_id: sessionId });
 
         // Salida sin ninguna serie: no hubo entrenamiento que guardar, así que
@@ -497,6 +508,17 @@ export default function WorkoutSessionScreen() {
           // enseñaría el mensaje de bienvenida justo después de entrenar.
           olvidarUltimoEntreno();
 
+          // EL DÍA SOLO AVANZA SI TERMINÓ. Antes avanzaba con una serie: quien
+          // se iba a la tercera se encontraba al día siguiente con la sesión
+          // que no llegó a hacer ya dada por hecha, y el plan entero corrido.
+          //
+          // null = build sin grado de finalización: se comporta como antes.
+          if (gradoSesion === 'parcial' || gradoSesion === 'minima') {
+            track('workout_parcial', {
+              completion_pct: pctSesion ?? -1,
+              status: gradoSesion,
+            });
+          } else {
           const nextDay = ((profile.current_plan_day ?? 0) + 1) % 7;
           const { data: updatedProfile, error: updateError } = await supabase
             .from('user_profiles')
@@ -509,6 +531,7 @@ export default function WorkoutSessionScreen() {
             console.log('Error actualizando día del plan:', updateError.message);
           } else if (updatedProfile) {
             setProfile(updatedProfile);
+          }
           }
         } catch (e) {
           captureError(e, { scope: 'workout_finish_next_day' });

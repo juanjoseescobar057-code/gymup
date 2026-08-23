@@ -347,13 +347,20 @@ create or replace function public.complete_workout_session(
   p_started_at timestamptz,
   p_completed_at timestamptz,
   p_duration_min integer,
-  p_sets jsonb
+  p_sets jsonb,
+  -- Cuántas series tenía el día según el plan. Sin esto no se puede saber si
+  -- alguien terminó o se fue a la tercera serie, y las dos cosas se guardaban
+  -- exactamente igual. Es opcional para no romper a los builds ya instalados:
+  -- si no llega, el grado sale null y todo se comporta como antes.
+  p_planned_sets integer default null
 )
 returns table (
   session_id uuid,
   exercises_completed integer,
   sets_saved integer,
-  already_completed boolean
+  already_completed boolean,
+  completion_status text,
+  completion_pct integer
 )
 language plpgsql security definer set search_path = public as $$
 declare
@@ -362,6 +369,8 @@ declare
   v_exercises integer;
   v_sets integer;
   v_duration integer;
+  v_pct integer;
+  v_status text;
 begin
   if v_uid is null then raise exception 'Se requiere autenticación'; end if;
   if p_client_session_key is null then raise exception 'Falta la clave idempotente'; end if;
@@ -389,7 +398,9 @@ begin
   if v_session is not null then
     select count(*), count(distinct l.exercise_name)
       into v_sets, v_exercises from public.set_logs l where l.session_id = v_session;
-    return query select v_session, v_exercises, v_sets, true;
+    select w.completion_status, w.completion_pct into v_status, v_pct
+      from public.workout_sessions w where w.id = v_session;
+    return query select v_session, v_exercises, v_sets, true, v_status, v_pct;
     return;
   end if;
 
@@ -409,12 +420,33 @@ begin
   select count(distinct btrim(x.exercise_name)), count(*) into v_exercises, v_sets
   from jsonb_to_recordset(p_sets) as x(exercise_name text);
 
+  -- El grado de finalización. Los cortes:
+  --   >= 80%  completa  — terminó, con el margen de una serie que se salta
+  --   >= 40%  parcial   — hizo trabajo de verdad, pero no la sesión
+  --   <  40%  mínima    — empezó y se fue
+  --
+  -- Solo 'completa' avanza el día del plan y da el XP entero. Una parcial se
+  -- guarda, cuenta para el historial y recibe reconocimiento proporcional:
+  -- borrarla sería castigar a quien tuvo un mal día, y darle lo mismo que a una
+  -- sesión entera sería mentirle sobre su propio progreso.
+  if p_planned_sets is null or p_planned_sets <= 0 then
+    v_pct := null;
+    v_status := null;   -- builds antiguos: se comporta como antes
+  else
+    v_pct := least(100, round(v_sets::numeric * 100 / p_planned_sets)::integer);
+    v_status := case when v_pct >= 80 then 'completa'
+                     when v_pct >= 40 then 'parcial'
+                     else 'minima' end;
+  end if;
+
   insert into public.workout_sessions (
     user_id, training_plan_id, day_index, started_at, completed_at,
-    duration_min, exercises_completed, client_session_key
+    duration_min, exercises_completed, client_session_key,
+    planned_sets, completed_sets, completion_pct, completion_status
   ) values (
     v_uid, p_training_plan_id, p_day_index, p_started_at, p_completed_at,
-    v_duration, v_exercises, p_client_session_key
+    v_duration, v_exercises, p_client_session_key,
+    p_planned_sets, v_sets, v_pct, v_status
   ) returning id into v_session;
 
   insert into public.set_logs (
@@ -426,9 +458,13 @@ begin
     exercise_name text, set_number integer, weight_kg numeric, reps integer, rir numeric
   );
 
-  return query select v_session, v_exercises, v_sets, false;
+  return query select v_session, v_exercises, v_sets, false, v_status, v_pct;
 end $$;
-grant execute on function public.complete_workout_session(uuid, uuid, integer, timestamptz, timestamptz, integer, jsonb) to authenticated;
+grant execute on function public.complete_workout_session(uuid, uuid, integer, timestamptz, timestamptz, integer, jsonb, integer) to authenticated;
+-- La firma vieja se elimina: dejarla viva sería un camino que guarda sesiones
+-- SIN grado de finalización, y Postgres elegiría una u otra por resolución de
+-- sobrecarga según cómo llamara cada build.
+drop function if exists public.complete_workout_session(uuid, uuid, integer, timestamptz, timestamptz, integer, jsonb);
 
 -- ─── POSTURA (reservado) ─────────────────────────────────
 create table if not exists public.posture_feedback (
@@ -440,6 +476,24 @@ create table if not exists public.posture_feedback (
   corrections jsonb,
   recorded_at timestamptz default now()
 );
+-- ─── GRADO DE FINALIZACIÓN DE LA SESIÓN ──────────────────
+-- Cualquier conjunto de series no vacío se guardaba como "entrenamiento
+-- completado": una serie de calentamiento y salir contaba lo mismo que hora y
+-- media. Y de ahí colgaba todo — el plan avanzaba de día, se sumaba una sesión,
+-- se daba el XP entero, y la racha, la adherencia y la detección de mesetas se
+-- calculaban sobre un dato que no era cierto.
+--
+-- No se quita nada: se añade el CONTEXTO que faltaba. Una sesión parcial se
+-- sigue guardando —abandonar a mitad también es información, y borrarla sería
+-- castigar a quien tuvo un mal día— pero deja de valer lo mismo.
+alter table public.workout_sessions add column if not exists planned_sets integer;
+alter table public.workout_sessions add column if not exists completed_sets integer;
+alter table public.workout_sessions add column if not exists completion_pct integer;
+alter table public.workout_sessions add column if not exists completion_status text;
+alter table public.workout_sessions drop constraint if exists workout_sessions_completion_status_check;
+alter table public.workout_sessions add constraint workout_sessions_completion_status_check
+  check (completion_status is null or completion_status in ('completa', 'parcial', 'minima'));
+
 select public._apply_owner_rls('posture_feedback');
 
 -- ─── STATS / GAMIFICACIÓN ────────────────────────────────

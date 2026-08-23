@@ -8,6 +8,21 @@ export type CompletedWorkout = {
   exercisesCompleted: number;
   setsSaved: number;
   alreadyCompleted: boolean;
+  /**
+   * Qué tan entera quedó la sesión.
+   *
+   *   'completa' (>=80%) → avanza el día del plan y da el XP entero.
+   *   'parcial'  (>=40%) → se guarda y cuenta en el historial, con XP proporcional.
+   *   'minima'   (<40%)  → se guarda, no avanza el plan.
+   *   null               → el llamador no dijo cuántas series tenía el día
+   *                        (build antiguo): se comporta como antes.
+   *
+   * Una parcial NO se borra: abandonar a mitad también es información, y
+   * borrarla sería castigar a quien tuvo un mal día. Lo que no puede es valer lo
+   * mismo que una sesión entera.
+   */
+  completionStatus: 'completa' | 'parcial' | 'minima' | null;
+  completionPct: number | null;
 };
 
 /**
@@ -22,6 +37,15 @@ export async function completeWorkout(input: {
   completedAt: string;
   durationMin: number;
   sets: SetLogInput[];
+  /**
+   * Cuántas series tenía el día según el plan.
+   *
+   * Sin esto no se puede distinguir "terminé" de "hice tres series y me fui", y
+   * las dos cosas se guardaban EXACTAMENTE igual: el plan avanzaba, se sumaba
+   * una sesión, se daba el XP entero, y la racha, la adherencia y la detección
+   * de mesetas se calculaban sobre un dato que no era cierto.
+   */
+  plannedSets?: number;
 }): Promise<CompletedWorkout> {
   const sets = normalizeCompletedSets(input.sets);
 
@@ -32,7 +56,10 @@ export async function completeWorkout(input: {
   // pasaba: los dos botones de salida fallaban con un error de validación.
   // Se sale sin registrar nada, que es exactamente lo que ocurrió.
   if (sets.length === 0) {
-    return { sessionId: null, exercisesCompleted: 0, setsSaved: 0, alreadyCompleted: false };
+    return {
+      sessionId: null, exercisesCompleted: 0, setsSaved: 0, alreadyCompleted: false,
+      completionStatus: null, completionPct: null,
+    };
   }
 
   const { data, error } = await supabase.rpc('complete_workout_session', {
@@ -43,6 +70,7 @@ export async function completeWorkout(input: {
     p_completed_at: input.completedAt,
     p_duration_min: input.durationMin,
     p_sets: sets,
+    p_planned_sets: input.plannedSets ?? null,
   });
   if (error) throw new Error(`No se pudo guardar la sesión: ${error.message}`);
   const row = Array.isArray(data) ? data[0] : data;
@@ -52,5 +80,7 @@ export async function completeWorkout(input: {
     exercisesCompleted: Number(row.exercises_completed ?? 0),
     setsSaved: Number(row.sets_saved ?? 0),
     alreadyCompleted: Boolean(row.already_completed),
+    completionStatus: (row.completion_status ?? null) as CompletedWorkout['completionStatus'],
+    completionPct: row.completion_pct == null ? null : Number(row.completion_pct),
   };
 }

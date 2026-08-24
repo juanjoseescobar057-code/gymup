@@ -71,7 +71,9 @@ export async function syncPremiumWithServer(): Promise<boolean | null> {
     if (typeof data?.is_premium !== 'boolean') return null;
     // El servidor manda: se refleja en el store para que la UI coincida con lo
     // que el proxy va a responder.
-    await syncLocalPremium(data.is_premium);
+    // 'servidor': esta sí puede quitarlo. sync-premium consulta la API de
+    // RevenueCat con la clave secreta, no la caché del teléfono.
+    await syncLocalPremium(data.is_premium, 'servidor');
     return data.is_premium;
   } catch {
     return null;
@@ -119,12 +121,34 @@ function hasPremium(customerInfo: any): boolean {
   return !!customerInfo?.entitlements?.active?.[PREMIUM_ENTITLEMENT];
 }
 
-/** Refleja el entitlement en el store local (optimista; el webhook es la verdad). */
-async function syncLocalPremium(active: boolean): Promise<void> {
+/**
+ * Refleja el entitlement en el store local (optimista; el webhook es la verdad).
+ *
+ * QUIÉN PUEDE QUITAR PREMIUM. El SDK del dispositivo puede CONCEDERLO pero no
+ * puede quitarlo, y esa asimetría es deliberada.
+ *
+ * Antes daba igual la fuente: si getCustomerInfo() no encontraba entitlement,
+ * el store bajaba a false y con él toda la interfaz de pago. Pero ese SDK
+ * responde de su caché local, y hay varias situaciones normales en las que va
+ * por detrás de la realidad: acaba de comprar y el webhook ya escribió pero el
+ * dispositivo aún no se ha refrescado; se reinstaló y todavía no ha
+ * restaurado; la tienda tarda en propagar una renovación. En todas ellas el
+ * usuario tiene Premium pagado y la app se lo escondía.
+ *
+ * Quitarlo es competencia del SERVIDOR: el webhook escribe is_premium cuando
+ * una suscripción caduca o se cancela, y app/index.tsx lee esa columna en cada
+ * arranque. Por ahí sí baja, y baja con fundamento.
+ */
+async function syncLocalPremium(
+  active: boolean,
+  fuente: 'dispositivo' | 'servidor' = 'dispositivo'
+): Promise<void> {
   try {
     const { useUserStore } = require('../store/userStore');
     const s = useUserStore.getState();
-    if (s.profile && s.profile.is_premium !== active) {
+    if (!s.profile) return;
+    if (!active && fuente === 'dispositivo' && s.profile.is_premium) return;
+    if (s.profile.is_premium !== active) {
       s.setProfile({ ...s.profile, is_premium: active });
     }
   } catch {}

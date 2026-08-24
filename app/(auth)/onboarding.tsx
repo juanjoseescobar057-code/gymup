@@ -13,7 +13,7 @@ import { generateTrainingPlan, calculateDailyMacros } from '../../lib/openai';
 import { captureError } from '../../lib/monitoring';
 import { useUserStore } from '../../store/userStore';
 import AuthSheet from '../../Components/AuthSheet';
-import { linkEmailPassword } from '../../lib/account';
+import { linkEmailPassword, isValidEmail } from '../../lib/account';
 import HealthForm from '../../Components/HealthForm';
 import { EMPTY_HEALTH, computeRisk, type HealthProfile } from '../../lib/healthMath';
 import { type AIShapeError } from '../../lib/schemas';
@@ -105,6 +105,11 @@ export default function OnboardingScreen() {
   const [signInSheet, setSignInSheet] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Confirmación de contraseña. Sin ella, una errata al teclear deja la cuenta
+  // con una contraseña que nadie conoce: el correo queda vinculado, el usuario
+  // cree estar a salvo, y al reinstalar no puede entrar. Es el mismo desenlace
+  // que no tener cuenta, solo que descubierto más tarde y con más que perder.
+  const [password2, setPassword2] = useState('');
 
   const ageRef = useRef<TextInput>(null);
   const weightRef = useRef<TextInput>(null);
@@ -155,9 +160,36 @@ export default function OnboardingScreen() {
     return true;
   }
 
+  /**
+   * Qué le falta a la cuenta, o null si está completa.
+   *
+   * La cuenta dejó de ser opcional. Antes se pedía el correo como "opcional,
+   * muy recomendado" y se podía omitir; el razonamiento era que obligar en el
+   * primer minuto ahuyenta a quien todavía no sabe si la app le sirve. El
+   * problema es lo que costaba al otro lado: sin correo la sesión es anónima,
+   * y una sesión anónima se pierde al reinstalar, al cambiar de teléfono o al
+   * borrar los datos de la app — sin logout de por medio y sin ninguna vía de
+   * vuelta, porque no hay credencial que presentar.
+   *
+   * Quien pagó una suscripción y reinstala recupera la SUSCRIPCIÓN por la
+   * tienda, no sus datos: racha, historial, fotos y plan se quedan huérfanos
+   * en una fila que ya nadie puede reclamar.
+   */
+  function faltaEnLaCuenta(): string | null {
+    if (!isValidEmail(email)) return 'Escribe un correo válido: es lo único que te permite volver a entrar.';
+    if (password.length < 8) return 'Tu contraseña necesita al menos 8 caracteres.';
+    if (password !== password2) return 'Las dos contraseñas no coinciden.';
+    return null;
+  }
+
   async function handleFinish() {
     if (!legalConsent) {
       Alert.alert('Necesitamos tu autorización', 'Lee y acepta los Términos y la Política de Privacidad para guardar datos de salud y crear tu plan.');
+      return;
+    }
+    const falta = faltaEnLaCuenta();
+    if (falta) {
+      Alert.alert('Falta tu cuenta', falta);
       return;
     }
     Keyboard.dismiss();
@@ -186,24 +218,46 @@ export default function OnboardingScreen() {
         userId = authData.user.id;
       }
 
-      // Vincular el correo si lo dio. Va DESPUÉS de tener sesión y ANTES de
-      // guardar nada: así el perfil y el plan nacen ya ligados a una cuenta
-      // recuperable. Si falla (correo ya en uso, contraseña corta) NO se aborta
-      // el onboarding: se avisa y se sigue en anónimo — perder el registro
-      // entero por un correo repetido sería peor que quedarse sin correo.
-      if (email.trim()) {
-        const link = await linkEmailPassword(email, password);
-        if (!link.ok) {
-          Alert.alert(
-            'No pudimos vincular tu correo',
-            `${link.error ?? 'Intenta de nuevo.'}\n\nSeguimos con tu registro. Puedes añadirlo más tarde desde Perfil.`
-          );
-        } else {
-          track('account_linked', { origen: 'onboarding' });
-          if ('needsEmailConfirm' in link && link.needsEmailConfirm) {
-            Alert.alert('Revisa tu correo', 'Te enviamos un email para confirmar tu cuenta. Tu progreso ya está vinculado.');
-          }
-        }
+      // Vincular el correo. Va DESPUÉS de tener sesión y ANTES de guardar
+      // nada: así el perfil y el plan nacen ya ligados a una cuenta recuperable.
+      //
+      // Si falla, se ABORTA. Antes se avisaba y se seguía en anónimo, con el
+      // argumento de que perder el registro entero por un correo repetido era
+      // peor que quedarse sin correo. Es al revés: quedarse sin correo no se
+      // nota hasta que ya no tiene arreglo, y el aviso llega en mitad de la
+      // pantalla de "generando tu plan", cuando nadie lee. Volver al paso 3 con
+      // el formulario intacto cuesta diez segundos.
+      const link = await linkEmailPassword(email, password);
+      if (!link.ok) {
+        clearInterval(msgInterval);
+        setStep(3);
+        // "Ya registrado" no es un error del usuario: es alguien que vuelve.
+        // Mandarlo a inventar otro correo lo dejaría con una segunda cuenta
+        // vacía y sus datos en la primera, que es justo lo que esto evita.
+        const yaExiste = /already|registrad|in use|exists/i.test(link.error ?? '');
+        Alert.alert(
+          yaExiste ? 'Ese correo ya tiene cuenta' : 'No pudimos crear tu cuenta',
+          yaExiste
+            ? 'Parece que ya te habías registrado. Entra con tu contraseña y recuperas tu plan, tu historial y tu racha en este teléfono.'
+            : `${link.error ?? 'Intenta de nuevo.'}\n\nTus respuestas siguen aquí: corrige y vuelve a darle.`,
+          yaExiste
+            ? [{ text: 'Usar otro correo', style: 'cancel' }, { text: 'Iniciar sesión', onPress: () => setSignInSheet(true) }]
+            : [{ text: 'Entendido' }]
+        );
+        return;
+      }
+      track('account_linked', { origen: 'onboarding' });
+      if (link.needsEmailConfirm) {
+        // "Tu progreso ya está vinculado" era falso mientras la confirmación
+        // sigue pendiente: en Supabase el correo no queda atado a la cuenta
+        // hasta que se abre el enlace, así que iniciar sesión con él todavía
+        // no funciona. Decirle que está a salvo es justo la frase que hace que
+        // no abra el correo — y lo descubre al reinstalar, que es tarde.
+        Alert.alert(
+          'Confirma tu correo',
+          'Te enviamos un enlace. Mientras no lo abras, tu cuenta vive solo en este teléfono: ' +
+          'si lo pierdes o reinstalas la app no podrás entrar con ese correo. Te lleva un minuto.'
+        );
       }
 
       // DEJAR CONSTANCIA DE LA AUTORIZACIÓN, antes de escribir ningún dato de
@@ -405,6 +459,26 @@ export default function OnboardingScreen() {
                   <Text style={s.title}>ENTRENA{'\n'}<Text style={s.accent}>COMO</Text>{'\n'}ÉLITE.</Text>
                   <Text style={s.sub}>Tu coach de IA que aprende contigo cada día. Sin excusas.</Text>
 
+                  {/* LA PUERTA DE VUELTA. Existía, pero al FINAL de este mismo
+                      paso: por debajo del formulario, del botón de continuar y
+                      del texto legal. Quien reinstala la app no lee esa pantalla
+                      de arriba abajo — teclea su nombre y le da a continuar, y
+                      con eso ya está creándose una segunda cuenta encima de la
+                      suya, que sigue en la base de datos sin dueño.
+                      Va antes del primer campo porque el momento de reconocer
+                      "ya tengo cuenta" es antes de rehacer el trabajo que la
+                      cuenta guardaba, no después. */}
+                  <TouchableOpacity
+                    onPress={() => setSignInSheet(true)}
+                    style={s.volverRow}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ya tengo cuenta, iniciar sesión para recuperar mis datos"
+                  >
+                    <Text style={s.volverTxt}>
+                      ¿Ya tienes cuenta? <Text style={s.volverLink}>Inicia sesión</Text>
+                    </Text>
+                  </TouchableOpacity>
+
                   <Text style={s.lbl}>¿Cómo te llamas?</Text>
                   <TextInput
                     style={s.input}
@@ -536,11 +610,13 @@ export default function OnboardingScreen() {
                   <Text style={s.consentTxt}>Al continuar, {AGE_CONFIRMATION}</Text>
                   <Text style={s.disclaimerTxt}>{MEDICAL_DISCLAIMER}</Text>
 
-                  <TouchableOpacity onPress={() => setSignInSheet(true)} style={{ alignItems: 'center', marginTop: Spacing.md }}
-                    accessibilityRole="button" accessibilityLabel="¿Ya tienes cuenta? Inicia sesión">
-                    <Text style={s.signInLink}>¿Ya tienes cuenta? Inicia sesión</Text>
-                  </TouchableOpacity>
-
+                  {/* El enlace de "ya tengo cuenta" ESTABA aquí, y aquí es
+                      demasiado abajo: después del formulario, después del botón
+                      de continuar y después del texto legal. Quien reinstala la
+                      app no llega a verlo — rellena nombre, edad y peso, pulsa
+                      continuar, y para cuando podría haberlo visto ya está en el
+                      paso 2 creándose una cuenta nueva encima de la suya.
+                      Ahora está arriba del todo, antes del primer campo. */}
                   {__DEV__ && (
                     <TouchableOpacity onPress={() => router.push('/live-coach' as any)} style={{ alignItems: 'center', marginTop: Spacing.md }}
                       accessibilityRole="button" accessibilityLabel="Modo desarrollo: probar el coach en vivo">
@@ -735,13 +811,19 @@ export default function OnboardingScreen() {
                       recuperar la cuenta: si pierdes el teléfono, pierdes el
                       plan, el historial y las fotos. Y la recuperación de
                       contraseña que acabamos de añadir no sirve de nada.
-                      Se pide aquí, y se puede omitir: obligarlo en el primer
-                      minuto es la forma más rápida de perder a alguien que
-                      todavía no sabe si la app le sirve. */}
-                  <Text style={s.lbl}>Tu correo (opcional, muy recomendado)</Text>
+                      Se pedía aquí y se PODÍA OMITIR: obligarlo en el primer
+                      minuto parecía la forma más rápida de perder a alguien que
+                      todavía no sabe si la app le sirve.
+                      Ya no se puede omitir. Ese razonamiento pesaba la fricción
+                      de un campo contra un coste que no se ve, y el coste que no
+                      se ve es perderlo todo al reinstalar — sin logout, sin
+                      aviso y sin vuelta atrás, porque una sesión anónima no
+                      tiene ninguna credencial que presentar. Alguien que pagó
+                      recupera la suscripción por la tienda y NO sus datos. */}
+                  <Text style={s.lbl}>Tu correo</Text>
                   <Text style={[s.actDesc, { marginBottom: 10 }]}>
-                    Es lo único que te permite recuperar tu cuenta si cambias de teléfono o
-                    pierdes este. Sin correo, tu plan y tu historial viven solo en este dispositivo.
+                    Es lo único que te permite volver a entrar. Si cambias de teléfono, lo
+                    pierdes o reinstalas la app, tu plan, tu historial y tus fotos vuelven contigo.
                   </Text>
                   <TextInput
                     style={s.input}
@@ -752,22 +834,40 @@ export default function OnboardingScreen() {
                     autoCapitalize="none"
                     keyboardType="email-address"
                     autoComplete="email"
-                    accessibilityLabel="Tu correo electrónico, opcional"
+                    accessibilityLabel="Tu correo electrónico"
                   />
-                  {email.trim().length > 0 && (
-                    <>
-                      <Text style={[s.lbl, { marginTop: Spacing.md }]}>Contraseña</Text>
-                      <TextInput
-                        style={s.input}
-                        value={password}
-                        onChangeText={setPassword}
-                        placeholder="Mínimo 8 caracteres"
-                        placeholderTextColor={Colors.textDisabled}
-                        secureTextEntry
-                        autoCapitalize="none"
-                        accessibilityLabel="Contraseña para tu cuenta"
-                      />
-                    </>
+                  <Text style={[s.lbl, { marginTop: Spacing.md }]}>Contraseña</Text>
+                  <TextInput
+                    style={s.input}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Mínimo 8 caracteres"
+                    placeholderTextColor={Colors.textDisabled}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoComplete="new-password"
+                    accessibilityLabel="Contraseña para tu cuenta, mínimo 8 caracteres"
+                  />
+
+                  <Text style={[s.lbl, { marginTop: Spacing.md }]}>Repite tu contraseña</Text>
+                  <TextInput
+                    style={s.input}
+                    value={password2}
+                    onChangeText={setPassword2}
+                    placeholder="La misma de arriba"
+                    placeholderTextColor={Colors.textDisabled}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoComplete="new-password"
+                    accessibilityLabel="Repite tu contraseña"
+                  />
+                  {/* El aviso aparece mientras se teclea, no al pulsar el botón:
+                      descubrir la errata después de "generando tu plan" obliga a
+                      volver sobre pasos que ya se daban por hechos. */}
+                  {password2.length > 0 && password !== password2 && (
+                    <Text style={[s.actDesc, { color: Colors.error, marginTop: 6 }]}>
+                      Las dos contraseñas no coinciden.
+                    </Text>
                   )}
 
                   <TouchableOpacity style={[s.actRow, legalConsent && s.actSel]} onPress={() => setLegalConsent((v) => !v)}
@@ -785,7 +885,9 @@ export default function OnboardingScreen() {
                     </TouchableOpacity>
                   </View>
 
-                  <TouchableOpacity style={[s.cta, !legalConsent && { opacity: 0.55 }]} onPress={handleFinish} activeOpacity={0.85}
+                  {/* Atenuado, NO deshabilitado: pulsarlo explica qué falta. Un
+                      botón muerto deja adivinando cuál de los campos estorba. */}
+                  <TouchableOpacity style={[s.cta, (!legalConsent || faltaEnLaCuenta() != null) && { opacity: 0.55 }]} onPress={handleFinish} activeOpacity={0.85}
                     accessibilityRole="button" accessibilityLabel="Generar mi plan con inteligencia artificial">
                     <Text style={s.ctaTxt}>GENERAR MI PLAN IA ✦</Text>
                   </TouchableOpacity>
@@ -840,6 +942,11 @@ const s = StyleSheet.create({
   // El paddingBottom base se suma al inset inferior en el componente: sin eso,
   // en teléfonos con barra de gestos el botón de continuar queda debajo de ella.
   scroll: { paddingHorizontal: Spacing.lg },
+  // 44 de alto mínimo: es el objetivo táctil por debajo del cual la gente falla
+  // el toque. Un enlace de texto suelto se queda en ~18.
+  volverRow: { minHeight: 44, justifyContent: 'center', marginBottom: Spacing.md },
+  volverTxt: { color: Colors.textMuted, fontFamily: Fonts.body, fontSize: Type.body },
+  volverLink: { color: Colors.accent, fontFamily: Fonts.bodySemi, textDecorationLine: 'underline' },
   steps: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: Spacing.lg },
   dot: { width: 28, height: 4, borderRadius: 2, backgroundColor: Colors.border },
   dotActive: { backgroundColor: Colors.accent, width: 48 },

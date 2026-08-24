@@ -76,7 +76,13 @@ export default function AuthSheet({ visible, mode, onClose, onSuccess }: Props) 
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (isLink && 'needsEmailConfirm' in res && res.needsEmailConfirm) {
-        Alert.alert('Revisa tu correo', 'Te enviamos un email para confirmar tu cuenta. Tu progreso ya está vinculado.');
+        // Ver el comentario de onboarding.tsx: hasta que se confirma, el correo
+        // no está atado a la cuenta y no sirve para iniciar sesión.
+        Alert.alert(
+          'Confirma tu correo',
+          'Te enviamos un enlace. Mientras no lo abras, tu cuenta vive solo en este teléfono: ' +
+          'si lo pierdes o reinstalas la app no podrás entrar con ese correo. Te lleva un minuto.'
+        );
       }
       setEmail(''); setPassword('');
       onSuccess();

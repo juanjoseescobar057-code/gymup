@@ -8,6 +8,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import Constants from 'expo-constants';
+
+// Versión de marketing MÁS versionCode. Los dos, porque varios builds comparten
+// el 1.3.0 y el que los distingue es el segundo número — que es justo el que
+// hace falta para saber si un teléfono tiene el build de hoy.
+const versionApp = `${Constants.expoConfig?.version ?? '?'} (${
+  (Constants.expoConfig as any)?.android?.versionCode ?? '?'
+})`;
 import { supabase, type BiologicalSex } from '../../lib/supabase';
 import { useUserStore } from '../../store/userStore';
 import { borrarDatosLocales } from '../../lib/borradoLocal';
@@ -670,6 +678,16 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* QUÉ VERSIÓN ES ESTA. No estaba en ninguna parte, y sin ella no hay
+            forma de saber si el teléfono tiene el build de hoy o el de la
+            semana pasada — ni probando, ni cuando alguien reporta un fallo.
+            El versionCode va al lado del número de marketing a propósito: dos
+            builds distintos comparten el 1.3.0, y el que los distingue es el
+            de al lado. */}
+        <Text style={s.versionTxt} accessibilityLabel={`Versión ${versionApp}`}>
+          Rityvo {versionApp}
+        </Text>
+
       </ScrollView>
 
       <AuthSheet
@@ -923,6 +941,10 @@ const s = StyleSheet.create({
   macroNote: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, marginHorizontal: Spacing.lg, marginBottom: 20, lineHeight: 18 },
   logoutBtn: { borderWidth: 1, borderColor: Colors.error, borderRadius: Radii.lg, paddingVertical: 16, alignItems: 'center' },
   logoutTxt: { fontFamily: Fonts.bodySemi, fontSize: 15, color: Colors.error },
+  versionTxt: {
+    fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textDisabled,
+    textAlign: 'center', marginTop: Spacing.lg,
+  },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   modalBox: { backgroundColor: Colors.bgCard, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border, maxHeight: '92%' },
   modalTitle: { fontFamily: Fonts.heading, fontSize: 26, color: Colors.textPrimary },

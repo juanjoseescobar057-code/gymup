@@ -18,18 +18,34 @@ import Constants from 'expo-constants';
 
 const KEY = 'gymup_pose_camera_unsupported_v1';
 
-const appVersion: string = Constants.expoConfig?.version ?? 'unknown';
+/**
+ * El BUILD, no la versión de marketing.
+ *
+ * Esto guardaba solo `version` — "1.3.0" — y los builds 22, 23 y 24 comparten
+ * ese número. Para este código todas las 1.3.0 eran la misma, así que el
+ * "tras una actualización se reintenta UNA vez" que promete el comentario de
+ * arriba no ocurría nunca: un teléfono marcado durante el build 22 seguía
+ * yendo directo al modo simulado en el 23 y en el 24, aunque el arreglo nativo
+ * que necesitaba viniera justo ahí.
+ *
+ * El versionCode sí cambia en cada subida a Play — es obligatorio, Google no
+ * acepta el mismo dos veces— así que es lo único que distingue un build del
+ * siguiente.
+ */
+const buildActual: string = `${Constants.expoConfig?.version ?? 'unknown'}(${
+  (Constants.expoConfig as any)?.android?.versionCode ?? '?'
+})`;
 
-/** ¿Este dispositivo ya demostró que la cámara de pose no le funciona (en esta versión)? */
+/** ¿Este dispositivo ya demostró que la cámara de pose no le funciona (en este build)? */
 export async function isPoseCameraMarkedUnsupported(): Promise<boolean> {
   try {
-    return (await AsyncStorage.getItem(KEY)) === appVersion;
+    return (await AsyncStorage.getItem(KEY)) === buildActual;
   } catch {
     return false; // ante la duda, intentar la cámara (el boundary contiene el fallo)
   }
 }
 
-/** Marca este dispositivo como no soportado para la versión actual de la app. */
+/** Marca este dispositivo como no soportado para el build actual. */
 export function markPoseCameraUnsupported(): void {
-  AsyncStorage.setItem(KEY, appVersion).catch(() => {});
+  AsyncStorage.setItem(KEY, buildActual).catch(() => {});
 }

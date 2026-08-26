@@ -13,6 +13,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { tomarFoto, elegirDeGaleria, avisarError } from '../lib/camara';
+// El permiso se pide AQUÍ y no en lib/camara porque estas dos pantallas
+// ofrecen registrar a mano cuando se niega, que es mejor salida que la genérica.
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -194,15 +197,19 @@ function FridgeScanScreenContenido() {
         return;
       }
 
-      const picked = fromCamera
-        ? await ImagePicker.launchCameraAsync({ quality: 0.85, mediaTypes: ['images'] })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.85, mediaTypes: ['images'] });
+      // `Alert.alert('Error', e.message)` le enseñaba a alguien que quiere
+      // fotografiar su nevera el texto crudo de una IllegalStateException de
+      // Java. Ahora el mensaje explica qué pasó y ofrece la galería, que en el
+      // fallo concreto que vimos sigue funcionando cuando la cámara no.
+      const r = fromCamera ? await tomarFoto() : await elegirDeGaleria();
+      if (r.estado === 'cancelado') return;
+      if (r.estado === 'error') {
+        avisarError(r, () => doPickPhoto(false));
+        return;
+      }
 
-      if (picked.canceled || !picked.assets?.[0]) return;
-
-      const uri = picked.assets[0].uri;
-      setPhotoUri(uri);
-      await analyze(uri);
+      setPhotoUri(r.uri);
+      await analyze(r.uri);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }

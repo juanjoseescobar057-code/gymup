@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
+import { tomarFoto, avisarError } from '../../lib/camara';
 import * as Haptics from 'expo-haptics';
 import Svg, { Polyline, Circle, Line, Text as SvgText } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
@@ -366,11 +366,15 @@ export default function ProgressScreen() {
   async function takeTransformPhoto() {
     if (!profile) return;
     if (!(await asegurarDisclosure())) return;
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) return;
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (result.canceled) return;
-    const localUri = result.assets[0].uri;
+    // Sin captura ninguna y con `if (!perm.granted) return;`: los dos caminos
+    // de fallo dejaban la pantalla intacta y al usuario sin saber qué pasó.
+    const r = await tomarFoto({ quality: 0.8 });
+    if (r.estado === 'cancelado') return;
+    if (r.estado === 'error') {
+      avisarError(r);
+      return;
+    }
+    const localUri = r.uri;
     const today = new Date().toISOString().split('T')[0];
     const id = Date.now().toString();
 

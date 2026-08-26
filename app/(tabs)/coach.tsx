@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Alert, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
+import { tomarFoto, elegirDeGaleria, avisarError } from '../../lib/camara';
 import * as Haptics from 'expo-haptics';
 import { useUserStore } from '../../store/userStore';
 import { imageToOptimizedBase64 } from '../../lib/image';
@@ -286,19 +286,14 @@ function CoachScreenContenido() {
     if (!premiumGate()) return;
     if (!(await asegurarDisclosure())) return;
     try {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permiso necesario', 'El coach necesita acceso a la cámara.');
+      const r = await tomarFoto({ quality: 0.9, allowsEditing: false });
+      if (r.estado === 'cancelado') return;
+      if (r.estado === 'error') {
+        avisarError(r, () => pickFromGallery());
         return;
       }
-      const picked = await ImagePicker.launchCameraAsync({
-        quality: 0.9,
-        mediaTypes: ['images'],
-        allowsEditing: false,
-      });
-      if (picked.canceled || !picked.assets?.[0]) return;
-      setPhotoUri(picked.assets[0].uri);
-      await runAnalysis(picked.assets[0].uri);
+      setPhotoUri(r.uri);
+      await runAnalysis(r.uri);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
@@ -308,15 +303,16 @@ function CoachScreenContenido() {
     if (!premiumGate()) return;
     if (!(await asegurarDisclosure())) return;
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) return;
-      const picked = await ImagePicker.launchImageLibraryAsync({
-        quality: 0.9,
-        mediaTypes: ['images'],
-      });
-      if (picked.canceled || !picked.assets?.[0]) return;
-      setPhotoUri(picked.assets[0].uri);
-      await runAnalysis(picked.assets[0].uri);
+      // `if (!perm.granted) return;` era un fallo mudo: negar el permiso
+      // dejaba la pantalla igual que antes, sin decir por qué no pasa nada.
+      const r = await elegirDeGaleria({ quality: 0.9 });
+      if (r.estado === 'cancelado') return;
+      if (r.estado === 'error') {
+        avisarError(r);
+        return;
+      }
+      setPhotoUri(r.uri);
+      await runAnalysis(r.uri);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }

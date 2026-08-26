@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
+import { tomarFoto, avisarError } from '../lib/camara';
 import * as Haptics from 'expo-haptics';
 import { imageToOptimizedBase64 } from '../lib/image';
 import { supabase } from '../lib/supabase';
@@ -271,21 +271,17 @@ function BodyScanScreenContenido() {
   }
 
   async function takePhoto() {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permiso necesario', 'Rityvo necesita acceso a la cámara.');
+    // Esta función NO capturaba nada. Cuando la cámara fallaba —y falla, ver
+    // lib/camara.ts— quedaba una promesa rechazada sin dueño: se tocaba el
+    // botón y no ocurría nada, sin mensaje ni pista de qué había pasado.
+    const r = await tomarFoto({ allowsEditing: false });
+    if (r.estado === 'cancelado') return;
+    if (r.estado === 'error') {
+      avisarError(r);
       return;
     }
 
-    const picked = await ImagePicker.launchCameraAsync({
-      quality: 0.85,
-      mediaTypes: ['images'],
-      allowsEditing: false,
-    });
-
-    if (picked.canceled || !picked.assets?.[0]) return;
-
-    const uri = picked.assets[0].uri;
+    const uri = r.uri;
     const base64 = await imageToOptimizedBase64(uri);
     const pose = POSES[currentPoseIndex];
 

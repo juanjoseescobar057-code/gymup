@@ -5,6 +5,9 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { tomarFoto, elegirDeGaleria, avisarError } from '../lib/camara';
+// El permiso se pide AQUÍ y no en lib/camara porque estas dos pantallas
+// ofrecen registrar a mano cuando se niega, que es mejor salida que la genérica.
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
@@ -133,24 +136,19 @@ function FoodScanScreenContenido() {
         return;
       }
 
-      const picked = fromCamera
-        ? await ImagePicker.launchCameraAsync({
-            quality: 0.8,
-            mediaTypes: ['images'],
-            allowsEditing: false,
-          })
-        : await ImagePicker.launchImageLibraryAsync({
-            quality: 0.8,
-            mediaTypes: ['images'],
-            allowsEditing: false,
-          });
+      const opciones = { quality: 0.8, allowsEditing: false };
+      const r = fromCamera ? await tomarFoto(opciones) : await elegirDeGaleria(opciones);
+      if (r.estado === 'cancelado') return;
+      if (r.estado === 'error') {
+        // Con salida a la galería: quedarse sin poder registrar la comida
+        // porque Android mató la Activity no puede ser el final del camino.
+        avisarError(r, () => doPickPhoto(false));
+        return;
+      }
 
-      if (picked.canceled || !picked.assets?.[0]) return;
-
-      const uri = picked.assets[0].uri;
-      if (__DEV__) console.log('[FoodScan] URI seleccionada:', uri);
-      setPhotoUri(uri);
-      await analyze(uri);
+      if (__DEV__) console.log('[FoodScan] URI seleccionada:', r.uri);
+      setPhotoUri(r.uri);
+      await analyze(r.uri);
     } catch (e: any) {
       Alert.alert('Error', 'Error al abrir cámara: ' + (e?.message ?? 'desconocido'));
     }

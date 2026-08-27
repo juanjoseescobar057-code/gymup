@@ -73,7 +73,15 @@ export type CoachSnapshot = {
     exercises: { name: string; sets: number; reps: string }[];
   } | null;
   topLifts: TopLift[];
-  lastBodyScan?: { score: number | null; fatPct: number | null; focus: string[] } | null;
+  lastBodyScan?: {
+    fecha: string | null;
+    score: number | null;
+    fatPct: number | null;
+    focus: string[];
+    fortalezas: string[];
+    zonas: { zona: string; que: string }[];
+    notasPlan: string | null;
+  } | null;
   /**
    * Qué hacer con las cargas si vuelve de una pausa. null = no viene de una.
    * Es la diferencia entre un coach que le propone a alguien las mismas series
@@ -122,7 +130,12 @@ export async function fetchCoachSnapshot(args: {
       .limit(30),
     supabase
       .from('body_scans')
-      .select('overall_score, estimated_fat_pct, focus_areas')
+      // La ficha llevaba SOLO score, grasa y enfoque: tres números. Con eso, a
+      // "¿qué viste en mi foto?" el coach respondía con verdad que no tenía ese
+      // contexto — no lo tenía. Lo que la IA de verdad escribió sobre el cuerpo
+      // (las zonas, las fortalezas) y sobre el plan (notes = refined_plan_notes)
+      // se guardaba en la base y no salía de ahí.
+      .select('scanned_at, overall_score, estimated_fat_pct, focus_areas, strengths, zones, notes')
       .eq('user_id', uid)
       .order('scanned_at', { ascending: false })
       .limit(1)
@@ -251,9 +264,22 @@ export async function fetchCoachSnapshot(args: {
   const scan = scanRes.status === 'fulfilled' ? scanRes.value.data : null;
   const lastBodyScan = scan
     ? {
+        fecha: (scan as any).scanned_at ?? null,
         score: (scan as any).overall_score ?? null,
         fatPct: (scan as any).estimated_fat_pct ?? null,
         focus: Array.isArray((scan as any).focus_areas) ? (scan as any).focus_areas.slice(0, 3) : [],
+        fortalezas: Array.isArray((scan as any).strengths) ? (scan as any).strengths.slice(0, 3) : [],
+        // Solo las zonas que la IA marcó para trabajar. Las que salieron bien ya
+        // van en `fortalezas`, y repetirlas aquí gastaría contexto sin añadir
+        // nada — el prompt de la ficha entra en CADA mensaje del chat.
+        zonas: Array.isArray((scan as any).zones)
+          ? (scan as any).zones
+              .filter((z: any) => z?.status === 'priority' || z?.status === 'focus')
+              .slice(0, 4)
+              .map((z: any) => ({ zona: String(z?.label ?? ''), que: String(z?.message ?? '') }))
+          : [],
+        // refined_plan_notes: qué debería cambiar en su plan según las fotos.
+        notasPlan: typeof (scan as any).notes === 'string' ? (scan as any).notes.slice(0, 400) : null,
       }
     : null;
 
@@ -439,9 +465,23 @@ export function snapshotToPrompt(s: CoachSnapshot): string {
     const b = s.lastBodyScan;
     const parts: string[] = [];
     if (b.score != null) parts.push(`score ${b.score}/100`);
-    if (b.fatPct != null) parts.push(`~${b.fatPct}% grasa`);
+    if (b.fatPct != null) parts.push(`~${b.fatPct}% grasa (estimación visual, no medición)`);
     if (b.focus.length) parts.push(`enfoque: ${b.focus.join(', ')}`);
-    if (parts.length) L.push(`- Último análisis corporal: ${parts.join(' · ')}`);
+
+    const cuando = b.fecha
+      ? new Date(b.fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
+      : null;
+    // La FECHA importa tanto como los números: sin ella el coach no sabe si
+    // habla de algo de ayer o de hace dos meses, y "tu último análisis" sobre
+    // fotos viejas es peor que no mencionarlo.
+    if (parts.length) {
+      L.push(`- Último análisis corporal${cuando ? ` (${cuando})` : ''}: ${parts.join(' · ')}`);
+    }
+    if (b.fortalezas.length) L.push(`  · Lo que salió bien: ${b.fortalezas.join('; ')}`);
+    for (const z of b.zonas) {
+      if (z.zona && z.que) L.push(`  · ${z.zona}: ${z.que}`);
+    }
+    if (b.notasPlan) L.push(`  · Qué debería cambiar en su plan según esas fotos: ${b.notasPlan}`);
   }
 
   // ── Lo que la persona HACE en la app (para dar seguimiento real) ──

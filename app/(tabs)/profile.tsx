@@ -21,7 +21,8 @@ import { useUserStore } from '../../store/userStore';
 import { borrarDatosLocales } from '../../lib/borradoLocal';
 import { calculateDailyMacros } from '../../lib/openai';
 import { getAccountEmail, deleteAccountServerSide } from '../../lib/account';
-import { regenerateAdaptivePlan, restorePreviousPlan, saveAdaptedPlan } from '../../lib/adaptivePlan';
+import { restorePreviousPlan } from '../../lib/adaptivePlan';
+import { ofrecerAjusteDePlan } from '../../lib/ofrecerAjusteDePlan';
 import { planChangePreview } from '../../lib/planDiff';
 import { canUseFeature } from '../../lib/subscription';
 import { resetPurchasesIdentity } from '../../lib/purchases';
@@ -310,45 +311,26 @@ export default function ProfileScreen() {
   }
 
   // Re-planificación adaptativa con IA (Premium).
+  //
+  // El flujo entero —generar, enseñar el diff, aplicar solo si se confirma—
+  // vive en lib/ofrecerAjusteDePlan.ts. Estaba escrito aquí, y ahora hay un
+  // segundo sitio que lo ofrece (el final de un análisis corporal): con dos
+  // copias, el próximo cambio se haría en una sola. Ya ha pasado tres veces en
+  // este repositorio.
   async function handleAdaptPlan() {
     if (!profile || !trainingPlan?.plan_data) return;
     const gate = canUseFeature('regenerate_plan', !!profile.is_premium);
     if (!gate.allowed) { router.push('/paywall' as any); return; }
-    setReplanning(true);
-    try {
-      const newPlan = await regenerateAdaptivePlan(profile, trainingPlan.plan_data);
-      const preview = planChangePreview(trainingPlan.plan_data, newPlan);
-      track('plan_adaptation_previewed', { changes: preview.split('\n').length });
-      Alert.alert(
-        'Revisa antes de aplicar',
-        `${preview}\n\nNada cambiará hasta que lo confirmes. Podrás deshacerlo después.`,
-        [
-          { text: 'Conservar mi plan', style: 'cancel' },
-          {
-            text: 'Aplicar cambios',
-            onPress: async () => {
-              setReplanning(true);
-              try {
-                const saved = await saveAdaptedPlan(profile.user_id, newPlan);
-                setTrainingPlan(saved);
-                setProfile({ ...profile, current_plan_day: 0 });
-                track('plan_adaptation_applied', { changes: preview.split('\n').length });
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Alert.alert('Plan actualizado', 'El ajuste está activo. Si no te funciona, puedes restaurar el anterior.');
-              } catch (error: any) {
-                Alert.alert('No se pudo aplicar', error?.message ?? 'Intenta de nuevo.');
-              } finally {
-                setReplanning(false);
-              }
-            },
-          },
-        ]
-      );
-    } catch (e: any) {
-      Alert.alert('No se pudo ajustar', e?.message ?? 'Intenta de nuevo.');
-    } finally {
-      setReplanning(false);
-    }
+    await ofrecerAjusteDePlan({
+      profile,
+      planActual: trainingPlan.plan_data,
+      origen: 'perfil',
+      onCargando: setReplanning,
+      onAplicado: (guardado) => {
+        setTrainingPlan(guardado);
+        setProfile({ ...profile, current_plan_day: 0 });
+      },
+    });
   }
 
   async function handleRestorePlan() {

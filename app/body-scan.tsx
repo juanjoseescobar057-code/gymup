@@ -22,6 +22,7 @@ import { recordBodyScan } from '../lib/streaks';
 import { parseAI, BodyAnalysisSchema, PhotoValidationSchema } from '../lib/schemas';
 import { aiChat, esRechazoDeCupo } from '../lib/aiClient';
 import { canUseFeature } from '../lib/subscription';
+import { ofrecerAjusteDePlan } from '../lib/ofrecerAjusteDePlan';
 import { track } from '../lib/analytics';
 import { captureError } from '../lib/monitoring';
 import ReportContentButton from '../Components/ReportContentButton';
@@ -245,6 +246,9 @@ Incluye entre 4 y 7 zonas. Sé específico y descriptivo.`,
 
 function BodyScanScreenContenido() {
   const profile = useUserStore((s: any) => s.profile);
+  const setProfile = useUserStore((s: any) => s.setProfile);
+  const trainingPlan = useUserStore((s: any) => s.trainingPlan);
+  const setTrainingPlan = useUserStore((s: any) => s.setTrainingPlan);
 
   const [phase, setPhase] = useState<'consent' | 'capture' | 'analyzing' | 'result'>('consent');
   const [currentPoseIndex, setCurrentPoseIndex] = useState(0);
@@ -269,6 +273,34 @@ function BodyScanScreenContenido() {
       .single();
     if (data) setPreviousScan(data as PreviousScan);
     return (data as PreviousScan) ?? null;
+  }
+
+  // ── Del análisis al plan ──
+  //
+  // refined_plan_notes se generaba en cada análisis, se guardaba en
+  // body_scans.notes, se pintaba en pantalla... y ahí moría. Alguien se
+  // fotografiaba, leía "tu plan debería enfocarse más en core y menos volumen
+  // en espalda", y su plan seguía idéntico. El texto describía un cambio que
+  // no ocurría en ninguna parte.
+  const [ajustando, setAjustando] = useState(false);
+
+  async function aplicarAlPlan() {
+    if (!profile || !trainingPlan?.plan_data || !result) return;
+    // Mismo cupo que ajustar el plan desde Perfil: es la misma llamada de IA y
+    // el mismo costo. Entrar por otra pantalla no puede saltarse el tope.
+    const gate = canUseFeature('regenerate_plan', !!profile.is_premium);
+    if (!gate.allowed) { router.push('/paywall' as any); return; }
+    await ofrecerAjusteDePlan({
+      profile,
+      planActual: trainingPlan.plan_data,
+      notasCorporales: result.refined_plan_notes,
+      origen: 'analisis_corporal',
+      onCargando: setAjustando,
+      onAplicado: (guardado) => {
+        setTrainingPlan(guardado);
+        setProfile({ ...profile, current_plan_day: 0 });
+      },
+    });
   }
 
   async function takePhoto() {
@@ -886,6 +918,33 @@ function BodyScanScreenContenido() {
             <Text style={[s.listTxt, { padding: Spacing.md, lineHeight: 22 }]}>
               {result.refined_plan_notes}
             </Text>
+
+            {/* DEL TEXTO AL PLAN. Esto se quedaba en un párrafo: la IA decía qué
+                cambiar, la persona lo leía, y su plan seguía exactamente igual.
+                El botón cierra ese hueco — y no aplica nada de golpe: enseña el
+                diff y pide confirmación, igual que desde Perfil. */}
+            {!!trainingPlan?.plan_data && (
+              <TouchableOpacity
+                style={s.ajustarBtn}
+                onPress={aplicarAlPlan}
+                disabled={ajustando}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Ajustar mi plan de entrenamiento con lo que se vio en estas fotos"
+                accessibilityState={{ disabled: ajustando, busy: ajustando }}
+              >
+                {ajustando ? (
+                  <ActivityIndicator color={Colors.bg} />
+                ) : (
+                  <Text style={s.ajustarBtnTxt}>AJUSTAR MI PLAN CON ESTO →</Text>
+                )}
+              </TouchableOpacity>
+            )}
+            {!!trainingPlan?.plan_data && (
+              <Text style={s.ajustarNota}>
+                Te enseñamos qué cambia antes de aplicar nada, y podrás deshacerlo.
+              </Text>
+            )}
           </View>
 
           {/* Predicción */}
@@ -960,6 +1019,16 @@ function BodyScanScreenContenido() {
 }
 
 const s = StyleSheet.create({
+  ajustarBtn: {
+    backgroundColor: Colors.accent, borderRadius: Radii.md,
+    marginHorizontal: Spacing.md, marginBottom: Spacing.sm,
+    minHeight: 48, alignItems: 'center', justifyContent: 'center',
+  },
+  ajustarBtnTxt: { fontFamily: Fonts.bodySemi, fontSize: 14, color: Colors.bg, letterSpacing: 0.5 },
+  ajustarNota: {
+    fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textMuted,
+    paddingHorizontal: Spacing.md, paddingBottom: Spacing.md, textAlign: 'center',
+  },
   container: { flex: 1, backgroundColor: Colors.bg },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
   backBtn: { width: 40, height: 40, backgroundColor: Colors.bgCard, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },

@@ -36,7 +36,19 @@ const SEX_LABELS: Record<BiologicalSex, string> = {
  */
 export async function regenerateAdaptivePlan(
   profile: Pick<UserProfile, 'user_id' | 'age' | 'sex' | 'weight_kg' | 'height_cm' | 'goal' | 'activity_level' | 'training_experience' | 'days_per_week' | 'equipment'>,
-  currentPlan: WeeklyPlan
+  currentPlan: WeeklyPlan,
+  /**
+   * Lo que el análisis corporal dijo que debería cambiar (refined_plan_notes).
+   *
+   * La IA lo escribía en cada análisis, se guardaba en body_scans.notes, y no
+   * lo leía nadie: alguien se fotografiaba, recibía "tu plan debería enfocarse
+   * más en core y menos volumen en espalda", y su plan seguía igual.
+   *
+   * Es una OBSERVACIÓN sobre una foto sin calibrar, no una medición: entra
+   * como contexto y no puede pasar por encima del desempeño registrado, que
+   * son datos reales. El prompt lo dice explícitamente.
+   */
+  notasCorporales?: string | null
 ): Promise<WeeklyPlan> {
   // Perfiles anteriores a la columna `sex` llegan sin ella: 'unspecified' (neutro)
   // en vez del sesgo masculino por defecto.
@@ -162,6 +174,10 @@ ${JSON.stringify(diagnostics).slice(0, 6000)}
 
 Recuperación reciente declarada (puede faltar; no inventes valores):
 ${JSON.stringify(readiness ?? null)}
+${notasCorporales ? `
+Observación del último análisis corporal (fotos SIN calibrar — es una impresión visual, no una medición):
+${notasCorporales.slice(0, 600)}
+Úsala solo para decidir DÓNDE poner el énfasis (qué grupo merece algo más de volumen y cuál algo menos). NO puede contradecir el desempeño registrado ni el diagnóstico determinista, que son datos reales: si chocan, mandan ellos. Y no cambies el objetivo del usuario por lo que se vea en una foto.` : ''}
 
 Reglas de ajuste:
 - Si falta evidencia → NO diagnostiques estancamiento: conserva y pide registrar peso, reps y RIR.

@@ -96,7 +96,7 @@ export default function AuthSheet({ visible, mode, onClose, onSuccess }: Props) 
       <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); onClose(); }}>
         <View style={s.overlay}>
           <TouchableWithoutFeedback onPress={() => {}}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : 'height'}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : undefined}>
               <View style={s.box} accessibilityViewIsModal>
                 <Text style={s.title} accessibilityRole="header">{title}</Text>
                 <Text style={s.sub}>{subtitle}</Text>

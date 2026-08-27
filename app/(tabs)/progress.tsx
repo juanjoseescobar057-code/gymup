@@ -748,7 +748,7 @@ export default function ProgressScreen() {
         }}>
           <View style={s.overlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
-              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : 'height'}>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : undefined}>
                 <View style={s.modalBox} accessibilityViewIsModal
                   accessibilityLabel="Registrar peso">
                   <Text style={s.modalTitle} accessibilityRole="header">REGISTRAR PESO</Text>
@@ -801,7 +801,7 @@ export default function ProgressScreen() {
         <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setGoalModal(false); }}>
           <View style={s.overlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
-              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : 'height'}>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : undefined}>
                 <View style={s.modalBox} accessibilityViewIsModal
                   accessibilityLabel="Mi meta de peso">
                   <Text style={s.modalTitle} accessibilityRole="header">🎯 MI META</Text>

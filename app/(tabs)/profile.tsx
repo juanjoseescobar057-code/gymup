@@ -710,7 +710,7 @@ export default function ProfileScreen() {
         <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setEditModal(false); }}>
           <View style={s.overlay}>
             <TouchableWithoutFeedback onPress={() => {}}>
-              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : 'height'}>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'position' : undefined}>
                 <View style={s.modalBox} accessibilityViewIsModal accessibilityLabel="Editar perfil">
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg }}>
                     <Text style={s.modalTitle} accessibilityRole="header">EDITAR PERFIL</Text>

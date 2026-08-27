@@ -127,6 +127,27 @@ export type GateResult = { allowed: boolean; reason?: string };
  * Decide si el usuario puede usar una feature según su plan y uso de hoy.
  * PURA → testeable. `usedToday` aplica a features con cupo diario.
  */
+/**
+ * El aviso cuando no queda cupo.
+ *
+ * Con un tope de 0 —que es lo que tienen hoy el chat, el escaneo de comida y
+ * el de nevera en el plan gratis— el mensaje salía como "Llegaste al límite de
+ * 0 escaneos de comida por día" en el PRIMER uso, sin haber usado nada. Se lee
+ * como un fallo de la app, y encima esconde lo único que importa decir: que
+ * eso es de pago.
+ *
+ * Un tope de cero no es un límite alcanzado. Es una función que no está
+ * incluida.
+ */
+function sinCupo(tope: number, queEs: string, comoSeCuenta: string): GateResult {
+  return {
+    allowed: false,
+    reason: tope === 0
+      ? `${queEs} es una función Premium.`
+      : `Llegaste al límite de ${tope} ${comoSeCuenta} por hoy.`,
+  };
+}
+
 export function canUseFeature(
   feature: Feature,
   isPremium: boolean,
@@ -145,7 +166,7 @@ export function canUseFeature(
     case 'coach_chat':
       return usedToday < FREE_LIMITS.coachMessagesPerDay
         ? { allowed: true }
-        : { allowed: false, reason: `Llegaste al límite de ${FREE_LIMITS.coachMessagesPerDay} mensajes gratis con tu coach hoy.` };
+        : sinCupo(FREE_LIMITS.coachMessagesPerDay, 'Hablar con tu coach', 'mensajes con tu coach');
     case 'regenerate_plan':
       // NO es Premium, y el servidor nunca lo trató como tal: en la política
       // del proxy `plan` tiene premiumOnly:false y freeLimit:1. Es deliberado
@@ -159,11 +180,11 @@ export function canUseFeature(
     case 'food_scan':
       return usedToday < FREE_LIMITS.foodScansPerDay
         ? { allowed: true }
-        : { allowed: false, reason: `Llegaste al límite de ${FREE_LIMITS.foodScansPerDay} escaneos de comida por día.` };
+        : sinCupo(FREE_LIMITS.foodScansPerDay, 'Escanear tu comida', 'escaneos de comida');
     case 'fridge_scan':
       return usedToday < FREE_LIMITS.fridgeScansPerDay
         ? { allowed: true }
-        : { allowed: false, reason: `Llegaste al límite de ${FREE_LIMITS.fridgeScansPerDay} escaneo de nevera por día.` };
+        : sinCupo(FREE_LIMITS.fridgeScansPerDay, 'Escanear tu nevera', 'escaneos de nevera');
     default:
       return { allowed: true };
   }

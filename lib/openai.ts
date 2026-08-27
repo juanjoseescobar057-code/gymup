@@ -335,10 +335,22 @@ function postValidar(plan: WeeklyPlan, profile: PlanProfile, health: HealthProfi
     saludDesconocida: !health,
   });
   if (correcciones.length > 0) {
+    // SIN `motivos`. Ese campo mandaba fuera del teléfono frases como "exige
+    // impacto alto, que está vetado por lo que declaraste" — y captureError va
+    // a Sentry Y a la analítica propia. No nombra la condición, pero decir que
+    // esta persona tiene vetado el impacto alto, o la intensidad alta, deja muy
+    // poco que adivinar: embarazo, cardiopatía, una cirugía reciente. Es dato
+    // de salud por inferencia, y salía por la única puerta que los dos filtros
+    // de este repositorio no miran, porque va en el contexto y no en el mensaje.
+    //
+    // Lo que hacía falta saber —si el modelo incumple el prompt de seguridad a
+    // menudo, que es la señal de que el prompt no basta— se responde con el
+    // recuento y con qué se hizo. Sin eso, esta captura no sirve de nada.
     captureError(new Error('El plan generado incumplía el tamizaje'), {
       scope: 'generateTrainingPlan.postvalidacion',
       correcciones: correcciones.length,
-      motivos: correcciones.map((c) => c.motivo).join(' | ').slice(0, 300),
+      sustituidos: correcciones.filter((c) => c.accion === 'sustituido').length,
+      retirados: correcciones.filter((c) => c.accion === 'retirado').length,
     });
   }
   return corregido as WeeklyPlan;

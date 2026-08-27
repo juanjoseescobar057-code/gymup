@@ -151,7 +151,20 @@ export function validarPlan(plan: PlanSemanal, ctx: ContextoValidacion): Resulta
           ...(sustitutoVale ? { sustituto: sustituto! } : {}),
         });
         if (sustitutoVale) {
-          ejercicios.push({ ...ej, name: sustituto!, intensity_method: 'none', exercise_id: undefined });
+          // target_rir TAMBIÉN. Se normalizaba intensity_method y se dejaba el
+          // RIR intacto, y el continue de la línea siguiente se salta la
+          // normalización que sí existe más abajo (línea ~203). Resultado: a
+          // quien tiene vetada la intensidad alta se le sustituía el ejercicio
+          // y el sustituto llegaba con target_rir 0 — que es "hasta el fallo",
+          // o sea intensidad alta escrita en el otro campo. El veto se
+          // esquivaba solo, por la puerta que el propio archivo documenta.
+          ejercicios.push({
+            ...ej,
+            name: sustituto!,
+            intensity_method: 'none',
+            target_rir: Math.max(ej.target_rir ?? 2, 2),
+            exercise_id: undefined,
+          });
         }
         continue;
       }
@@ -174,7 +187,20 @@ export function validarPlan(plan: PlanSemanal, ctx: ContextoValidacion): Resulta
           ...(sustitutoVale ? { sustituto: sustituto! } : {}),
         });
         if (sustitutoVale) {
-          ejercicios.push({ ...ej, name: sustituto!, intensity_method: 'none', exercise_id: undefined });
+          // target_rir TAMBIÉN. Se normalizaba intensity_method y se dejaba el
+          // RIR intacto, y el continue de la línea siguiente se salta la
+          // normalización que sí existe más abajo (línea ~203). Resultado: a
+          // quien tiene vetada la intensidad alta se le sustituía el ejercicio
+          // y el sustituto llegaba con target_rir 0 — que es "hasta el fallo",
+          // o sea intensidad alta escrita en el otro campo. El veto se
+          // esquivaba solo, por la puerta que el propio archivo documenta.
+          ejercicios.push({
+            ...ej,
+            name: sustituto!,
+            intensity_method: 'none',
+            target_rir: Math.max(ej.target_rir ?? 2, 2),
+            exercise_id: undefined,
+          });
         }
         continue;
       }

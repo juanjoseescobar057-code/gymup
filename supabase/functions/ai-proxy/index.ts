@@ -450,10 +450,16 @@ Deno.serve(async (req) => {
     // Y varias funciones tienen el mismo tope en los tres planes —`plan` es 1 al
     // día siempre— así que a quien acababa de pagar se le ofrecía como solución
     // comprar lo que ya tenía, por algo que pagar no cambia.
-    const mensajeTope = isPremium
-      ? 'Ya usaste esta función el máximo de veces por hoy. Vuelve mañana.'
-      : esPrueba
-        ? 'Agotaste esta función por hoy. Se renueva mañana, y con Premium tienes más cada día.'
+    // LA PRUEBA VA PRIMERO. `esPrueba` se define como `isPremium && is_trial`
+    // (línea ~280), así que estar en prueba IMPLICA isPremium: con isPremium
+    // delante, la rama de la prueba no se alcanzaba nunca y a quien está en sus
+    // siete días se le decía "ya usaste el máximo por hoy" sin mencionarle que
+    // Premium le da más — que es justo lo que hay que decirle a alguien que
+    // está probando y todavía no ha pagado.
+    const mensajeTope = esPrueba
+      ? 'Agotaste esta función por hoy. Se renueva mañana, y con Premium tienes más cada día.'
+      : isPremium
+        ? 'Ya usaste esta función el máximo de veces por hoy. Vuelve mañana.'
         : 'Alcanzaste el límite gratuito de hoy. Con Premium tienes más cada día.';
     return json({ error: mensajeTope, code: 'limit_reached' }, 429);
   }

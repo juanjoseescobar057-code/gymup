@@ -20,7 +20,7 @@ import { supabase } from '../lib/supabase';
 import { useUserStore } from '../store/userStore';
 import { recordBodyScan } from '../lib/streaks';
 import { parseAI, BodyAnalysisSchema, PhotoValidationSchema } from '../lib/schemas';
-import { aiChat } from '../lib/aiClient';
+import { aiChat, esRechazoDeCupo } from '../lib/aiClient';
 import { canUseFeature } from '../lib/subscription';
 import { track } from '../lib/analytics';
 import { captureError } from '../lib/monitoring';
@@ -331,12 +331,17 @@ function BodyScanScreenContenido() {
       // Ahora se distingue. Un fallo de red o de tiempo se acepta avisando, que
       // es lo razonable; un rechazo del servidor no se acepta, porque no es un
       // fallo de la comprobación sino su resultado.
-      const mensaje = String(e?.message ?? '');
-      const esDeCuota = /429|402|límite|premium/i.test(mensaje);
-      if (esDeCuota) {
+      // POR EL CÓDIGO, NO POR EL TEXTO. Esto era
+      // /429|402|límite|premium/i.test(mensaje), y el día que se reescribieron
+      // los mensajes del proxy —para dejar de decirle "pásate a Premium" a
+      // quien ya pagaba— dejó de acertar en silencio: un rechazo por cupo se
+      // leía como fallo de conexión y la foto se aceptaba SIN comprobar, que es
+      // justo lo que este bloque existe para impedir.
+      if (esRechazoDeCupo(e)) {
         Alert.alert(
           'No pudimos comprobar la foto',
-          'Alcanzaste el límite de comprobaciones por hoy. Intenta de nuevo mañana.',
+          // El mensaje del servidor ya distingue prueba, gratis y Premium.
+          String(e?.message ?? 'Alcanzaste el límite de comprobaciones por hoy.'),
         );
       } else {
         const newPhoto: PosePhoto = { poseId: pose.id, uri, base64 };

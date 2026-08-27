@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { useUserStore } from '../store/userStore';
 import { fetchCoachSnapshot, snapshotHeadline, snapshotToPrompt, type CoachSnapshot } from '../lib/coachContext';
 import { askCoach, quickPrompts, type ChatMessage } from '../lib/coachChat';
+import { requierePremium } from '../lib/aiClient';
 import { loadCoachMemory, saveCoachMemory, distillMemory } from '../lib/coachMemory';
 import { scoreCoachReply } from '../lib/aiScore';
 import { attachScore } from '../lib/aiTelemetry';
@@ -290,8 +291,14 @@ export default function CoachChatScreen() {
     } catch (e: any) {
       setFailed(true);
       persist(history);
-      // 402/429 del proxy llegan como mensajes claros; mostrar paywall si aplica.
-      if (String(e?.message ?? '').includes('Premium')) router.push('/paywall' as any);
+      // POR EL CÓDIGO, NO POR LA PALABRA. Esto miraba si el mensaje contenía
+      // "Premium", y así se enteraba de que había que abrir el paywall. Al
+      // reescribir los avisos del proxy —para dejar de ofrecerle Premium a
+      // quien ya lo tiene— la palabra desapareció de varios de ellos y el
+      // paywall dejó de abrirse: quien agotaba el presupuesto mensual del plan
+      // gratis leía "se renueva el día 1" y la pantalla se quedaba quieta, sin
+      // ofrecerle la salida que sí existe.
+      if (requierePremium(e)) router.push('/paywall' as any);
     } finally {
       setSending(false);
     }
@@ -456,7 +463,18 @@ export default function CoachChatScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // ANDROID SÍ, AQUÍ. La regla de los modales no vale para esto.
+        //
+        // Se puso en undefined junto con los cinco modales, y esto no es un
+        // modal: es una pantalla completa del Stack (app/_layout.tsx la declara
+        // como ruta). En un <Modal transparent> el sistema recoloca el
+        // contenido solo; en una pantalla completa con el teclado abierto, sin
+        // este ajuste el campo de escribir se queda DEBAJO del teclado y no hay
+        // forma de ver lo que se teclea.
+        //
+        // O sea: el arreglo del teclado era correcto para los modales y roto
+        // para esta pantalla. La diferencia es el contenedor, no la plataforma.
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
       >
         <FlatList

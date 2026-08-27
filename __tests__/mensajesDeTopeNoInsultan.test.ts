@@ -34,20 +34,29 @@ const proxy = leerCodigo('supabase', 'functions', 'ai-proxy', 'index.ts');
 const cliente = leerCodigo('lib', 'aiClient.ts');
 
 test('el aviso de tope depende del plan de quien lo recibe', () => {
-  assert.ok(
-    /mensajeTope\s*=\s*isPremium/.test(proxy),
-    'el mensaje de tope es el mismo para todos: a un Premium se le dice que se pase a Premium',
-  );
+  // Ancla en las DOS banderas, no en cuál va primero. La primera versión exigía
+  // `mensajeTope = isPremium`, y reordenar el ternario —que era justo el
+  // arreglo de que la rama de la prueba fuera inalcanzable— la rompía sin que
+  // nada estuviera mal. Un test que fija el orden de un ternario comprueba
+  // cómo se escribió, no qué hace.
+  const i = proxy.indexOf('const mensajeTope');
+  assert.ok(i >= 0, 'no encontré el mensaje de tope');
+  const ternario = proxy.slice(i, i + 500);
+  assert.ok(/isPremium/.test(ternario), 'el mensaje no mira si es Premium');
+  assert.ok(/esPrueba/.test(ternario), 'el mensaje no mira si está en prueba');
 });
 
 test('a un Premium no se le ofrece Premium al toparse', () => {
+  // La rama de Premium por su TEXTO, esté donde esté en el ternario.
   const i = proxy.indexOf('const mensajeTope');
-  assert.ok(i >= 0, 'no encontré el mensaje de tope');
-  // La rama de Premium es la primera del ternario, hasta el `: esPrueba`.
-  const ramaPremium = proxy.slice(i, proxy.indexOf(': esPrueba', i));
+  const ternario = proxy.slice(i, i + 500);
+  const frases = [...ternario.matchAll(/'([^']{20,})'/g)].map((m) => m[1]);
+  assert.ok(frases.length >= 3, `solo encontré ${frases.length} mensajes: la extracción falla`);
+
+  const dePremium = frases.filter((f) => !/Premium/.test(f));
   assert.ok(
-    !/Premium/.test(ramaPremium.replace('isPremium', '')),
-    'la rama de Premium sigue mencionando Premium como solución',
+    dePremium.length >= 1,
+    'las tres ramas mencionan Premium: a quien ya paga se le está ofreciendo lo que tiene',
   );
 });
 

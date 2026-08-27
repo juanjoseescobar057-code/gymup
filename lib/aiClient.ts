@@ -39,6 +39,45 @@ function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
 }
 
 /** Tag de feature para que el servidor aplique entitlement/topes por función. */
+/**
+ * EL PORQUE DEL FALLO, NO SU REDACCION.
+ *
+ * Dos pantallas decidian que hacer comparando el TEXTO del error: coach-chat
+ * miraba si el mensaje contenia la palabra "Premium" para abrir el paywall, y
+ * body-scan hacia /429|402|limite|premium/i para saber si el servidor habia
+ * dicho que no. El dia que se mejoraron esos mensajes —para dejar de decirle
+ * "pasate a Premium" a quien ya pagaba— las dos comprobaciones dejaron de
+ * acertar, en silencio y sin que ningun test lo notara.
+ *
+ * El proxy ya distingue el motivo con un `code`. Eso es lo estable; el texto
+ * esta para que lo lea una persona y va a seguir cambiando.
+ */
+export type CodigoDeIA = 'limit_reached' | 'budget_reached' | 'premium_required' | null;
+
+export class ErrorDeIA extends Error {
+  readonly codigo: CodigoDeIA;
+  readonly status: number;
+  constructor(mensaje: string, codigo: CodigoDeIA, status: number) {
+    super(mensaje);
+    this.name = 'ErrorDeIA';
+    this.codigo = codigo;
+    this.status = status;
+  }
+}
+
+/** El servidor rechazo esto por cupo, presupuesto o por ser de pago. */
+export function esRechazoDeCupo(e: unknown): boolean {
+  return e instanceof ErrorDeIA && (e.codigo !== null || e.status === 429 || e.status === 402);
+}
+
+/** La salida razonable es ensenarle el paywall. */
+export function requierePremium(e: unknown): boolean {
+  if (!(e instanceof ErrorDeIA)) return false;
+  // budget_reached tambien: el presupuesto de gratis es mucho menor que el de
+  // Premium, asi que agotarlo es justo el momento en que Premium resuelve algo.
+  return e.codigo === 'premium_required' || e.codigo === 'budget_reached' || e.status === 402;
+}
+
 export type AIFeature =
   | 'plan' | 'food_scan' | 'fridge_scan' | 'body_scan' | 'scan_check'
   | 'coach' | 'coach_chat' | 'suggestion' | 'notification' | 'scoring' | 'general';
@@ -119,20 +158,22 @@ async function aiChatRaw(body: object, feature: AIFeature, requestId?: string): 
     // el prompt lleva las directivas de salud— acabara en la pantalla.
     const NUESTROS = ['limit_reached', 'budget_reached', 'premium_required'];
     let delServidor: string | null = null;
+    let codigoServidor: CodigoDeIA = null;
     try {
       const cuerpo = JSON.parse(msg);
       if (typeof cuerpo?.error === 'string' && NUESTROS.includes(cuerpo?.code)) {
         delServidor = cuerpo.error;
+        codigoServidor = cuerpo.code;
       }
     } catch {
       // No era JSON: es del proveedor. Se ignora, que para eso está la regla.
     }
 
     if (res.status === 429) {
-      throw new Error(delServidor ?? 'Alcanzaste el límite de IA de hoy. Vuelve mañana.');
+      throw new ErrorDeIA(delServidor ?? 'Alcanzaste el límite de IA de hoy. Vuelve mañana.', codigoServidor, 429);
     }
     if (res.status === 402) {
-      throw new Error(delServidor ?? 'Esta función es Premium. Suscríbete para usarla.');
+      throw new ErrorDeIA(delServidor ?? 'Esta función es Premium. Suscríbete para usarla.', codigoServidor ?? 'premium_required', 402);
     }
     // Tampoco aquí: este mensaje lo ve el usuario Y lo guarda logAiCall en
     // ai_telemetry. Adjuntar `msg` metía el cuerpo del proveedor —con el

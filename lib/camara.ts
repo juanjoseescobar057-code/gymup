@@ -51,7 +51,7 @@ function traducir(e: unknown, origen: 'camara' | 'galeria'): ResultadoFoto {
       titulo: 'Android cerró la app por detrás',
       mensaje:
         'Tu teléfono cerró Rityvo en segundo plano y la cámara se quedó a medias. ' +
-        'Ciérrala del todo y vuelve a abrirla, o usa una foto que ya tengas.',
+        'Ciérrala del todo y vuelve a abrirla.',
       // La galería usa otro contrato nativo: en este caso concreto suele seguir
       // funcionando aunque la cámara no.
       ofrecerGaleria: origen === 'camara',
@@ -81,9 +81,7 @@ export async function tomarFoto(
       return {
         estado: 'error',
         titulo: 'Permiso necesario',
-        mensaje:
-          'Rityvo necesita acceso a la cámara para esto. Puedes dárselo desde los ajustes ' +
-          'de Android, o elegir una foto que ya tengas.',
+        mensaje: 'Rityvo necesita acceso a la cámara para esto. Puedes dárselo desde los ajustes de Android.',
         ofrecerGaleria: true,
       };
     }
@@ -129,10 +127,21 @@ export function avisarError(
   usarGaleria?: () => void
 ): void {
   const { Alert } = require('react-native');
+
+  // LA GALERÍA SE MENCIONA SOLO SI EXISTE. Los mensajes decían "o usa una foto
+  // que ya tengas" siempre, y el análisis corporal y la foto de transformación
+  // NO tienen galería: quien leía eso buscaba la opción, no la encontraba, y se
+  // quedaba con un diálogo de un solo botón contradiciendo lo que acababa de
+  // leer. La frase la añade quien de verdad puede cumplirla.
+  const hayGaleria = r.ofrecerGaleria && !!usarGaleria;
+  const mensaje = hayGaleria
+    ? `${r.mensaje} También puedes elegir una foto que ya tengas.`
+    : r.mensaje;
+
   Alert.alert(
     r.titulo,
-    r.mensaje,
-    r.ofrecerGaleria && usarGaleria
+    mensaje,
+    hayGaleria
       ? [
           { text: 'Elegir de mis fotos', onPress: usarGaleria },
           { text: 'Cerrar', style: 'cancel' },

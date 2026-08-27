@@ -106,8 +106,34 @@ async function aiChatRaw(body: object, feature: AIFeature, requestId?: string): 
       codigo: codigoDeError(msg),
       largo_respuesta: msg.length,
     });
-    if (res.status === 429) throw new Error('Alcanzaste el límite de IA de hoy. Vuelve mañana o pásate a Premium.');
-    if (res.status === 402) throw new Error('Esta función es Premium. Suscríbete para usarla.');
+    // EL MENSAJE DEL SERVIDOR MANDA, cuando es nuestro.
+    //
+    // El proxy distingue con cuidado si estás en prueba, en gratis o en
+    // Premium, y redacta el aviso en consecuencia. Aquí se descartaba entero y
+    // se ponía uno fijo: "Vuelve mañana o pásate a Premium". A alguien que
+    // acababa de pagar se le decía que se pasara a Premium — que ya tiene— por
+    // haber usado dos veces algo que tiene tope de una al día.
+    //
+    // Solo se confía en el cuerpo si trae un `code` NUESTRO. Sin esa condición
+    // esto sería una vía para que el texto del proveedor —que cita el prompt, y
+    // el prompt lleva las directivas de salud— acabara en la pantalla.
+    const NUESTROS = ['limit_reached', 'budget_reached', 'premium_required'];
+    let delServidor: string | null = null;
+    try {
+      const cuerpo = JSON.parse(msg);
+      if (typeof cuerpo?.error === 'string' && NUESTROS.includes(cuerpo?.code)) {
+        delServidor = cuerpo.error;
+      }
+    } catch {
+      // No era JSON: es del proveedor. Se ignora, que para eso está la regla.
+    }
+
+    if (res.status === 429) {
+      throw new Error(delServidor ?? 'Alcanzaste el límite de IA de hoy. Vuelve mañana.');
+    }
+    if (res.status === 402) {
+      throw new Error(delServidor ?? 'Esta función es Premium. Suscríbete para usarla.');
+    }
     // Tampoco aquí: este mensaje lo ve el usuario Y lo guarda logAiCall en
     // ai_telemetry. Adjuntar `msg` metía el cuerpo del proveedor —con el
     // prompt dentro— en nuestra propia base por la puerta de atrás.

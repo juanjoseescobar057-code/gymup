@@ -55,9 +55,38 @@ test('el proxy reserva con el service role', () => {
 test('si el contador diario corta, la reserva se devuelve', () => {
   // Era el único retorno posterior a la reserva que no la liberaba: cobraba
   // dinero por una llamada que nunca se hizo, y repitiéndolo, el mes entero.
+  //
+  // Esto miraba los 600 caracteres anteriores al corte. Frágil: alargar un
+  // comentario en medio empujaba la llamada fuera de la ventana y el test caía
+  // sin que nada se hubiera roto. Peor aún, lo contrario también colaba —una
+  // llamada a ajustar_ai que quedara detrás de OTRO return contaría igual,
+  // aunque en este camino no se ejecutara nunca.
+  //
+  // Lo que hay que comprobar no es la distancia sino el CAMINO: que entre
+  // devolver la reserva y cortar no haya ningún return que se la salte.
   const i = proxy.indexOf("code: 'limit_reached'");
-  assert.ok(i > 0);
-  assert.match(proxy.slice(Math.max(0, i - 600), i), /ajustar_ai/);
+  assert.ok(i > 0, 'no encontré el corte por tope diario');
+
+  // El TRAMO de código que lleva a este corte: desde el return anterior —donde
+  // acaba el camino de antes— hasta este. Buscar hacia atrás sin acotar no
+  // servía: encontraba el ajustar_ai de otro camino (el de la caída del
+  // proveedor) y daba el test por bueno con esta rama vacía. Comprobado
+  // borrando la llamada: así sí falla.
+  const iReturn = proxy.lastIndexOf('return json(', i);
+  assert.ok(iReturn > 0, 'no encontré el return del corte');
+
+  const anterior = proxy.slice(0, iReturn);
+  const iTramo = Math.max(anterior.lastIndexOf('return json('), anterior.lastIndexOf('return;'));
+  assert.ok(iTramo > 0, 'no encontré dónde empieza este camino');
+
+  // La LLAMADA, no el nombre. Buscar "ajustar_ai" a secas lo encontraba dentro
+  // del console.error de la línea siguiente —'ajustar_ai tras tope diario:'—
+  // así que borrar la llamada entera dejaba el test en verde.
+  assert.match(
+    proxy.slice(iTramo, iReturn),
+    /rpc\('ajustar_ai'/,
+    'el corte por tope diario no devuelve la reserva: cobra por una llamada que nunca se hizo',
+  );
 });
 
 test('el estimado es conservador, no la media', () => {

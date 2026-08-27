@@ -446,7 +446,16 @@ Deno.serve(async (req) => {
       p_request_id: requestId, p_user_id: user.id, p_real_usd: 0,
     });
     if (eAjuste) console.error('ajustar_ai tras tope diario:', eAjuste.message);
-    return json({ error: 'Alcanzaste el límite de hoy. Pásate a Premium para más.', code: 'limit_reached' }, 429);
+    // "Pásate a Premium para más" se le decía a TODO el mundo, Premium incluido.
+    // Y varias funciones tienen el mismo tope en los tres planes —`plan` es 1 al
+    // día siempre— así que a quien acababa de pagar se le ofrecía como solución
+    // comprar lo que ya tenía, por algo que pagar no cambia.
+    const mensajeTope = isPremium
+      ? 'Ya usaste esta función el máximo de veces por hoy. Vuelve mañana.'
+      : esPrueba
+        ? 'Agotaste esta función por hoy. Se renueva mañana, y con Premium tienes más cada día.'
+        : 'Alcanzaste el límite gratuito de hoy. Con Premium tienes más cada día.';
+    return json({ error: mensajeTope, code: 'limit_reached' }, 429);
   }
 
   // 7. Blindaje server-side: inyectar las reglas de seguridad como PRIMER

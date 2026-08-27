@@ -134,3 +134,82 @@ test('reservar_ai tiene sus permisos sobre la firma buena', async () => {
     /grant execute on function public\.reservar_ai\(uuid, text, numeric, numeric, text, text\) to service_role/,
   );
 });
+
+// ─────────────────────────────────────────────────────────
+// Y lo mismo para la CI, que es donde MÁS duele equivocarse.
+//
+// .github/workflows/esquema.yml comprueba con has_function_privilege que las
+// RPC de dinero no sean ejecutables por el cliente. Ese predicado resuelve su
+// argumento como regprocedure: contra una función inexistente lanza 42883, y
+// con `psql -v ON_ERROR_STOP=1` eso ABORTA el paso completo.
+//
+// O sea que una firma mal escrita no hace fallar la compuerta: la hace
+// DESAPARECER, y el job sigue en verde sin comprobar ninguna de sus reglas.
+// Pasó: ajustar_ai es (text, uuid, numeric) y el workflow decía
+// (uuid, numeric, numeric).
+// ─────────────────────────────────────────────────────────
+
+test('las firmas que comprueba la CI existen en setup.sql', async () => {
+  const yml = fs.readFileSync(
+    path.join(process.cwd(), '.github', 'workflows', 'esquema.yml'),
+    'utf8',
+  );
+  const { creadas } = await analizar();
+
+  // 'public.nombre(tipo, tipo)' dentro de has_function_privilege.
+  const referencias = [...yml.matchAll(/'(public\.[a-z_]+\([^')]*\))'/g)].map((m) => m[1]);
+  assert.ok(
+    referencias.length >= 5,
+    `solo encontré ${referencias.length} firmas en el workflow: la extracción falla`,
+  );
+
+  const huerfanas = referencias.filter((r) => {
+    // Normalizar espacios para comparar con lo que devuelve el analizador.
+    const sinEspacios = r.replace(/\s+/g, '');
+    return !creadas.has(sinEspacios);
+  });
+
+  assert.deepEqual(
+    huerfanas,
+    [],
+    'la CI pregunta por firmas que setup.sql no crea:\n  ' + huerfanas.join('\n  ') +
+      '\n  has_function_privilege lanza 42883 contra una función inexistente, y con\n' +
+      '  ON_ERROR_STOP=1 eso aborta el paso entero: la compuerta desaparece en verde.',
+  );
+});
+
+test('la prueba de concurrencia ejecuta la función REAL', () => {
+  // Había una copia escrita a mano (_reservar_test) porque auth.uid() no tiene
+  // JWT detrás en CI. Y había divergido: sin freno global por hora, sin
+  // idempotencia y sin escribir en ai_reservas. La compuerta probaba la
+  // atomicidad de un código que no se despliega — habría seguido en verde
+  // aunque se rompiera la de verdad.
+  const yml = fs.readFileSync(
+    path.join(process.cwd(), '.github', 'workflows', 'esquema.yml'),
+    'utf8',
+  );
+  const sinComentarios = yml.replace(/^\s*--.*$/gm, '').replace(/^\s*#.*$/gm, '');
+  assert.ok(
+    !/create or replace function public\._reservar_test/.test(sinComentarios),
+    'sigue existiendo la copia de reservar_ai: la compuerta no prueba la función que se despliega',
+  );
+  assert.match(
+    sinComentarios,
+    /select public\.reservar_ai\(/,
+    'la prueba de concurrencia no llama a reservar_ai',
+  );
+});
+
+test('la concurrencia usa un request_id distinto por llamada', () => {
+  // Con el mismo id, la idempotencia de reservar_ai trataría las 100 como
+  // reintentos de la misma petición: cabría una, el techo no se rozaría, y la
+  // compuerta pasaría sin haber probado ninguna concurrencia.
+  const yml = fs.readFileSync(
+    path.join(process.cwd(), '.github', 'workflows', 'esquema.yml'),
+    'utf8',
+  );
+  const i = yml.indexOf('select public.reservar_ai(');
+  assert.ok(i > 0, 'no encontré la llamada');
+  const llamada = yml.slice(i, i + 200);
+  assert.match(llamada, /ci-\$\{i\}|ci-\$i/, 'el request_id es constante en las 100 llamadas');
+});

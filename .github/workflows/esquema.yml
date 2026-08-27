@@ -127,10 +127,33 @@ jobs:
             end if;
 
             -- Las RPC de servicio no son del cliente.
+            --
+            -- CUIDADO CON LAS FIRMAS. has_function_privilege resuelve su segundo
+            -- argumento como regprocedure, y contra una funcion inexistente
+            -- lanza 42883. Con ON_ERROR_STOP=1 eso ABORTA el paso entero: la
+            -- compuerta no falla, desaparece — y el job sigue en verde sin
+            -- haber comprobado ni una de estas reglas.
+            --
+            -- Paso de verdad: ajustar_ai es (text, uuid, numeric) y aqui decia
+            -- (uuid, numeric, numeric). Lo caza __tests__/permisosApuntanAFunciones.
             if has_function_privilege('authenticated', 'public.record_ai_cost(uuid, numeric)', 'EXECUTE')
-            or has_function_privilege('authenticated', 'public.ajustar_ai(uuid, numeric, numeric)', 'EXECUTE')
+            or has_function_privilege('authenticated', 'public.ajustar_ai(text, uuid, numeric)', 'EXECUTE')
             or has_function_privilege('anon', 'public.refund_ai_usage(uuid, text)', 'EXECUTE') then
               raise exception 'una RPC de servicio es ejecutable por el cliente';
+            end if;
+
+            -- reservar_ai es la mas sensible de todas: recibe el presupuesto y
+            -- el estimado como PARAMETROS, asi que quien pueda llamarla a mano
+            -- puede agotar el freno global de la plataforma en una llamada.
+            if has_function_privilege('authenticated',
+                 'public.reservar_ai(uuid, text, numeric, numeric, text, text)', 'EXECUTE')
+            or has_function_privilege('anon',
+                 'public.reservar_ai(uuid, text, numeric, numeric, text, text)', 'EXECUTE') then
+              raise exception 'el cliente puede reservar presupuesto a mano';
+            end if;
+            if not has_function_privilege('service_role',
+                 'public.reservar_ai(uuid, text, numeric, numeric, text, text)', 'EXECUTE') then
+              raise exception 'service_role NO puede reservar: el proxy responderia 503 en cada llamada';
             end if;
 
             -- Y el webhook sí puede aplicar compras.
@@ -149,44 +172,44 @@ jobs:
       - name: La reserva de presupuesto aguanta concurrencia
         run: |
           psql -v ON_ERROR_STOP=1 <<'SQL'
-          -- Un usuario de prueba y una versión de reservar_ai que recibe el uid,
-          -- porque auth.uid() aquí no tiene JWT detrás.
+          -- Un usuario de prueba. Antes habia aqui una COPIA de reservar_ai
+          -- escrita a mano (_reservar_test) porque auth.uid() no tiene JWT
+          -- detras en CI. Esa copia ya no hace falta: la funcion real recibe el
+          -- uid como parametro desde que se cerro el agujero de idempotencia.
+          --
+          -- Y la copia era peor que inutil: habia divergido. No tenia el freno
+          -- global por hora, ni la comprobacion de idempotencia, ni escribia en
+          -- ai_reservas. O sea que esta compuerta probaba la atomicidad de un
+          -- codigo que no se despliega, y habria seguido en verde aunque se
+          -- rompiera la de verdad — que es justo el fallo 12 de la auditoria.
           insert into auth.users (id) values ('11111111-1111-1111-1111-111111111111');
-
-          create or replace function public._reservar_test(p_uid uuid, p_budget numeric, p_est numeric)
-          returns numeric language plpgsql as $fn$
-          declare v_mes date := date_trunc('month', current_date)::date; v_total numeric;
-          begin
-            insert into public.ai_cost_usage (user_id, month, cost_usd, calls)
-            values (p_uid, v_mes, p_est, 1)
-            on conflict (user_id, month) do update
-              set cost_usd = public.ai_cost_usage.cost_usd + excluded.cost_usd,
-                  calls = public.ai_cost_usage.calls + 1
-            returning cost_usd into v_total;
-            if v_total > p_budget then
-              update public.ai_cost_usage set cost_usd = cost_usd - p_est, calls = greatest(calls - 1, 0)
-               where user_id = p_uid and month = v_mes;
-              return null;
-            end if;
-            return p_budget - v_total;
-          end $fn$;
           SQL
 
           # 100 reservas de $0.05 contra un techo de $1.00: solo deben caber 20.
+          # request_id DISTINTO en cada una: con el mismo id, la idempotencia de
+          # reservar_ai las trataria como reintentos de la misma peticion y no
+          # se probaria ninguna concurrencia.
           for i in $(seq 1 100); do
-            psql -q -c "select public._reservar_test('11111111-1111-1111-1111-111111111111', 1.00, 0.05);" &
+            psql -q -c "select public.reservar_ai('11111111-1111-1111-1111-111111111111', 'ci-${i}', 1.00, 0.05, 'general', 'gpt-4o-mini');" &
           done
           wait
 
           psql -v ON_ERROR_STOP=1 <<'SQL'
           do $$
-          declare v_total numeric;
+          declare v_total numeric; v_filas integer;
           begin
             select cost_usd into v_total from public.ai_cost_usage
              where user_id = '11111111-1111-1111-1111-111111111111';
-            raise notice 'reservado tras 100 intentos concurrentes: %', v_total;
+            select count(*) into v_filas from public.ai_reservas
+             where user_id = '11111111-1111-1111-1111-111111111111';
+            raise notice 'reservado tras 100 intentos concurrentes: % en % filas', v_total, v_filas;
             if v_total > 1.00 then
               raise exception 'el techo se superó bajo concurrencia: % > 1.00', v_total;
+            end if;
+            -- Y que de verdad haya reservado: un cero tambien cumple "<= 1.00",
+            -- asi que sin esto la compuerta pasaria con la funcion sin hacer nada.
+            if coalesce(v_total, 0) <= 0 or v_filas = 0 then
+              raise exception 'no se reservó nada: la compuerta no estaba probando nada';
             end if;
           end $$;
           SQL

@@ -168,6 +168,7 @@ CÓMO REPORTAR — DESCRIBIR, NO JUZGAR:
 - Si hay cambios, nómbralos concretos y en ambos sentidos, como observaciones y no como veredictos.
 - Encuadra las variaciones como normales: retención de agua, sodio del día anterior, fase del ciclo menstrual, hora del día e iluminación de la foto cambian lo que se ve sin que el cuerpo haya cambiado.
 - Identifica fortalezas musculares reales y zonas a trabajar con especificidad.
+- COMPARA LOS DOS LADOS: hombros, clavículas, caderas y desarrollo muscular, izquierda contra derecha. Si ves una diferencia, dilo — como observación de postura o de desarrollo, nunca como defecto. Una asimetría visible es de lo más útil que puede salir de una foto, y es lo primero que se pierde cuando se describe cada zona por separado.
 - Los consejos deben ser directamente aplicables, no genéricos.
 
 PRECISIÓN HONESTA — UNA FOTO NO CALIBRADA NO ES UNA MEDICIÓN:
@@ -193,7 +194,7 @@ SOLO JSON sin texto adicional:
       "id": "chest",
       "label": "Pecho",
       "status": "strength",
-      "message": "Buen desarrollo visible, simetría correcta entre ambos lados.",
+      "message": "Qué se observa en esta zona, en una frase descriptiva",
       "tip": "Agrega press inclinado 2 veces por semana para trabajar la porción clavicular (superior) del pectoral."
     },
     {
@@ -205,8 +206,8 @@ SOLO JSON sin texto adicional:
     }
   ],
   "strengths": [
-    "Espalda bien desarrollada con buena amplitud",
-    "Buena simetría en hombros"
+    "Una fortaleza real observada en las fotos",
+    "Otra, concreta y distinta de la anterior"
   ],
   "focus_areas": [
     "Bajar el porcentaje de grasa general — no se puede elegir de qué zona se pierde primero",

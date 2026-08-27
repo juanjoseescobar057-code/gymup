@@ -403,7 +403,13 @@ Deno.serve(async (req) => {
     return json({ error: 'No se pudo verificar el presupuesto. Intenta luego.' }, 503);
   }
   // null = no cabía, y reservar_ai ya deshizo su propia reserva.
-  if (restante === null || (typeof restante === 'number' && restante <= 0)) {
+  //
+  // Era `restante === null || restante <= 0`, y el `<= 0` estaba mal: la
+  // función devuelve el presupuesto que QUEDA DESPUÉS de reservar, así que un
+  // 0 significa "cupo exacto, reserva hecha y válida". Cortar ahí tiraba una
+  // reserva legítima —ya apuntada en ai_cost_usage— sin devolverla y sin hacer
+  // la llamada. El dinero se quedaba cobrado hasta que cambiara el mes.
+  if (restante === null) {
     console.log(`ai-proxy: presupuesto agotado (${user.id}, ${esPrueba ? 'prueba' : isPremium ? 'premium' : 'gratis'})`);
     return json({
       error: esPrueba
@@ -411,6 +417,44 @@ Deno.serve(async (req) => {
         : 'Alcanzaste el máximo de IA de este mes. Se renueva el día 1.',
       code: 'budget_reached',
     }, 429);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // A PARTIR DE AQUÍ HAY DINERO APUNTADO.
+  //
+  // reservar_ai ya sumó el estimado a ai_cost_usage e insertó una fila abierta
+  // en ai_reservas. Solo ajustar_ai la cierra, y no hay ningún barrido de
+  // reservas huérfanas: lo que salga de aquí sin cuadrarse se queda cobrado
+  // hasta que cambie el mes.
+  //
+  // Había TRES retornos que se iban sin devolverla —el tope inválido, el fallo
+  // del rate limit y la falta de OPENAI_API_KEY— y un comentario mío afirmando
+  // que solo había uno. El de la clave era el peor: sin ese secreto puesto,
+  // cada petición de cada usuario cobraba su estimado sin llamar a OpenAI ni
+  // una vez, hasta agotarles el mes entero.
+  //
+  // Parchear tres sitios no arregla el cuarto que alguien añada mañana. Por eso
+  // TODA salida a partir de aquí pasa por `salir()`, y hay un test que falla si
+  // aparece un `return json(` suelto en este tramo.
+  // ─────────────────────────────────────────────────────────
+  let reservaAbierta = true;
+
+  async function cuadrarReserva(realUsd: number): Promise<void> {
+    if (!reservaAbierta) return;
+    // Se marca ANTES de la llamada: si ajustar_ai falla, la reserva se queda
+    // puesta a propósito —cobra de más, nunca de menos— y reintentarla desde
+    // otro punto solo duplicaría el error en el log.
+    reservaAbierta = false;
+    const { error } = await admin.rpc('ajustar_ai', {
+      p_request_id: requestId, p_user_id: user.id, p_real_usd: realUsd,
+    });
+    if (error) console.error('ajustar_ai:', error.message);
+  }
+
+  /** Cualquier salida temprana: devuelve la reserva y responde. */
+  async function salir(cuerpo: Record<string, unknown>, status: number): Promise<Response> {
+    await cuadrarReserva(0);
+    return json(cuerpo, status);
   }
 
   // 6. Rate limit por feature EFECTIVA (fail-CLOSED: si la BD falla, no
@@ -425,7 +469,7 @@ Deno.serve(async (req) => {
   // undefined resultante hacía que el control fallara ABIERTO.
   if (!Number.isFinite(limit)) {
     console.error(`ai-proxy: tope inválido (${String(limit)}) para ${claveContador}; se corta`);
-    return json({ error: 'No se pudo verificar el límite. Intenta luego.' }, 503);
+    return await salir({ error: 'No se pudo verificar el límite. Intenta luego.' }, 503);
   }
 
   const { data: allowed, error: rlError } = await supabase.rpc('increment_ai_usage', {
@@ -433,19 +477,11 @@ Deno.serve(async (req) => {
   });
   if (rlError) {
     console.error('rate-limit error:', rlError.message);
-    return json({ error: 'No se pudo verificar el límite. Intenta luego.' }, 503);
+    return await salir({ error: 'No se pudo verificar el límite. Intenta luego.' }, 503);
   }
   // `!== true` y no `=== false`: la RPC devuelve NULL si el tope llega nulo, y
   // NULL no es false. Comparar contra false dejaba pasar ese caso.
   if (allowed !== true) {
-    // DEVOLVER LA RESERVA. Se hizo antes del contador diario, así que salir por
-    // aquí sin deshacerla cobraba dinero por una llamada que nunca se hizo — y
-    // al repetirlo, el presupuesto del mes entero. Era el único retorno posterior
-    // a la reserva que no la liberaba.
-    const { error: eAjuste } = await admin.rpc('ajustar_ai', {
-      p_request_id: requestId, p_user_id: user.id, p_real_usd: 0,
-    });
-    if (eAjuste) console.error('ajustar_ai tras tope diario:', eAjuste.message);
     // "Pásate a Premium para más" se le decía a TODO el mundo, Premium incluido.
     // Y varias funciones tienen el mismo tope en los tres planes —`plan` es 1 al
     // día siempre— así que a quien acababa de pagar se le ofrecía como solución
@@ -461,7 +497,9 @@ Deno.serve(async (req) => {
       : isPremium
         ? 'Ya usaste esta función el máximo de veces por hoy. Vuelve mañana.'
         : 'Alcanzaste el límite gratuito de hoy. Con Premium tienes más cada día.';
-    return json({ error: mensajeTope, code: 'limit_reached' }, 429);
+    // salir() devuelve la reserva: se hizo antes del contador diario, así que
+    // irse por aquí sin deshacerla cobra una llamada que nunca ocurrió.
+    return await salir({ error: mensajeTope, code: 'limit_reached' }, 429);
   }
 
   // 7. Blindaje server-side: inyectar las reglas de seguridad como PRIMER
@@ -501,7 +539,7 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
 
   // 8. Reenviar a OpenAI con la key del servidor.
   const openaiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openaiKey) return json({ error: 'IA no configurada en el servidor' }, 500);
+  if (!openaiKey) return await salir({ error: 'IA no configurada en el servidor' }, 500);
 
   // CON TIEMPO LÍMITE. Sin él, un OpenAI que acepta la conexión y se calla
   // dejaba la función colgada hasta que la matara la plataforma — con la reserva
@@ -517,12 +555,8 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
     }, TIEMPO_OPENAI_MS);
     text = await upstream.text();
   } catch (e) {
-    // No se entregó nada y no se gastó nada: se devuelven las dos cosas.
-    const { error: eAjuste } = await admin.rpc('ajustar_ai', {
-      p_request_id: requestId, p_user_id: user.id, p_real_usd: 0,
-    });
-    if (eAjuste) console.error('ajustar_ai tras fallo del proveedor:', eAjuste.message);
-
+    // No se entregó nada y no se gastó nada: se devuelven las dos cosas. La
+    // reserva la devuelve salir(); el CUPO diario es otra cuenta y va aquí.
     const { error: eCupo } = await admin.rpc('refund_ai_usage', {
       p_user_id: user.id, p_feature: claveContador,
     });
@@ -530,7 +564,7 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
 
     const agotado = e instanceof TiempoAgotado;
     console.error('ai-proxy: OpenAI no respondió:', agotado ? e.message : String(e));
-    return json({
+    return await salir({
       error: agotado
         ? 'La IA está tardando demasiado. Inténtalo de nuevo en un momento.'
         : 'No pudimos contactar con la IA. Inténtalo de nuevo.',
@@ -589,15 +623,7 @@ CÓMO ADVERTIR CUANDO LA RESPUESTA DEBE SER JSON:
     }
   }
 
-  const { error: ajusteError } = await admin.rpc('ajustar_ai', {
-    p_request_id: requestId,
-    p_user_id: user.id,
-    p_real_usd: costoReal,
-  });
-  if (ajusteError) {
-    // La reserva se queda puesta. Es lo correcto: cobra de más, nunca de menos.
-    console.error('ajustar_ai:', ajusteError.message);
-  }
+  await cuadrarReserva(costoReal);
 
   // 2. DEVOLVER EL CUPO, y solo cuando el fallo sea NUESTRO.
   //

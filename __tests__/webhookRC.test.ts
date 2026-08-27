@@ -118,9 +118,26 @@ test('si OpenAI no responde se devuelven la reserva y el cupo', () => {
   // La reserva de presupuesto se toma ANTES de llamar: un cuelgue sin devolucion
   // le cobra a alguien una llamada que nunca ocurrio.
   const proxy = leer('supabase', 'functions', 'ai-proxy', 'index.ts');
+  //
+  // Esto miraba los 900 caracteres anteriores buscando 'ajustar_ai'. Ventana
+  // fija otra vez: la devolucion de la reserva paso a ser estructural —toda
+  // salida del tramo va por salir(), que la cuadra— y el nombre de la funcion
+  // dejo de aparecer cerca. Nada se rompio; el ancla si.
+  //
+  // Son DOS cuentas distintas y hay que comprobar las dos: el DINERO lo
+  // devuelve salir(), y el CUPO diario va aparte porque no siempre se devuelve
+  // (un 4xx del proveedor es culpa de la peticion, no nuestra).
   const i = proxy.indexOf('proveedor_no_responde');
   assert.ok(i > 0, 'no encontre el manejo del fallo del proveedor');
-  const bloque = proxy.slice(Math.max(0, i - 900), i);
-  assert.match(bloque, /ajustar_ai/);
-  assert.match(bloque, /refund_ai_usage/);
+
+  const iCatch = proxy.lastIndexOf('} catch (e) {', i);
+  assert.ok(iCatch > 0, 'no encontre el catch del proveedor');
+  const bloque = proxy.slice(iCatch, i);
+
+  assert.match(bloque, /refund_ai_usage/, 'no devuelve el cupo diario');
+  assert.match(
+    bloque,
+    /return await salir\(/,
+    'no sale por salir(): la reserva se queda cobrada por una llamada que nunca ocurrio',
+  );
 });

@@ -45,7 +45,7 @@ export const PREMIUM_LIMITS = {
   coachMessagesPerDay: 10, // ai-proxy: coach_chat.premiumLimit
   foodScansPerDay: 4,      // ai-proxy: food_scan.premiumLimit
   fridgeScansPerDay: 1,    // ai-proxy: fridge_scan.premiumLimit
-  planRegensPerDay: 1,     // ai-proxy: plan.premiumLimit (regenerar plan)
+  planRegensPerDay: 3,     // ai-proxy: plan.premiumLimit (regenerar plan)
 };
 
 export const PLANS = {

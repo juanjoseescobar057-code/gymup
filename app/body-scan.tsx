@@ -581,6 +581,20 @@ function BodyScanScreenContenido() {
             </Text>
           </TouchableOpacity>
 
+          {/* La segunda puerta al historial. La otra está en Perfil; esta es la
+              que importa, porque quien llega aquí ya sabe qué es un análisis y
+              es justo quien va a querer ver el anterior antes de hacer otro. */}
+          <TouchableOpacity
+            onPress={() => router.push('/body-scan-historial' as any)}
+            style={{ alignItems: 'center', marginTop: Spacing.md, minHeight: 44, justifyContent: 'center' }}
+            accessibilityRole="button"
+            accessibilityLabel="Ver mis análisis corporales anteriores"
+          >
+            <Text style={{ fontFamily: Fonts.bodySemi, fontSize: 14, color: Colors.accent }}>
+              Ver mis análisis anteriores →
+            </Text>
+          </TouchableOpacity>
+
           <Text style={s.disclaimerTxt}>{MEDICAL_DISCLAIMER}</Text>
         </ScrollView>
 

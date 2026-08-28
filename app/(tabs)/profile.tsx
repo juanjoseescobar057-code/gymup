@@ -406,7 +406,7 @@ export default function ProfileScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <HelpButton
               pantalla="la pantalla de perfil"
-              pregunta="Explícame la pantalla de perfil de Rityvo: de dónde salen mis macros diarios, qué pasa si edito mi peso o mi objetivo, qué hace 'Ajustar mi plan con IA' y para qué sirve la sección de salud."
+              pregunta="Explícame la pantalla de perfil de Rityvo: de dónde salen mis macros diarios, qué pasa si edito mi peso o mi objetivo, qué hace 'Actualizar mi rutina' y para qué sirve la sección de salud."
             />
             <TouchableOpacity style={s.editBtn}
               accessibilityRole="button" accessibilityLabel="Editar mi perfil"
@@ -508,13 +508,24 @@ export default function ProfileScreen() {
           <TouchableOpacity style={[s.row, s.rowBorder]} onPress={handleAdaptPlan} disabled={replanning}
             accessibilityRole="button"
             accessibilityLabel={replanning
-              ? 'Ajustando tu plan con inteligencia artificial, espera'
-              : `Ajustar mi plan con inteligencia artificial${profile.is_premium ? '' : '. Función premium'}`}
-            accessibilityHint="Adapta las cargas según tu desempeño real"
+              ? 'Actualizando tu rutina, espera'
+              : `Actualizar mi rutina${profile.is_premium ? '' : '. Función premium'}`}
+            accessibilityHint="Revisa lo que has levantado y propone cambios. Te enseña qué cambia antes de aplicar nada"
             accessibilityState={{ disabled: replanning, busy: replanning }}>
+            {/* "Ajustar mi plan con IA / Adapta cargas según tu desempeño real"
+                no le dice a nadie qué va a pasar si lo toca. Se probó y la
+                reacción fue literal: "esa opción, ¿para qué funciona? ¿quién
+                entiende eso?". El rótulo describía la tecnología, no el efecto.
+
+                Ahora dice QUÉ mira, QUÉ cambia y —lo que más importaba— que no
+                aplica nada sin enseñarlo antes. Ese miedo es el que frena: el
+                plan es lo que la persona va a hacer las próximas semanas. */}
             <View style={{ flex: 1 }}>
-              <Text style={s.rowLabel}>🤖 Ajustar mi plan con IA {profile.is_premium ? '' : '✦'}</Text>
-              <Text style={[s.actDesc, { marginTop: 2 }]}>Adapta cargas según tu desempeño real</Text>
+              <Text style={s.rowLabel}>🤖 Actualizar mi rutina {profile.is_premium ? '' : '✦'}</Text>
+              <Text style={[s.actDesc, { marginTop: 2 }]}>
+                Mira lo que has levantado estas semanas y sube, baja o cambia los ejercicios
+                que lo necesiten. Te enseña qué cambia antes de aplicar nada.
+              </Text>
             </View>
             <Text style={[s.rowValue, { color: Colors.accent }]}>{replanning ? '…' : '›'}</Text>
           </TouchableOpacity>
@@ -583,6 +594,34 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* CUERPO. La pantalla de análisis anteriores existía en la base y no en
+            la app: se salía de los resultados y desaparecían. La entrada va
+            aquí, y ADEMÁS oculta en modo recuperación — la ruta ya lleva su
+            propia compuerta, pero enseñar un botón que va a decir "en pausa" es
+            recordarle a alguien justo lo que ese modo intenta no recordarle. */}
+        {!recuperacion.ocultarCuerpo && (
+          <>
+            <Text style={s.sectionLbl} accessibilityRole="header">CUERPO</Text>
+            <View style={s.card}>
+              <TouchableOpacity
+                style={s.row}
+                onPress={() => router.push('/body-scan-historial' as any)}
+                accessibilityRole="button"
+                accessibilityLabel="Ver mis análisis corporales anteriores"
+                accessibilityHint="Puntaje, zonas y qué cambiar en tu plan, de cada análisis"
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={s.rowLabel}>📊 Mis análisis anteriores</Text>
+                  <Text style={[s.actDesc, { marginTop: 2 }]}>
+                    Lo que dijo cada análisis y cómo ha cambiado
+                  </Text>
+                </View>
+                <Text style={[s.rowValue, { color: Colors.accent }]}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
 
         {/* Cuenta */}
         <Text style={s.sectionLbl} accessibilityRole="header">CUENTA</Text>

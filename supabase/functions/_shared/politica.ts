@@ -73,7 +73,15 @@ export const FEATURE_POLICY: Record<string, FeaturePolicy> = {
   scoring:     { premiumOnly: false, freeLimit: 40, trialLimit: 80, premiumLimit: 80 }, // juez de calidad (telemetría)
   // El plan SÍ es gratis: sin él la app está vacía y no hay nada que probar.
   // Es costo de adquisición (~$0.034 por generación), no pérdida.
-  plan:        { premiumOnly: false, freeLimit: 1,  trialLimit: 1,  premiumLimit: 1 },
+  // Premium sube a 3. Con 1 al día, alguien que acababa de pagar ajustaba su
+  // plan, no le convencía el resultado, y se quedaba esperando a mañana con un
+  // plan que él mismo había pedido cambiar. Ese es un motivo de cancelación
+  // barato de evitar: la generación cuesta ~$0,034, así que tres son $0,10
+  // diarios en el peor caso, contra ~$5,27 netos al mes.
+  //
+  // Gratis y prueba se quedan en 1: ahí el plan es costo de adquisición y no
+  // hay ingreso que lo respalde.
+  plan:        { premiumOnly: false, freeLimit: 1,  trialLimit: 1,  premiumLimit: 3 },
   suggestion:  { premiumOnly: false, freeLimit: 3,  trialLimit: 20, premiumLimit: 20 },
   notification:{ premiumOnly: false, freeLimit: 3,  trialLimit: 20, premiumLimit: 20 },
   general:     { premiumOnly: false, freeLimit: 5,  trialLimit: 40, premiumLimit: 40 }, // incluye destilados de memoria

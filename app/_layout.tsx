@@ -106,6 +106,7 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)/onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
         <Stack.Screen name="body-scan" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="body-scan-historial" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="food-scan" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="fridge-scan" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="food-manual" options={{ animation: 'slide_from_bottom' }} />

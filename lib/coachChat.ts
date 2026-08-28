@@ -79,7 +79,18 @@ Vas a dar UN mensaje proactivo para el inicio de la app (como si le escribieras 
 
   const text = await aiChatContent(
     {
-      model: 'gpt-4o',
+      // MINI, y aquí sí. Este saludo de dos frases se generaba con gpt-4o y
+      // costaba $0,0085 medidos en producción — y no lo pide nadie: corre solo
+      // en cada arranque, para todos los usuarios, todos los días. Casi todo
+      // ese costo es de ENTRADA (el expediente completo, ~2.800 tokens) para
+      // producir como mucho 140 tokens de salida.
+      //
+      // En mini son ~$0,0005: diecisiete veces menos. Con mil usuarios activos,
+      // $252 al mes contra $15. Es la decisión de modelo más fácil del
+      // catálogo, porque la tarea —dos frases sobre un contexto ya masticado—
+      // no necesita el modelo caro. El chat del coach, que sí razona sobre lo
+      // que se le pregunta, se queda en gpt-4o a propósito.
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: `${system}\n\n${snapshotToPrompt(snapshot)}\n${memoryToPrompt(memory)}` },
         { role: 'user', content: 'Dame tu mensaje proactivo de coach para este momento.' },

@@ -22,7 +22,7 @@
         "backgroundColor": "#0e0e10"
       },
       "package": "com.juanescobar.gymup",
-      "versionCode": 23,
+      "versionCode": 24,
       "permissions": [
         "CAMERA"
       ],

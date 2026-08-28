@@ -185,6 +185,7 @@ const VERSION_CODES_QUEMADOS = [
   20, // rechazado por Play
   21, // publicado 2026-08-17, primer build local
   22, // Rityvo 1.3.0, subido a prueba interna
+  23, // Rityvo 1.3.0, instalado desde prueba interna (confirmado por Sentry: release 1.3.0+23)
 ];
 
 const appJson = JSON.parse(fs.readFileSync(path.join(raiz, 'app.json'), 'utf8'));

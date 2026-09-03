@@ -118,7 +118,17 @@ export const MEDICAL_DISCLAIMER =
 export const AGE_CONFIRMATION =
   `Confirmo que soy mayor de ${MIN_AGE} años y acepto los Términos de Uso y la Política de Privacidad.`;
 
+// "Solo guarda los resultados NUMÉRICOS" no era cierto. El insert de
+// app/body-scan.tsx escribe además zones (cada zona con su descripción y su
+// consejo), strengths, focus_areas y notes — texto escrito por una IA sobre el
+// cuerpo de una persona, en una tabla, ligado a su cuenta. Consentir "unos
+// números" y que se guarde eso es consentir otra cosa.
+//
+// Y la lista es la que HAY QUE mantener sincronizada con el insert: si mañana
+// se guarda un campo más, aquí se dice. Hay un test que compara las dos.
 export const BODY_SCAN_CONSENT =
   `Soy mayor de ${MIN_AGE} años y autorizo que mis fotos se envíen a un servicio de IA (OpenAI) ` +
-  `únicamente para generar este análisis. Rityvo no almacena las fotos; solo guarda los resultados ` +
-  `numéricos, que puedo eliminar cuando quiera desde mi perfil.`;
+  `únicamente para generar este análisis. Rityvo NO almacena las fotos. Sí guarda lo que el ` +
+  `análisis escribe sobre ellas: la puntuación, el rango de grasa estimado, el nivel muscular, ` +
+  `las zonas con su descripción y su consejo, mis fortalezas, en qué enfocarme y las notas para ` +
+  `mi plan. Todo eso puedo verlo y eliminarlo cuando quiera desde mi perfil.`;

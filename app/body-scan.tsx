@@ -84,6 +84,18 @@ function fatPctRange(pct: number): string {
   return `${low}-${high}%`;
 }
 
+/**
+ * Un fallo donde NO hubo respuesta del servidor.
+ *
+ * La distincion importa: sin red se puede aceptar la foto sin comprobar —lo
+ * contrario deja sin usar la app a quien esta en un gimnasio con mala
+ * cobertura—, pero un 500 del proveedor o un JSON que no encaja en el esquema
+ * SI son respuestas, y aceptarlas equivale a no comprobar nada.
+ */
+function esFalloDeRed(e: any): boolean {
+  const msg = String(e?.message ?? e ?? '');
+  return /network request failed|failed to fetch|timeout|abort|econnreset|sin conexi[oó]n/i.test(msg);
+}
 async function validatePhoto(
   base64: string,
   poseLabel: string
@@ -138,13 +150,29 @@ async function analyzeBodyPhotos(
     endurance:   'mejorar resistencia',
   };
 
-  const content: any[] = photos.map((p) => ({
-    type: 'image_url',
-    image_url: { url: `data:image/jpeg;base64,${p.base64}`, detail: 'high' },
-  }));
+  // CADA IMAGEN, ETIQUETADA CON SU POSE. Iban sueltas y en el orden en que se
+  // tomaron: el modelo recibia dos o tres fotos sin saber cual era el frente,
+  // cual el perfil y cual la espalda, y tenia que adivinarlo. Adivinar la vista
+  // es adivinar que musculo esta mirando.
+  const content: any[] = photos.flatMap((p) => {
+    const pose = POSES.find((x) => x.id === p.poseId);
+    return [
+      { type: 'text', text: `Foto siguiente: vista ${pose?.label ?? p.poseId}.` },
+      {
+        type: 'image_url',
+        image_url: { url: `data:image/jpeg;base64,${p.base64}`, detail: 'high' },
+      },
+    ];
+  });
+
+  // Y QUE SEPA CUALES FALTAN. Se piden tres vistas y se puede analizar con una.
+  // Eso esta bien —obligar a tres es perder a quien solo puede hacerse una— pero
+  // el modelo tiene que saberlo, porque con solo el frente no se puede decir
+  // nada de la espalda y hasta ahora nada se lo impedia.
+  const faltantes = POSES.filter((x) => !photos.some((f) => f.poseId === x.id));
 
   const previousContext = previousScan
-    ? `Escáner anterior (${new Date(previousScan.scanned_at).toLocaleDateString('es-CO')}): Score ${previousScan.overall_score}/100, ~${previousScan.estimated_fat_pct}% grasa (estimación visual, no una medición). Describe qué cambió y qué no, sin calificarlo.`
+    ? `Del escáner anterior (${new Date(previousScan.scanned_at).toLocaleDateString('es-CO')}) tienes SOLO DOS NÚMEROS: score ${previousScan.overall_score}/100 y ~${previousScan.estimated_fat_pct}% de grasa estimada visualmente. NO tienes aquellas fotos y NO puedes verlas. Por lo tanto NO afirmes que algo se ve distinto, ni describas cambios visuales: no tienes con qué compararlo. Puedes comentar la diferencia entre esos dos números, diciendo que son estimaciones desde fotos sin calibrar y que una variación pequeña puede ser solo iluminación, hora del día o retención de líquidos.`
     : 'Es el primer escáner del usuario — describe la línea base, sin puntuarla como si fuera una nota.';
 
   content.push({
@@ -162,6 +190,7 @@ Analiza estas ${photos.length} foto(s) corporales disponibles.
 Usuario: ${profile.age} años, ${profile.weight_kg}kg, ${profile.height_cm}cm
 Objetivo: ${goalCtx[profile.goal]}
 ${previousContext}
+${faltantes.length ? `\nVISTAS QUE NO TIENES: ${faltantes.map((f) => f.label).join(', ')}. No describas ni puntúes nada que dependa de ellas; si una zona solo se ve desde una vista que falta, dilo en vez de estimarla.` : ''}
 
 CÓMO REPORTAR — DESCRIBIR, NO JUZGAR:
 - Describe lo que se ve en las fotos. No lo califiques moralmente: nada de "retroceso", "empeoró", "te descuidaste", "recaída", "excusas" ni "disciplina".
@@ -375,14 +404,33 @@ function BodyScanScreenContenido() {
           // El mensaje del servidor ya distingue prueba, gratis y Premium.
           String(e?.message ?? 'Alcanzaste el límite de comprobaciones por hoy.'),
         );
-      } else {
+      } else if (esFalloDeRed(e)) {
+        // ACEPTAR SIN COMPROBAR, SOLO SI NO HUBO RESPUESTA.
+        //
+        // Esta rama era el `else` de todo: cualquier error que no fuera de cupo
+        // —un 500 del proveedor, un JSON que no encaja en el esquema, un fallo
+        // al leer la imagen— acababa aquí y la foto se aceptaba «sin
+        // comprobar». O sea que el único caso que la comprobación existe para
+        // evitar (una foto que no sirve) entraba por la puerta de los errores.
+        //
+        // Ahora solo pasan los fallos donde de verdad no hubo respuesta: sin
+        // red, tiempo agotado, conexión cortada. Ahí aceptar es razonable,
+        // porque lo contrario sería dejar sin usar la app a quien está en un
+        // gimnasio con mala cobertura.
         const newPhoto: PosePhoto = { poseId: pose.id, uri, base64 };
         setPhotos((prev) => [...prev.filter((p) => p.poseId !== pose.id), newPhoto]);
         Alert.alert(
           'Foto guardada sin comprobar',
-          'No pudimos revisar la foto (parece un problema de conexión). La usaremos tal cual: si sale borrosa o incompleta, el análisis lo dirá.',
+          'No pudimos revisar la foto porque no hay conexión. La usaremos tal cual: si sale borrosa o incompleta, el análisis lo dirá.',
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        // Hubo respuesta y algo no cuadró. Eso NO es una foto validada.
+        captureError(e, { scope: 'bodyScan.validarFoto' });
+        Alert.alert(
+          'No pudimos comprobar la foto',
+          'Algo falló al revisarla. Inténtalo otra vez; si vuelve a pasar, prueba con otra foto.',
+        );
       }
     } finally {
       setValidating(false);

@@ -25,6 +25,7 @@ import { calentamientoPara, minutosEstimados, seriesDeAproximacion } from '../li
 import { uuidV4 } from '../lib/ids';
 import { completeWorkout } from '../lib/workoutCompletion';
 import { adaptSessionExercises, sessionAdaptationMessage } from '../lib/sessionAdaptation';
+import { revalidarDiaDelPlan } from '../lib/revalidarDiaDelPlan';
 import { calcularDiaDeHoy, olvidarUltimoEntreno, type EstadoDelDia } from '../lib/diaDeHoy';
 import { exercisesForGroup, EXERCISE_LIBRARY, type LibraryExercise } from '../constants/exercises';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../constants/theme';
@@ -59,15 +60,11 @@ export default function WorkoutSessionScreen() {
 
   const todayIndex = estadoHoy?.diaDelPlan ?? Math.min(profile?.current_plan_day ?? 0, 6);
   const todayPlan = trainingPlan?.plan_data?.days?.[todayIndex];
-  const planExercises = todayPlan?.exercises ?? [];
+  // any[] a proposito: el plan viene del store sin tipar y cada pantalla usa
+  // los campos que necesita. Anotarlo aqui de otra forma obligaria a duplicar la
+  // forma del ejercicio en un tercer sitio.
+  const planExercisesCrudos: any[] = todayPlan?.exercises ?? [];
   const [sessionConfig, setSessionConfig] = useState<{ minutes: number; energy: number; soreness: number } | null>(null);
-  const exercises = sessionConfig
-    ? adaptSessionExercises(planExercises, {
-        availableMinutes: sessionConfig.minutes,
-        energy: sessionConfig.energy,
-        soreness: sessionConfig.soreness,
-      })
-    : planExercises;
 
   const [currentEx, setCurrentEx] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
@@ -150,6 +147,38 @@ export default function WorkoutSessionScreen() {
     riskLevel: healthProfile && profile ? computeRisk(healthProfile, profile.age).level : undefined,
     profile: healthProfile,
   };
+
+  // REVALIDAR CONTRA LA SALUD DE HOY, no contra la del día en que se generó.
+  //
+  // El plan se valida al crearse y ahí se queda. Pero la salud cambia después:
+  // alguien declara una hernia, un embarazo o hipertensión, elige "Después" en
+  // el aviso de regenerar, y conserva su rutina de antes. Esta pantalla
+  // comprobaba el riesgo GENERAL (evaluateWorkoutAccess, más abajo) y nunca
+  // revisaba ejercicio por ejercicio: el press de banca programado antes del
+  // embarazo seguía ahí, con su carga y su RIR.
+  //
+  // Se pasa por el MISMO validador determinista que revisa los planes recién
+  // generados. No hay reglas clínicas nuevas aquí; hay una segunda aplicación
+  // de las que ya existen, justo antes de levantar peso.
+  const revalidado = revalidarDiaDelPlan(planExercisesCrudos, {
+    injuries,
+    conditions,
+    equipment: (profile as any)?.equipment ?? 'gym',
+    age: profile?.age ?? 30,
+    saludDesconocida: injuriesStatus !== 'ok',
+  });
+  const planExercises: any[] = revalidado.ejercicios;
+
+  // Y DESPUÉS se adapta por tiempo, energía y agujetas. El orden importa: la
+  // adaptación reparte y recorta lo que hay, así que si corriera antes estaría
+  // repartiendo ejercicios que la salud de hoy ya no permite.
+  const exercises = sessionConfig
+    ? adaptSessionExercises(planExercises, {
+        availableMinutes: sessionConfig.minutes,
+        energy: sessionConfig.energy,
+        soreness: sessionConfig.soreness,
+      })
+    : planExercises;
 
   function startWorkoutClock(startedAt = Date.now(), resumed = false, exerciseCount = exercises.length) {
     sessionStartRef.current = new Date(startedAt);
@@ -724,6 +753,49 @@ export default function WorkoutSessionScreen() {
 
   // La seguridad no puede depender de que una consulta de red haya salido
   // bien. Si no conocemos el tamizaje no iniciamos una rutina de fuerza.
+  // EL PLAN DE HOY NO SOBREVIVIÓ A LA SALUD DE HOY.
+  //
+  // Pasa cuando alguien declara una condición después de generar su plan y
+  // elige "Después": la revalidación retira los ejercicios vetados y, si el día
+  // entero era de lo vetado, no queda nada. Eso NO se resuelve dejándole
+  // entrenar una lista vacía ni improvisando: hay que regenerar el plan con la
+  // salud nueva, que es una decisión suya y cuesta un toque.
+  if (revalidado.vacio && planExercisesCrudos.length > 0) {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.closeBtn} onPress={() => router.back()} hitSlop={A11y.hitSlopLg}
+            accessibilityRole="button" accessibilityLabel="Volver">
+            <Text style={s.closeTxt}>‹</Text>
+          </TouchableOpacity>
+          <Text style={s.calTitulo} accessibilityRole="header">TU PLAN NECESITA UN AJUSTE</Text>
+          <View style={{ width: 44 }} />
+        </View>
+        <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+          <Text style={s.calIntro}>
+            La sesión de hoy se armó antes de que nos contaras lo último de tu salud, y con lo
+            que declaraste no podemos proponerte estos ejercicios.
+          </Text>
+          <Text style={[s.calIntro, { marginTop: Spacing.md }]}>
+            No es que hayas perdido nada: tu historial, tu racha y tus registros siguen igual.
+            Hay que rehacer la rutina para que respete lo que nos dijiste.
+          </Text>
+          <TouchableOpacity
+            style={s.calBtn}
+            onPress={() => router.replace('/(tabs)/profile' as any)}
+            accessibilityRole="button"
+            accessibilityLabel="Ir a Perfil para actualizar mi rutina"
+          >
+            <Text style={s.calBtnTxt}>ACTUALIZAR MI RUTINA</Text>
+          </TouchableOpacity>
+          <Text style={[s.calIntro, { marginTop: Spacing.md, fontSize: Type.caption }]}>
+            En Perfil → Plan → «Actualizar mi rutina». Te enseña qué cambia antes de aplicar nada.
+          </Text>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   if (injuriesStatus !== 'ok' || !healthAccess) {
     const loading = injuriesStatus === 'loading';
     return (

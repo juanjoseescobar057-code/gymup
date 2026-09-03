@@ -193,11 +193,26 @@ export async function saveHealthProfile(
   let clearedAt: string | null = null;
 
   try {
-    const { data: prev } = await supabase
+    // FALLA CERRADO. Se leía el perfil anterior IGNORANDO el error: si la
+    // consulta fallaba —red, JWT vencido, RLS— `prev` quedaba en null, el
+    // bloque de revalidación de más abajo no entraba, y doctor_cleared se
+    // guardaba tal cual llegó. O sea que un fallo de red podía conservar una
+    // autorización médica que la condición recién declarada debía anular.
+    //
+    // Ante un error no se sabe si la autorización sigue siendo válida, y "no lo
+    // sé" sobre una autorización médica se resuelve retirándola. Volver a
+    // pedirla cuesta un toque; conservarla mal no se nota hasta que alguien
+    // entrena con algo que no debía.
+    const { data: prev, error: errPrev } = await supabase
       .from('health_profile')
       .select('doctor_cleared, cleared_at, parq_chest_pain, parq_dizziness, parq_doctor_restricted, conditions')
       .eq('user_id', userId)
       .maybeSingle();
+
+    if (errPrev) {
+      doctorCleared = false;
+      clearedAt = null;
+    }
 
     if (prev && doctorCleared) {
       const prevProfile: HealthProfile = {

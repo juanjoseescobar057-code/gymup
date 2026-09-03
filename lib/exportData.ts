@@ -17,6 +17,10 @@ import { captureError } from './monitoring';
 
 /** Tablas que contienen datos DEL USUARIO. Si se añade una, va aquí. */
 const TABLAS = [
+  // La prueba de qué autorizó y cuándo. Es SUYA, y es justo el dato que alguien
+  // pide cuando quiere saber a qué dijo que sí. Se borra con la cuenta, así que
+  // tiene que poder llevárselo antes.
+  'legal_consents',
   'user_profiles',
   'training_plans',
   'workout_sessions',

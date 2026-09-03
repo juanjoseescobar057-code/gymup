@@ -35,6 +35,9 @@ const NO_SE_EXPORTAN: Record<string, string> = {
   ai_telemetry: 'latencias y costes internos, operativo',
   ai_content_reports: 'reportes de contenido, se conservan para moderación',
   analytics_events: 'telemetría de producto, no contenido de la persona',
+  ai_cost_usage: 'contabilidad interna de gasto, operativo',
+  ai_reservas: 'reservas de presupuesto, contabilidad interna',
+  rc_webhook_events: 'eventos crudos de RevenueCat; el histórico de compras lo da la tienda, que es la fuente',
 };
 
 test('todo lo que se exporta también se borra', () => {

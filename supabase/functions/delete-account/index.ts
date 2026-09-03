@@ -45,6 +45,14 @@ const TABLES = [
   // y la identidad después: si el borrado de identidad falla, esas filas
   // sobreviven a un borrado que se anunció como completo.
   'workout_readiness',
+  // Y estas cuatro, que tampoco estaban. El cascade de auth.users las habría
+  // barrido al final, pero el contrato de esta función es borrar TODOS los
+  // datos primero y la identidad después: si el borrado de identidad falla, la
+  // interfaz dice "borrado completo" y estas filas siguen ahí.
+  //
+  // legal_consents guarda qué autorizó y cuándo. ai_reservas y ai_cost_usage,
+  // su gasto. rc_webhook_events, sus compras. Todas ligadas a su user_id.
+  'legal_consents', 'ai_reservas', 'ai_cost_usage', 'rc_webhook_events',
   'health_profile', 'user_profiles',
 ];
 

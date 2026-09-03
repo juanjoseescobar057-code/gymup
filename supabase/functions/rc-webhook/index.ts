@@ -109,7 +109,16 @@ Deno.serve(async (req) => {
   //
   // Se responde 200 igual: el evento se procesó correctamente y la decisión fue
   // no aplicarlo. Un 5xx haría que RevenueCat lo reintentara para siempre.
-  const soloProduccion = Deno.env.get('RC_SOLO_PRODUCCION') === 'true';
+  // POR DEFECTO SÍ. Estaba en `=== 'true'`, o sea que si el secreto no existe
+  // —despliegue nuevo, proyecto clonado, alguien que lo borra sin querer— los
+  // eventos de SANDBOX se aplican como compras reales. Y una compra sandbox es
+  // gratis para quien la hace: cualquiera con el SDK en modo prueba se concede
+  // Premium.
+  //
+  // Un secreto ausente no puede significar "acepta compras falsas". Ahora hay
+  // que escribir 'false' a propósito para permitir sandbox, que es lo que se
+  // hace en un proyecto de pruebas y nunca en producción.
+  const soloProduccion = Deno.env.get('RC_SOLO_PRODUCCION') !== 'false';
   const esSandbox = environment.toUpperCase() === 'SANDBOX';
   if (soloProduccion && esSandbox) {
     console.log(`rc-webhook: ${type} de SANDBOX ignorado (RC_SOLO_PRODUCCION=true)`);

@@ -44,7 +44,92 @@ export function mifflinStJeorBMR(p: {
   return 10 * p.weight_kg + 6.25 * p.height_cm - 5 * p.age + c;
 }
 
-export function calculateDailyMacros(profile: MacroProfile): DailyMacros {
+/**
+ * Lo que el tamizaje puede decir sobre un objetivo calórico.
+ *
+ * Los macros se calculaban con peso, altura, edad, sexo y objetivo. Nada más.
+ * Alguien declaraba un trastorno de la conducta alimentaria, un embarazo o una
+ * diabetes, y seguía recibiendo el mismo déficit de 400 kcal que cualquier
+ * otro — con el objetivo "perder grasa" que había elegido antes.
+ *
+ * Esto NO calcula nutrición clínica: eso no se hace desde una app. Lo que hace
+ * es impedir que la app prescriba un déficit a quien no debe recibirlo, y
+ * decirlo.
+ */
+export type AjusteClinico = {
+  /** El objetivo calórico se lleva a mantenimiento. */
+  sinDeficit: boolean;
+  /** Por qué, en una frase para la persona. Null = no se ajustó nada. */
+  motivo: string | null;
+  /** Recomendar hablar con un profesional. */
+  derivar: boolean;
+};
+
+const SIN_DEFICIT: Record<string, { motivo: string; derivar: boolean }> = {
+  // El déficit calórico es el mecanismo de la enfermedad, no una herramienta.
+  trastorno_alimentario: {
+    motivo:
+      'Marcaste un trastorno de la conducta alimentaria, así que no te proponemos comer por ' +
+      'debajo de tu gasto. Tus calorías están en mantenimiento.',
+    derivar: true,
+  },
+  embarazo: {
+    motivo:
+      'Durante el embarazo y la lactancia no se recomienda un déficit calórico. Tus calorías ' +
+      'están en mantenimiento; los ajustes los decide tu profesional de salud.',
+    derivar: true,
+  },
+  // La restricción cambia el manejo de la glucemia y de la medicación.
+  diabetes: {
+    motivo:
+      'Con diabetes declarada no ajustamos tus calorías a la baja por nuestra cuenta: un cambio ' +
+      'de ingesta afecta a tu glucemia y a tu medicación.',
+    derivar: true,
+  },
+  enfermedad_renal: {
+    motivo:
+      'Con enfermedad renal declarada, la proteína y las calorías las decide tu profesional de ' +
+      'salud, no una app.',
+    derivar: true,
+  },
+};
+
+/**
+ * Qué hacer con el objetivo calórico según el tamizaje.
+ * PURA: entra la lista de condiciones y la edad, sale la decisión.
+ */
+export function ajusteClinicoDeMacros(
+  conditions: string[] | null | undefined,
+  age?: number
+): AjusteClinico {
+  const cs = conditions ?? [];
+  for (const [clave, info] of Object.entries(SIN_DEFICIT)) {
+    if (cs.includes(clave)) {
+      return { sinDeficit: true, motivo: info.motivo, derivar: info.derivar };
+    }
+  }
+  // Menores de edad: la app ya exige 18 en el registro, pero el objetivo puede
+  // venir de un perfil viejo. Un déficit prescrito a alguien en crecimiento no
+  // es un caso que se deje al azar de una validación de formulario.
+  if (typeof age === 'number' && age < 18) {
+    return {
+      sinDeficit: true,
+      motivo: 'Tus calorías están en mantenimiento: no proponemos déficits antes de los 18 años.',
+      derivar: true,
+    };
+  }
+  return { sinDeficit: false, motivo: null, derivar: false };
+}
+
+export function calculateDailyMacros(
+  profile: MacroProfile,
+  /**
+   * Condiciones declaradas en el tamizaje. Opcional para no romper a quien ya
+   * llama a esta función, pero SIN ella el cálculo es el de antes: quien la
+   * omite está decidiendo no mirar la salud.
+   */
+  conditions?: string[] | null
+): DailyMacros {
   const bmr = mifflinStJeorBMR(profile);
   const am: Record<string, number> = {
     sedentary: 1.2,
@@ -63,7 +148,13 @@ export function calculateDailyMacros(profile: MacroProfile): DailyMacros {
   // PISO DE SEGURIDAD: nunca por debajo del BMR ni del mínimo absoluto.
   // Evita prescribir déficits peligrosos (sobre todo en personas pequeñas,
   // donde tdee - 400 podría caer por debajo del metabolismo basal).
-  const calories = clampCaloriesToSafe(ca[profile.goal], bmr);
+  // EL TAMIZAJE MANDA SOBRE EL OBJETIVO. Si hay una condición que desaconseja
+  // el déficit, el objetivo calórico se lleva a mantenimiento — aunque la
+  // persona tenga "perder grasa" elegido de antes. Es la misma lógica que el
+  // veto de ejercicios: lo que se declaró pesa más que lo que se pidió.
+  const clinico = ajusteClinicoDeMacros(conditions, profile.age);
+  const objetivo = clinico.sinDeficit ? tdee : ca[profile.goal];
+  const calories = clampCaloriesToSafe(objetivo, bmr);
   const mr: Record<string, { p: number; c: number; f: number }> = {
     muscle_gain: { p: 0.30, c: 0.45, f: 0.25 },
     fat_loss:    { p: 0.35, c: 0.35, f: 0.30 },

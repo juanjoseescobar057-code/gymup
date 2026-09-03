@@ -22,6 +22,7 @@ import { borrarDatosLocales } from '../../lib/borradoLocal';
 import { calculateDailyMacros } from '../../lib/openai';
 import { getAccountEmail, deleteAccountServerSide } from '../../lib/account';
 import { restorePreviousPlan } from '../../lib/adaptivePlan';
+import { loadHealthSafe } from '../../lib/health';
 import { ofrecerAjusteDePlan } from '../../lib/ofrecerAjusteDePlan';
 import { planChangePreview } from '../../lib/planDiff';
 import { canUseFeature } from '../../lib/subscription';
@@ -149,14 +150,35 @@ export default function ProfileScreen() {
     setSaving(true);
     Keyboard.dismiss();
 
-    const newMacros = calculateDailyMacros({
-      age: +age,
-      sex,
-      weight_kg: +weight,
-      height_cm: +height,
-      goal,
-      activity_level: activityLevel,
-    });
+    // CON EL TAMIZAJE. Sin él, editar el perfil recalculaba las calorías sin
+    // mirar la salud: alguien que declaró un trastorno alimentario, embarazo,
+    // diabetes o enfermedad renal recibía otra vez el déficit de su objetivo.
+    // Y este camino es peor que el del registro, porque aquí la condición ya
+    // estaba declarada desde antes.
+    //
+    // Fail-closed: si no se puede leer el tamizaje, NO se recalcula. Guardar
+    // unas calorías a ciegas sobre alguien de quien no sabemos nada es
+    // exactamente lo que no puede pasar.
+    const cargaSalud = await loadHealthSafe(profile.user_id);
+    if (cargaSalud.status === 'unknown') {
+      setSaving(false);
+      Alert.alert(
+        'No pudimos comprobar tu salud',
+        'Necesitamos leer tu tamizaje antes de recalcular tus calorías. Revisa tu conexión e inténtalo otra vez; tus datos no se han tocado.'
+      );
+      return;
+    }
+    const newMacros = calculateDailyMacros(
+      {
+        age: +age,
+        sex,
+        weight_kg: +weight,
+        height_cm: +height,
+        goal,
+        activity_level: activityLevel,
+      },
+      cargaSalud.profile?.conditions ?? []
+    );
 
     const { data: updated, error } = await supabase
       .from('user_profiles')

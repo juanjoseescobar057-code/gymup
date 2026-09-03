@@ -299,7 +299,10 @@ export default function OnboardingScreen() {
         days_per_week: daysPerWeek,
         equipment,
       };
-      const macros = calculateDailyMacros(profileData);
+      // Con el tamizaje: si declaró un trastorno alimentario, embarazo, diabetes
+      // o enfermedad renal, el objetivo calórico va a mantenimiento por mucho que
+      // haya elegido "perder grasa" tres pantallas antes.
+      const macros = calculateDailyMacros(profileData, health.conditions);
 
       // El plan es lo ÚNICO que depende de un tercero (OpenAI). Perder un
       // onboarding entero porque su API se cayó es la peor forma de perder un

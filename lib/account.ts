@@ -127,6 +127,25 @@ export async function signInExisting(
  * cuenta. Si dijéramos "ese correo no está registrado", cualquiera podría
  * averiguar quién tiene cuenta en una app de salud probando direcciones.
  */
+/**
+ * A dónde lleva el enlace del correo de recuperación.
+ *
+ * Hacía falta una página: el flujo pedía el reset, el correo salía, y el
+ * enlace no llevaba a ninguna parte. No hay manejo de PASSWORD_RECOVERY en la
+ * app, ni pantalla para escribir la contraseña nueva. Alguien que pagara y
+ * olvidara su clave perdía la cuenta.
+ *
+ * Se resuelve en WEB y no con un deep link a propósito:
+ *   • funciona con el build que la gente ya tiene instalado, sin publicar uno
+ *     nuevo ni esperar a que actualicen;
+ *   • funciona aunque abran el correo en otro dispositivo, donde la app no
+ *     está instalada — que es la mitad de los casos reales;
+ *   • no depende del scheme ni de App Links, que es donde esto suele romperse.
+ *
+ * OJO: esto solo se aplica si el proyecto de Supabase tiene esta URL en su
+ * lista de Redirect URLs. Sin eso, Supabase la ignora y usa su Site URL.
+ */
+export const URL_CAMBIAR_CLAVE = 'https://rityvo.com/reset-password.html';
 export async function requestPasswordReset(
   email: string,
   redirectTo?: string

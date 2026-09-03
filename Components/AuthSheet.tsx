@@ -32,7 +32,7 @@ import {
   ActivityIndicator, ScrollView,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { linkEmailPassword, signInExisting, requestPasswordReset, isValidEmail } from '../lib/account';
+import { linkEmailPassword, signInExisting, requestPasswordReset, isValidEmail, URL_CAMBIAR_CLAVE } from '../lib/account';
 import { Colors, Fonts, Radii, Spacing, Type } from '../constants/theme';
 
 type Props = {
@@ -139,7 +139,7 @@ export default function AuthSheet({ visible, mode, onClose, onSuccess }: Props) 
 
     setBusy(true);
     try {
-      const res = await requestPasswordReset(email);
+      const res = await requestPasswordReset(email, URL_CAMBIAR_CLAVE);
       if (!res.ok) {
         setError(res.error ?? 'No pudimos enviar el enlace. Intenta de nuevo.');
         return;

@@ -275,11 +275,17 @@ correr(`"${gradlew}"`, [
   cwd: path.join(raiz, 'android'),
   env: {
     ...process.env,
-    // Estaba en las variables de entorno de EAS. Sin ella, el plugin de Sentry
-    // intenta subir los source maps y no encuentra ni organización, ni proyecto,
-    // ni token. Cuando configuremos el token de Sentry, esto se quita y los
-    // source maps vuelven — hoy no los tenemos ni en EAS.
-    SENTRY_DISABLE_AUTO_UPLOAD: 'true',
+    // CONDICIONAL, no literal. Estaba fijo en 'true' con un comentario que
+    // decía "cuando configuremos el token de Sentry, esto se quita" — y esa
+    // frase describe un paso manual que nadie iba a acordarse de dar. El día
+    // que las variables existieran, los source maps SEGUIRÍAN sin subirse y los
+    // errores llegarían sin simbolicar sin que nada lo dijera.
+    //
+    // Ahora se desactiva solo si falta alguna de las tres. En cuanto estén, el
+    // upload se enciende sin tocar este archivo.
+    ...(process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
+      ? {}
+      : { SENTRY_DISABLE_AUTO_UPLOAD: 'true' }),
   },
 });
 

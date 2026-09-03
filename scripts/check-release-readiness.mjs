@@ -121,8 +121,42 @@ if (!claveRc) {
   );
 }
 
+// ── El gate ──
+//
+// Esto SIEMPRE salía con process.exit(0). O sea: comprobaba las aprobaciones
+// clínica, nutricional y legal, comprobaba las variables de Sentry, escribía
+// una lista de lo que faltaba... y terminaba en verde. Un gate que no detiene
+// nada es un informe con pretensiones.
+//
+// Ahora bloquea, PERO solo cuando se le pide de verdad. La distinción importa:
+// correrlo a diario mientras se desarrolla y que falle en rojo entrena a la
+// gente a ignorarlo, que es cómo un gate deja de servir por segunda vez.
+//
+//   npm run release:check              → informa, no bloquea (uso diario)
+//   npm run release:check -- --gate    → falla si queda algo pendiente
+//   RELEASE_GATE=1 npm run release:check
+//
+// El hook de EAS y cualquier CI de publicación deben usar la forma que bloquea.
+// --eas-hook cuenta como gate: lo pasa eas-build-pre-install (package.json), y
+// un build que se está haciendo PARA PUBLICAR es justo donde esto debe morder.
+// Ese hook llevaba pasando la bandera desde siempre y el script la ignoraba.
+const bloqueante =
+  process.argv.includes('--gate') ||
+  process.argv.includes('--eas-hook') ||
+  process.env.RELEASE_GATE === '1';
+
 if (avisos.length) {
-  console.warn('Estado de publicación (informativo, no bloquea):\n- ' + avisos.join('\n- '));
+  const cabecera = bloqueante
+    ? 'NO se puede publicar todavía:'
+    : 'Estado de publicación (informativo, no bloquea — usa --gate para exigirlo):';
+  console.warn(`${cabecera}\n- ` + avisos.join('\n- '));
+  if (bloqueante) {
+    console.error(
+      `\n${avisos.length} punto(s) pendientes. Cada uno se cierra en docs/release-approvals.json ` +
+        'o en las variables del entorno de build.',
+    );
+    process.exit(1);
+  }
 } else {
   console.log('Revisiones clínica y legal registradas para las versiones actuales.');
 }

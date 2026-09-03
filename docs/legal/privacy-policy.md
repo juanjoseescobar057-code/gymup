@@ -2,10 +2,8 @@
 
 **Última actualización:** 4 de agosto de 2026 · **Versión:** 1.3
 
-> ⚠️ **Antes de publicar:** este documento fue redactado como base sólida y específica para
 > Rityvo, pero **no sustituye asesoría legal profesional**. Dado que la app trata **datos de
 > salud** (categoría sensible bajo la Ley 1581 de 2012 de Colombia), recomendamos que un
-> abogado lo revise antes de publicarlo.
 
 ## 1. Quién es el responsable de tus datos
 

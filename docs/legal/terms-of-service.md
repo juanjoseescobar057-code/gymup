@@ -2,7 +2,6 @@
 
 **Última actualización:** 15 de julio de 2026 · **Versión:** 1.0
 
-> ⚠️ **Antes de publicar:** base sólida redactada como punto de partida; no sustituye
 > asesoría legal profesional. Pide revisión de un abogado, especialmente por las cláusulas
 > de responsabilidad médica/deportiva y suscripciones.
 

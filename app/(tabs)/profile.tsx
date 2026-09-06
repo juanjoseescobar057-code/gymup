@@ -30,6 +30,7 @@ import { resetPurchasesIdentity } from '../../lib/purchases';
 import { phReset } from '../../lib/posthog';
 import { cancelDailyNotifications } from '../../lib/dailyNotifications';
 import { resetAnalyticsIdentity } from '../../lib/analytics';
+import { olvidarPushToken } from '../../lib/push';
 import { track } from '../../lib/analytics';
 import AuthSheet from '../../Components/AuthSheet';
 import { Colors, Fonts, Radii, Spacing, A11y, Type } from '../../constants/theme';
@@ -153,10 +154,10 @@ export default function ProfileScreen() {
   const [equipment, setEquipment] = useState(profile?.equipment ?? 'gym');
 
   async function saveChanges() {
-    if (!name.trim()) { Alert.alert('Error', 'Ingresa tu nombre.'); return; }
-    if (!age || isNaN(+age) || +age < MIN_AGE || +age > MAX_AGE) { Alert.alert('Error', `La edad debe estar entre ${MIN_AGE} y ${MAX_AGE} años.`); return; }
-    if (!weight || isNaN(+weight) || +weight < 30 || +weight > 300) { Alert.alert('Error', 'Peso entre 30 y 300 kg.'); return; }
-    if (!height || isNaN(+height) || +height < 130 || +height > 230) { Alert.alert('Error', 'Altura entre 130 y 230 cm.'); return; }
+    if (!name.trim()) { Alert.alert('Falta tu nombre', 'Escribe cómo quieres que te llamemos.'); return; }
+    if (!age || isNaN(+age) || +age < MIN_AGE || +age > MAX_AGE) { Alert.alert('Revisa la edad', `Tiene que estar entre ${MIN_AGE} y ${MAX_AGE} años.`); return; }
+    if (!weight || isNaN(+weight) || +weight < 30 || +weight > 300) { Alert.alert('Revisa el peso', 'Escríbelo en kilos, entre 30 y 300.'); return; }
+    if (!height || isNaN(+height) || +height < 130 || +height > 230) { Alert.alert('Revisa la altura', 'Escríbela en centímetros, entre 130 y 230.'); return; }
 
     setSaving(true);
     Keyboard.dismiss();
@@ -214,7 +215,7 @@ export default function ProfileScreen() {
     setSaving(false);
 
     if (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('No se pudo guardar', 'Revisa tu conexión e inténtalo de nuevo. Tus cambios siguen en pantalla.');
       return;
     }
 
@@ -279,7 +280,7 @@ export default function ProfileScreen() {
               .from('body_scans')
               .delete()
               .eq('user_id', profile.user_id);
-            if (error) { Alert.alert('Error', error.message); return; }
+            if (error) { Alert.alert('No se pudo borrar el historial', 'Revisa tu conexión e inténtalo de nuevo. No se borró nada.'); return; }
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             Alert.alert('Listo', 'Tu historial de análisis corporal fue eliminado.');
           },
@@ -409,6 +410,9 @@ export default function ProfileScreen() {
             phReset();
             await cancelDailyNotifications();
             await resetAnalyticsIdentity();
+            // El token push de este teléfono se quedaba a nombre de la cuenta
+            // que se va. Antes de signOut, que después ya no hay sesión.
+            await olvidarPushToken();
             // CERRAR LA SESIÓN PRIMERO, Y COMPROBARLO. Iba al final e ignorado:
             // si la red fallaba, la sesión seguía viva en el teléfono mientras
             // la app ya había borrado el store y los datos locales y se iba al

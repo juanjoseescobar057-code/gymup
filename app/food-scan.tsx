@@ -109,7 +109,7 @@ function FoodScanScreenContenido() {
           track('quota_hit', { feature: 'food_scan' });
           // Quedarse sin escaneos no puede significar quedarse sin registrar
           // el día: la salida manual va PRIMERO, antes que el paywall.
-          Alert.alert('Sin escaneos por hoy', gate.reason ?? '', [
+          Alert.alert('Escaneos de hoy agotados', gate.reason ?? '', [
             { text: 'Registrar a mano', onPress: () => router.replace('/food-manual' as any) },
             { text: 'Ver Premium', onPress: () => router.push('/paywall' as any) },
             { text: 'Cerrar', style: 'cancel' },
@@ -150,7 +150,7 @@ function FoodScanScreenContenido() {
       setPhotoUri(r.uri);
       await analyze(r.uri);
     } catch (e: any) {
-      Alert.alert('Error', 'Error al abrir cámara: ' + (e?.message ?? 'desconocido'));
+      Alert.alert('No pudimos abrir la cámara', 'Inténtalo de nuevo. Si sigue pasando, cierra Rityvo del todo y vuelve a abrirla.');
     }
   }
 

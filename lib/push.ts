@@ -46,3 +46,25 @@ export async function registerForPushNotifications(userId: string): Promise<void
     console.log('[push] Error obteniendo/guardando token:', e?.message);
   }
 }
+
+/**
+ * Al cerrar sesión, el token de ESTE dispositivo deja de pertenecer a la
+ * cuenta. Se quedaba en push_tokens: la siguiente persona que entrara en el
+ * mismo teléfono recibía los avisos de reactivación de la anterior.
+ *
+ * Hay que llamarlo ANTES de signOut: después ya no hay sesión con la que
+ * pasar el RLS. Si falla, no bloquea nada — el token se vuelve a registrar
+ * en el siguiente inicio de sesión y el viejo se pisa por upsert.
+ */
+export async function olvidarPushToken(): Promise<void> {
+  try {
+    const projectId =
+      (Constants.expoConfig as any)?.extra?.eas?.projectId ??
+      (Constants as any)?.easConfig?.projectId;
+    if (!projectId) return;
+    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
+    await supabase.from('push_tokens').delete().eq('token', token);
+  } catch (e: any) {
+    console.log('[push] No se pudo olvidar el token:', e?.message);
+  }
+}

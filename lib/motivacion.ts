@@ -40,28 +40,31 @@ const TRAMOS: Tramo[] = [
   { min: 30, max: Infinity, nombre: 'muy_largo' },
 ];
 
-// El pique. Todos hablan de CONSTANCIA —quién apareció y quién no— y ninguno
-// del cuerpo, el peso ni el aspecto de nadie.
+// El pique. Habla de CONSTANCIA —quién apareció y quién no— y de las cosas de
+// la persona (sus mancuernas, su playlist, el gimnasio). Nunca de otra gente:
+// la comparación con un tercero es una palanca de vergüenza, y para quien
+// viene de una ruptura es directamente un motivo para desinstalar. Tampoco se
+// asume género ni pareja.
 const CON_HUMOR: Record<string, string[]> = {
   medio: [
-    'Tu ex lleva tres días seguidos entrenando. Tres. Seguidos.',
-    'El gimnasio preguntó por ti. Le dije que estabas ocupado.',
+    'Tres días. Tu playlist de entreno ya se siente abandonada.',
+    'El gimnasio preguntó por ti. Le dije que andabas en otra cosa.',
     'Tus mancuernas están bien, gracias por no preguntar.',
   ],
   semana: [
-    'Tu ex lleva una semana sin fallar un solo día. ¿Y tú?',
     'Una semana. Tu plan de entrenamiento empezó a ver otras personas.',
-    'Ese que te robó a tu ex lleva siete días entrenando. Solo lo menciono.',
+    'Siete días. El banco del gimnasio ya no se acuerda de ti.',
+    'Una semana fuera. Tu botella de agua está pidiendo referencias.',
   ],
   largo: [
-    'Dos semanas. Tu ex ya tiene rutina, playlist y botella de esas caras.',
-    'Tu ex no falló ni un día en dos semanas. Y encima lo cuenta.',
+    'Dos semanas. Tus tenis ya se estaban acostumbrando al armario.',
+    'Catorce días. La colchoneta jura que te vio pasar por la puerta.',
     'Dos semanas fuera. La buena noticia: se vuelve más rápido de lo que se pierde.',
   ],
   muy_largo: [
-    'Un mes. Tu ex ya se sabe el nombre del de la recepción.',
+    'Un mes. En recepción ya te iban a mandar una postal.',
     'Un mes fuera. Empezamos otra vez, y esta vez sin prisa.',
-    'Volviste. Eso ya te pone por delante de quien no volvió.',
+    'Volviste. Y eso era lo único que hacía falta hoy.',
   ],
 };
 

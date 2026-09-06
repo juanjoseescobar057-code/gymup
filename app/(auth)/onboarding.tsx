@@ -413,7 +413,14 @@ export default function OnboardingScreen() {
     } catch (err: any) {
       clearInterval(msgInterval);
       setStep(3);
-      Alert.alert('Error', err.message ?? 'Error desconocido');
+      // Era `Alert.alert('Error', err.message)`: un código de Postgres o un
+      // "Failed to fetch" justo cuando alguien acaba de confiarnos su correo.
+      // Sus respuestas siguen en pantalla (vuelve al paso 3 con el estado
+      // intacto), y eso es lo que hay que decirle.
+      Alert.alert(
+        'No pudimos terminar',
+        'Algo falló al guardar tu perfil. Tus respuestas siguen aquí: revisa tu conexión y vuelve a tocar el botón.',
+      );
     }
   }
 
@@ -459,8 +466,13 @@ export default function OnboardingScreen() {
                     <View style={s.badgeDot} />
                     <Text style={s.badgeText}>IA PERSONALIZADA</Text>
                   </View>
-                  <Text style={s.title}>ENTRENA{'\n'}<Text style={s.accent}>COMO</Text>{'\n'}ÉLITE.</Text>
-                  <Text style={s.sub}>Tu coach de IA que aprende contigo cada día. Sin excusas.</Text>
+                  {/* "ENTRENA COMO ÉLITE. Sin excusas." era el primer texto que
+                      leía alguien que quizá lleva años sin entrenar: una vara
+                      que no le corresponde y una acusación anticipada. El
+                      valor real de la app es que se adapta a la persona, y
+                      eso es lo que se promete. */}
+                  <Text style={s.title}>ENTRENA{'\n'}<Text style={s.accent}>A TU</Text>{'\n'}RITMO.</Text>
+                  <Text style={s.sub}>Un coach que aprende de ti cada día y ajusta el plan a tu vida real.</Text>
 
                   {/* LA PUERTA DE VUELTA. Existía, pero al FINAL de este mismo
                       paso: por debajo del formulario, del botón de continuar y

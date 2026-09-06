@@ -137,7 +137,7 @@ export default function CameraScreen() {
               const remaining = Math.max(0, opt.limit - (used[opt.id] ?? 0));
               chip = remaining > 0
                 ? { txt: `Te queda${remaining === 1 ? '' : 'n'} ${remaining} hoy`, warn: false }
-                : { txt: 'Sin usos hoy', warn: true };
+                : { txt: 'Agotado por hoy', warn: true };
             } else {
               chip = { txt: '✦ Premium', warn: false };
             }
@@ -213,7 +213,7 @@ export default function CameraScreen() {
               : protPct >= 80
                 ? `💪 Llevas el ${protPct}% de proteína. Un shake o pechuga de pollo y cierras la meta.`
                 : calPct >= 90
-                  ? '⚠️ Estás cerca del límite de calorías. Prioriza proteína magra si vas a comer más.'
+                  ? '🍽️ Ya casi completas la energía de hoy. Si comes algo más, que sea proteína.'
                   : `📊 Llevas ${Math.round(totals.calories)} kcal y ${Math.round(totals.protein_g)}g de proteína. Escanea tu próxima comida.`}
           </Text>
         </View>

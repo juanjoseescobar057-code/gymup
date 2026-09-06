@@ -54,7 +54,7 @@ function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
  */
 export type CodigoDeIA =
   | 'limit_reached' | 'budget_reached' | 'premium_required'
-  | 'peticion_en_curso' | 'plataforma_saturada' | null;
+  | 'peticion_en_curso' | 'plataforma_saturada' | 'no_disponible' | null;
 
 export class ErrorDeIA extends Error {
   readonly codigo: CodigoDeIA;
@@ -118,7 +118,9 @@ async function aiChatRaw(body: object, feature: AIFeature, requestId?: string): 
 
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
-  if (!token) throw new Error('Sesión no válida para usar la IA.');
+  // ErrorDeIA y no Error: las pantallas enseñan tal cual lo que es nuestro y
+  // traducen lo demás (lib/mensajeDeFallo.ts). Esto es nuestro.
+  if (!token) throw new ErrorDeIA('Tu sesión venció. Cierra la app y vuelve a abrirla.', null, 401);
 
   const res = await fetchWithTimeout(PROXY_URL, {
     method: 'POST',
@@ -185,7 +187,9 @@ async function aiChatRaw(body: object, feature: AIFeature, requestId?: string): 
     // Tampoco aquí: este mensaje lo ve el usuario Y lo guarda logAiCall en
     // ai_telemetry. Adjuntar `msg` metía el cuerpo del proveedor —con el
     // prompt dentro— en nuestra propia base por la puerta de atrás.
-    throw new Error(`IA no disponible (${res.status}). Inténtalo de nuevo en un momento.`);
+    // El código HTTP viaja en `status`, no en el texto: "IA no disponible
+    // (502)" no le dice nada a quien lo lee y sí le dice que algo se rompió.
+    throw new ErrorDeIA('La IA no está disponible ahora mismo. Inténtalo de nuevo en un momento.', 'no_disponible', res.status);
   }
   return res.json();
 }

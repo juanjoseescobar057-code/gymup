@@ -44,7 +44,7 @@ export async function fetchExerciseBests(
   userId: string,
   names: string[]
 ): Promise<Record<string, ExerciseBest | null>> {
-  const byExercise = await fetchSetsByExercise(userId);
+  const byExercise = await fetchSetsByExercise(userId, names);
   const out: Record<string, ExerciseBest | null> = {};
   for (const n of names) {
     out[n] = byExercise[n] ? bestFromSets(byExercise[n]) : null;
@@ -53,11 +53,23 @@ export async function fetchExerciseBests(
 }
 
 // Helper interno: descarga las series del usuario agrupadas por ejercicio.
-async function fetchSetsByExercise(userId: string): Promise<Record<string, SetLite[]>> {
-  const { data, error } = await supabase
+//
+// Bajaba TODAS las series de la persona, de cualquier ejercicio, sin orden y
+// cortadas a 3000: pasado el primer año, el "mejor histórico" salía de un
+// subconjunto arbitrario y un PR de verdad podía no contarse. Ahora se piden
+// solo los ejercicios de la sesión y, si hay que cortar, se quedan las series
+// más pesadas, que son las que deciden un récord.
+// La pantalla de récords (fetchExerciseRecords) sí quiere todos los ejercicios:
+// sin `names` no se filtra, pero el corte sigue quedándose con lo más pesado.
+async function fetchSetsByExercise(userId: string, names?: string[]): Promise<Record<string, SetLite[]>> {
+  if (names && names.length === 0) return {};
+  let consulta = supabase
     .from('set_logs')
     .select('exercise_name, weight_kg, reps')
-    .eq('user_id', userId)
+    .eq('user_id', userId);
+  if (names) consulta = consulta.in('exercise_name', names);
+  const { data, error } = await consulta
+    .order('weight_kg', { ascending: false, nullsFirst: false })
     .limit(3000);
   if (error) { console.log('[history] set_logs:', error.message); return {}; }
   const map: Record<string, SetLite[]> = {};

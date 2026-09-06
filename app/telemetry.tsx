@@ -13,7 +13,7 @@ import {
   ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { fetchTelemetry, fetchUserTraits, type UserTraits } from '../lib/aiTelemetry';
 import {
   summarize, rowsWithinHours, turnBuckets, groupConversations, type TelemetryRow,
@@ -56,6 +56,14 @@ function scoreColor(score: number): string {
 }
 
 export default function TelemetryScreen() {
+  // El perfil solo enlaza este panel en __DEV__, pero la ruta seguía abierta en
+  // producción por deep link: costo en USD por llamada, latencia, tokens y
+  // decisiones internas del coach. Es del desarrollador, no del producto.
+  if (!__DEV__) return <Redirect href={'/(tabs)' as any} />;
+  return <PanelTelemetria />;
+}
+
+function PanelTelemetria() {
   const [rows, setRows] = useState<TelemetryRow[]>([]);
   const [traits, setTraits] = useState<UserTraits | null>(null);
   const [loading, setLoading] = useState(true);

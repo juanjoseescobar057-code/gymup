@@ -20,6 +20,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { analyzeFridgePhoto } from '../lib/openai-features';
+import { mensajeDeFalloDeIA, esErrorNuestro } from '../lib/mensajeDeFallo';
+import { captureError } from '../lib/monitoring';
 import { canUseFeature } from '../lib/subscription';
 import { localDateKey } from '../lib/foodLogs';
 import { useUserStore } from '../store/userStore';
@@ -211,7 +213,7 @@ function FridgeScanScreenContenido() {
       setPhotoUri(r.uri);
       await analyze(r.uri);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('No pudimos abrir la cámara', 'Inténtalo de nuevo. Si sigue pasando, cierra Rityvo del todo y vuelve a abrirla.');
     }
   }
 
@@ -238,7 +240,8 @@ function FridgeScanScreenContenido() {
         AsyncStorage.setItem(key, String(used + 1)).catch(() => {});
       }
     } catch (e: any) {
-      Alert.alert('Error en el análisis', e.message);
+      if (!esErrorNuestro(e)) captureError(e, { scope: 'fridge.analyze' });
+      Alert.alert('No pudimos analizar la nevera', mensajeDeFalloDeIA(e));
       setPhase('intro');
     }
   }

@@ -116,7 +116,14 @@ export function computeRisk(h: HealthProfile, age: number): { level: RiskLevel; 
   if (h.conditions.includes('asma')) reasons.push('asma');
   if (h.conditions.includes('artritis')) reasons.push('artritis/artrosis');
   if (h.conditions.includes('hernia_discal')) reasons.push('hernia discal');
-  if (h.injuries.length > 0) reasons.push(`lesión activa (${h.injuries.join(', ')})`);
+  if (h.injuries.length > 0) {
+    // Etiquetas, no claves: "espalda_baja" y "muneca_codo" llegaban tal cual a
+    // la pantalla de salud y al diálogo del visto bueno médico.
+    const zonas = h.injuries.map(
+      (id) => INJURY_ZONES.find((z) => z.id === id)?.label.toLowerCase() ?? id.replace(/_/g, ' '),
+    );
+    reasons.push(`lesión activa (${zonas.join(', ')})`);
+  }
   if (age >= 60) reasons.push('edad 60+');
   if (h.other_note?.trim()) reasons.push('condición adicional declarada');
   if (reasons.length > 0) return { level: 'moderado', reasons };

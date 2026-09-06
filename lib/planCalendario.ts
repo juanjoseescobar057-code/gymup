@@ -94,7 +94,7 @@ export function reincorporacionPor(diasFuera: number): Reincorporacion | null {
     return {
       diasFuera,
       factorCarga: 0.9,
-      nota: 'Llevas más de una semana parado. Hoy baja un 10% el peso y quédate con una repetición de reserva.',
+      nota: 'Llevas más de una semana sin entrenar. Hoy baja un 10% el peso y para cada serie cuando aún te quede una repetición.',
       sugerirReplanificar: false,
     };
   }

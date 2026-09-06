@@ -1,0 +1,16 @@
+✔ el mejor histórico se pide por ejercicio y se queda con lo más pesado (3.4088ms)
+✔ el export pagina en vez de quedarse en las primeras mil filas (1.3161ms)
+✔ la pantalla de inicio carga el plan ACTIVO, como el arranque (1.841ms)
+✔ la reactivación recorre a todos los inactivos, no a los primeros mil (1.1275ms)
+✔ cerrar sesión olvida el token push de este dispositivo, antes de signOut (2.3711ms)
+✔ el esquema define el día local una sola vez (2.8535ms)
+✔ las tablas que crecen con cada sesión tienen índice por persona y fecha (2.3705ms)
+✔ la telemetría de IA se puede purgar; la analítica de producto, no (2.4408ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 829.2346

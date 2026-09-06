@@ -21,6 +21,7 @@ import { useUserStore } from '../store/userStore';
 import { recordBodyScan } from '../lib/streaks';
 import { parseAI, BodyAnalysisSchema, PhotoValidationSchema } from '../lib/schemas';
 import { aiChat, esRechazoDeCupo } from '../lib/aiClient';
+import { mensajeDeFalloDeIA, esErrorNuestro } from '../lib/mensajeDeFallo';
 import { canUseFeature } from '../lib/subscription';
 import { ofrecerAjusteDePlan } from '../lib/ofrecerAjusteDePlan';
 import { track } from '../lib/analytics';
@@ -66,8 +67,11 @@ type PreviousScan = {
 
 const STATUS_CONFIG = {
   strength: { color: Colors.accent, bg: Colors.accentMuted,          icon: '✅', label: 'Fortaleza' },
-  focus:    { color: Colors.warning,     bg: 'rgba(255,157,58,0.10)',     icon: '⚠️', label: 'Trabajar'  },
-  priority: { color: Colors.error,     bg: 'rgba(255,68,68,0.10)',      icon: '🔴', label: 'Prioridad' },
+  focus:    { color: Colors.warning,     bg: 'rgba(255,157,58,0.10)',     icon: '⚠️', label: 'Por trabajar' },
+  // El prompt dice que "priority" NO implica urgencia ni alarma; la pantalla lo
+  // pintaba en rojo con un 🔴 sobre una zona del cuerpo de la persona. Es el
+  // sitio con más margen de mejora: se señala como punto de partida.
+  priority: { color: Colors.info,        bg: 'rgba(85,182,255,0.10)',     icon: '🎯', label: 'Empieza aquí' },
 };
 
 // Una foto de celular no está calibrada: no hay escala, ni pliegues, ni
@@ -492,7 +496,8 @@ function BodyScanScreenContenido() {
       setPhase('result');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      Alert.alert('Error en el análisis', e.message);
+      if (!esErrorNuestro(e)) captureError(e, { scope: 'body_scan.analyze', fotos: photos.length });
+      Alert.alert('No pudimos analizar las fotos', mensajeDeFalloDeIA(e));
       setPhase('capture');
     }
   }
@@ -836,8 +841,8 @@ function BodyScanScreenContenido() {
           <ActivityIndicator color={Colors.accent} size="large" />
           <Text style={s.analyzingTitle}>Analizando tu cuerpo</Text>
           <Text style={s.analyzingMsg}>
-            Analizando {photos.length} foto{photos.length > 1 ? 's' : ''}{'\n'}
-            con expertise de coach profesional...
+            Analizando {photos.length} foto{photos.length > 1 ? 's' : ''}.{'\n'}
+            Esto toma unos segundos.
           </Text>
           {[
             'Detectando composición corporal...',
@@ -1014,7 +1019,7 @@ function BodyScanScreenContenido() {
           </View>
 
           {/* Predicción */}
-          <Text style={s.sectionLbl}>🔮 PREDICCIÓN A 30 DÍAS</Text>
+          <Text style={s.sectionLbl}>📈 QUÉ ESPERAR EN 30 DÍAS</Text>
           <View style={s.predictionCard}>
             <Text style={s.predictionTxt}>{result.prediction_30days}</Text>
             <Text style={s.predictionDisclaimer}>

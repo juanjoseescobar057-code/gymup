@@ -245,10 +245,14 @@ export default function DashboardScreen() {
     if (!profile) return;
 
     // Cargar plan desde Supabase
+    // Mismo filtro que el arranque (app/index.tsx): sin `is_active`, el plan
+    // más reciente por fecha podía ser uno ya reemplazado o deshecho, y la
+    // pantalla de inicio pisaba el plan bueno que el arranque había cargado.
     const { data: plan } = await supabase
       .from('training_plans')
       .select('*')
       .eq('user_id', profile.user_id)
+      .eq('is_active', true)
       .order('generated_at', { ascending: false })
       .limit(1)
       .single();
@@ -598,12 +602,12 @@ export default function DashboardScreen() {
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel="Tu plan no incluye tu último cambio de salud"
-            accessibilityHint="Abre tu perfil para ajustarlo con la inteligencia artificial"
+            accessibilityHint="Abre tu perfil, donde está el botón Actualizar mi rutina"
           >
             <Text style={{ fontSize: 20 }}>🩺</Text>
             <Text style={s.staleTxt}>
-              Tu plan no incluye tu último cambio de salud. Toca para ajustarlo con la IA
-              (Perfil → Ajustar mi plan).
+              Tu plan no incluye tu último cambio de salud. Toca para actualizarlo
+              (Perfil → Actualizar mi rutina).
             </Text>
           </TouchableOpacity>
         )}

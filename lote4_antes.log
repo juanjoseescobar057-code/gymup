@@ -1,0 +1,561 @@
+✖ el mejor histórico se pide por ejercicio y se queda con lo más pesado (8.6015ms)
+✖ el export pagina en vez de quedarse en las primeras mil filas (3.3984ms)
+✖ la pantalla de inicio carga el plan ACTIVO, como el arranque (5.5596ms)
+✖ la reactivación recorre a todos los inactivos, no a los primeros mil (15.0015ms)
+✖ cerrar sesión olvida el token push de este dispositivo, antes de signOut (3.5556ms)
+✖ el esquema define el día local una sola vez (4.4649ms)
+✖ las tablas que crecen con cada sesión tienen índice por persona y fecha (2.8137ms)
+✖ la telemetría de IA se puede purgar; la analítica de producto, no (3.405ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 0
+ℹ fail 8
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 599.204
+
+✖ failing tests:
+
+test at __tests__\loteDatos.test.ts:2:1433
+✖ el mejor histórico se pide por ejercicio y se queda con lo más pesado (8.6015ms)
+  AssertionError [ERR_ASSERTION]: sigue bajando TODAS las series
+      at TestContext.<anonymous> (C:\GymUp\__tests__\loteDatos.test.ts:25:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.start (node:internal/test_runner/test:1003:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:358:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: "\r\r\r\r\r\n\r\nimport { supabase } from './supabase';\r\nimport { bestFromSets, type ExerciseBest, type SetLite } from './prs';\r\n\r\nexport type SessionRow = {\r\n  id: string;\r\n  day_index: number;\r\n  completed_at: string | null;\r\n  duration_min: number | null;\r\n  exercises_completed: number | null;\r\n};\r\n\r\nexport type ExerciseRecord = { exercise_name: string } & ExerciseBest;\r\n\r\n\r\nexport async function fetchRecentSessions(userId: string, limit = 20): Promise<SessionRow[]> {\r\n  const { data, error } = await supabase\r\n    .from('workout_sessions')\r\n    .select('id, day_index, completed_at, duration_min, exercises_completed')\r\n    .eq('user_id', userId)\r\n    .not('completed_at', 'is', null)\r\n    .order('completed_at', { ascending: false })\r\n    .limit(limit);\r\n  if (error) { console.log('[history] sesiones:', error.message); return []; }\r\n  return (data ?? []) as SessionRow[];\r\n}\r\n\r\n\r\nexport async function fetchExerciseRecords(userId: string): Promise<ExerciseRecord[]> {\r\n  const byExercise = await fetchSetsByExercise(userId);\r\n  return Object.entries(byExercise)\r\n    .map(([exercise_name, sets]) => ({ exercise_name, ...bestFromSets(sets) }))\r\n    .filter((r) => r.best1RM > 0 || r.maxReps > 0)\r\n    .sort((a, b) => b.best1RM - a.best1RM);\r\n}\r\n\r\n\r\nexport async function fetchExerciseBests(\r\n  userId: string,\r\n  names: string[]\r\n): Promise<Record<string, ExerciseBest | null>> {\r\n  const byExercise = await fetchSetsByExercise(userId);\r\n  const out: Record<string, ExerciseBest | null> = {};\r\n  for (const n of names) {\r\n    out[n] = byExercise[n] ? bestFromSets(byExercise[n]) : null;\r\n  }\r\n  return out;\r\n}\r\r\nasync function fetchSetsByExercise(userId: string): Promise<Record<string, SetLite[]>> {\r\n  const { data, error } = await supabase\r\n    .from('set_logs')\r\n    .select('exercise_name, weight_kg, reps')\r\n    .eq('user_id', userId)\r\n    .limit(3000);\r\n  if (error) { console.log('[history] set_logs:', error.message); return {}; }\r\n  const map: Record<string, SetLite[]> = {};\r\n  for (const row of (data ?? []) as any[]) {\r\n    (map[row.exercise_name] ??= []).push({ weight_kg: row.weight_kg, reps: row.reps });\r\n  }\r\n  return map;\r\n}\r\n",
+    expected: /fetchSetsByExercise\(userId, names\)/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at __tests__\loteDatos.test.ts:2:2050
+✖ el export pagina en vez de quedarse en las primeras mil filas (3.3984ms)
+  AssertionError [ERR_ASSERTION]: sigue la consulta de un solo tiro (PostgREST corta a 1000 y no avisa)
+      at TestContext.<anonymous> (C:\GymUp\__tests__\loteDatos.test.ts:35:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at __tests__\loteDatos.test.ts:2:2519
+✖ la pantalla de inicio carga el plan ACTIVO, como el arranque (5.5596ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /\.eq\('is_active', true\)/. Input:
+  
+  "from('training_plans')\r\n" +
+    "      .select('*')\r\n" +
+    "      .eq('user_id', profile.user_id)\r\n" +
+    "      .order('generated_at', { ascending: false })\r\n" +
+    '      .limit(1)\r\n' +
+    '      .single();\r\n' +
+    '\r\n' +
+    '    if (plan) setTrainingPlan(plan);\r\r\n' +
+    '    const todayKey = localDateKey();\r\n' +
+    '    if (loadedDate !== todayKey) {\r\n' +
+    '      const tod'
+  
+      at TestContext.<anonymous> (C:\GymUp\__tests__\loteDatos.test.ts:47:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: "from('training_plans')\r\n      .select('*')\r\n      .eq('user_id', profile.user_id)\r\n      .order('generated_at', { ascending: false })\r\n      .limit(1)\r\n      .single();\r\n\r\n    if (plan) setTrainingPlan(plan);\r\r\n    const todayKey = localDateKey();\r\n    if (loadedDate !== todayKey) {\r\n      const tod",
+    expected: /\.eq\('is_active', true\)/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at __tests__\loteDatos.test.ts:2:2819
+✖ la reactivación recorre a todos los inactivos, no a los primeros mil (15.0015ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert.ok(!/\.limit\(1000\)/.test(src))
+  
+      at TestContext.<anonymous> (C:\GymUp\__tests__\loteDatos.test.ts:52:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at __tests__\loteDatos.test.ts:2:3306
+✖ cerrar sesión olvida el token push de este dispositivo, antes de signOut (3.5556ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /export async function olvidarPushToken/. Input:
+  
+  '\r\r\r\r\r\r\n' +
+    '\r\n' +
+    "import * as Notifications from 'expo-notifications';\r\n" +
+    "import * as Device from 'expo-device';\r\n" +
+    "import Constants from 'expo-constants';\r\n" +
+    "import { Platform } from 'react-native';\r\n" +
+    "import { supabase } from './supabase';\r\n" +
+    '\r\n' +
+    'export async function registerForPushNotifications(userId: string): Promise<void> {\r\n' +
+    '  if (!Device.isDevice) return; // no funciona en simulador\r\n' +
+    '\r\n' +
+    '  const { status: existing } = await Notifications.getPermissionsAsync();\r\n' +
+    '  let status = existing;\r\n' +
+    "  if (existing !== 'granted') {\r\n" +
+    '    status = (await Notifications.requestPermissionsAsync()).status;\r\r\n' +
+    '    try {\r\r\n' +
+    "      require('./analytics').track('notification_permission', { granted: status === 'granted' });\r\n" +
+    '    } catch {}\r\n' +
+    '  }\r\n' +
+    "  if (status !== 'granted') return;\r\n" +
+    '\r\n' +
+    '  const projectId =\r\n' +
+    '    (Constants.expoConfig as any)?.extra?.eas?.projectId ??\r\n' +
+    '    (Constants as any)?.easConfig?.projectId;\r\n' +
+    '  if (!projectId) {\r\n' +
+    "    console.log('[push] Sin projectId de EAS — corre `eas init` para activar push remoto.');\r\n" +
+    '    return;\r\n' +
+    '  }\r\n' +
+    '\r\n' +
+    '  try {\r\n' +
+    '    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });\r\n' +
+    "    await supabase.from('push_tokens').upsert({\r\n" +
+    '      token,\r\n' +
+    '      user_id: userId,\r\n' +
+    '      platform: Platform.OS,\r\n' +
+    '      updated_at: new Date().toISOString(),\r\n' +
+    '    });\r\n' +
+    '  } catch (e: any) {\r\n' +
+    "    console.log('[push] Error obteniendo/guardando token:', e?.message);\r\n" +
+    '  }\r\n' +
+    '}\r\n'
+  
+      at TestContext.<anonymous> (C:\GymUp\__tests__\loteDatos.test.ts:62:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: "\r\r\r\r\r\r\n\r\nimport * as Notifications from 'expo-notifications';\r\nimport * as Device from 'expo-device';\r\nimport Constants from 'expo-constants';\r\nimport { Platform } from 'react-native';\r\nimport { supabase } from './supabase';\r\n\r\nexport async function registerForPushNotifications(userId: string): Promise<void> {\r\n  if (!Device.isDevice) return; // no funciona en simulador\r\n\r\n  const { status: existing } = await Notifications.getPermissionsAsync();\r\n  let status = existing;\r\n  if (existing !== 'granted') {\r\n    status = (await Notifications.requestPermissionsAsync()).status;\r\r\n    try {\r\r\n      require('./analytics').track('notification_permission', { granted: status === 'granted' });\r\n    } catch {}\r\n  }\r\n  if (status !== 'granted') return;\r\n\r\n  const projectId =\r\n    (Constants.expoConfig as any)?.extra?.eas?.projectId ??\r\n    (Constants as any)?.easConfig?.projectId;\r\n  if (!projectId) {\r\n    console.log('[push] Sin projectId de EAS — corre `eas init` para activar push remoto.');\r\n    return;\r\n  }\r\n\r\n  try {\r\n    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });\r\n    await supabase.from('push_tokens').upsert({\r\n      token,\r\n      user_id: userId,\r\n      platform: Platform.OS,\r\n      updated_at: new Date().toISOString(),\r\n    });\r\n  } catch (e: any) {\r\n    console.log('[push] Error obteniendo/guardando token:', e?.message);\r\n  }\r\n}\r\n",
+    expected: /export async function olvidarPushToken/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at __tests__\loteDatos.test.ts:2:4122
+✖ el esquema define el día local una sola vez (4.4649ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /create or replace function public\._dia_local\(p_ts timestamptz\)/. Input:
+  
+  '\r\r\r\r\r\r\n' +
+    '\r\n' +
+    'create extension if not exists "uuid-ossp";\r\r\r\r\r\r\n' +
+    'create or replace function public._apply_owner_rls(tbl text) returns void\r\n' +
+    'language plpgsql as $$\r\n' +
+    'begin\r\n' +
+    "  execute format('alter table public.%I enable row level security', tbl);\r\n" +
+    "  execute format('grant select, insert, update, delete on public.%I to anon, authenticated', tbl);\r\n" +
+    "  execute format('drop policy if exists %I on public.%I', tbl||'_select', tbl);\r\n" +
+    "  execute format('drop policy if exists %I on public.%I', tbl||'_insert', tbl);\r\n" +
+    "  execute format('drop policy if exists %I on public.%I', tbl||'_update', tbl);\r\n" +
+    "  execute format('drop policy if exists %I on public.%I', tbl||'_delete', tbl);\r\n" +
+    "  execute format('create policy %I on public.%I for select using (auth.uid() = user_id)', tbl||'_select', tbl);\r\n" +
+    "  execute format('create policy %I on public.%I for insert with check (auth.uid() = user_id)', tbl||'_insert', tbl);\r\n" +
+    "  execute format('create policy %I on public.%I for update using (auth.uid() = user_id) with check (auth.uid() = user_id)', tbl||'_update', tbl);\r\n" +
+    "  execute format('create policy %I on public.%I for delete using (auth.uid() = user_id)', tbl||'_delete', tbl);\r\n" +
+    'end $$;\r\r\n' +
+    'create table if not exists public.user_profiles (\r\n' +
+    '  id uuid primary key default uuid_generate_v4(),\r\n' +
+    '  user_id uuid references auth.users(id) on delete cascade not null unique,\r\n' +
+    '  name text not null,\r\n' +
+    '  age integer not null check (age between 18 and 90),\r\n' +
+    '  weight_kg numeric(5,1) not null check (weight_kg between 30 and 300),\r\n' +
+    '  height_cm numeric(5,1) not null check (height_cm between 130 and 230),\r\r\r\r\r\n' +
+    "  sex text not null default 'unspecified' check (sex in ('male','female','unspecified')),\r\n" +
+    "  goal text not null check (goal in ('muscle_gain','fat_loss','performance','endurance')),\r\n" +
+    "  activity_level text not null check (activity_level in ('sedentary','light','moderate','active','very_active')),\r\n" +
+    "  training_experience text not null default 'principiante' check (training_experience in ('principiante','intermedio','avanzado')),\r\n" +
+    '  days_per_week integer not null default 3 check (days_per_week between 1 and 7),\r\n' +
+    "  equipment text not null default 'gym' check (equipment in ('gym','casa_basico','casa_sin_equipo')),\r\n" +
+    '  daily_calories integer not null default 2000,\r\n' +
+    '  daily_protein_g integer not null default 150,\r\n' +
+    '  daily_carbs_g integer not null default 200,\r\n' +
+    '  daily_fat_g integer not null default 65,\r\n' +
+    '  current_plan_day integer not null default 0 check (current_plan_day between 0 and 6),\r\n' +
+    '  last_active_date date,\r\n' +
+    '  is_premium boolean not null default false,\r\n' +
+    '  target_weight_kg numeric(5,1),          -- meta de peso (opcional)\r\n' +
+    '  goal_why text,                          -- motivación personal ("el porqué")\r\n' +
+    '  goal_start_weight_kg numeric(5,1),      -- peso al fijar la meta (para % de avance)\r\n' +
+    '  nickname text,                          -- cómo quiere que lo llame la app/el coach\r\n' +
+    '  created_at timestamptz default now(),\r\n' +
+    '  updated_at timestamptz default now()\r\n' +
+    ');\r\r\n' +
+    'alter table if exists public.user_profiles add column if not exists target_weight_kg numeric(5,1);\r\n' +
+    'alter table if exists public.user_profiles add column if not exists goal_why text;\r\n' +
+    'alter table if exists public.user_profiles add column if not exists goal_start_weight_kg numeric(5,1);\r\n' +
+    'alter table if exists public.user_profiles add column if not exists nickname text;\r\n' +
+    "alter table if exists public.user_profiles add column if not exists training_experience text not null default 'principiante';\r\n" +
+    'alter table if exists public.user_profiles add column if not exists days_per_week integer not null default 3;\r\n' +
+    "alter table if exists public.user_profiles add column if not exists equipment text not null default 'gym';\r\r\r\r\r\r\n" +
+    'alter table if exists public.user_profiles add column if not exists is_premium boolean not null default false;\r\n' +
+    "alter table if exists public.user_profiles add column if not exists sex text not null default 'unspecified';\r\r\r\n" +
+    'do $$\r\n' +
+    'begin\r\n' +
+    '  alter table public.user_profiles\r\n' +
+    "    add constraint user_profiles_sex_check check (sex in ('male','female','unspecified'));\r\n" +
+    'exception when duplicate_object then null;\r\n' +
+    'end $$;\r\n' +
+    "select public._apply_owner_rls('user_profiles');\r\r\r\r\n" +
+    'revoke update on public.user_profiles from anon, authenticated;\r\r\r\r\r\r\n' +
+    'grant update (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,\r\n' +
+    '  training_experience, days_per_week, equipment,\r\n' +
+    '  daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,\r\n' +
+    '  current_plan_day, last_active_date, target_weight_kg, goal_why,\r\n' +
+    '  goal_start_weight_kg, updated_at)\r\n' +
+    '  on public.user_profiles to anon, authenticated;\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\n' +
+    'revoke insert, delete on public.user_profiles from anon, authenticated;\r\r\r\r\r\r\r\r\n' +
+    'grant insert (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,\r\n' +
+    '  training_experience, days_per_week, equipment,\r\n' +
+    '  daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,\r\n' +
+    '  current_plan_day, last_active_date, target_weight_kg, goal_why,\r\n' +
+    '  goal_start_weight_kg, updated_at)\r\n' +
+    '  on public.user_profiles to anon, authenticated;\r\r\r\r\r\r\r\r\r\r\n' +
+    'drop policy if exists user_profiles_delete on public.user_profiles;\r\r\n' +
+    'create table if not exists public.training_plans (\r\n' +
+    '  id uuid primary key default uuid_generate_v4(),\r\n' +
+    '  user_id uuid references auth.users(id) on delete cascade not null,\r\n' +
+    '  week_number integer not null default 1,\r\n' +
+    '  plan_data jsonb not null,\r\n' +
+    '  is_active boolean default true,\r\n' +
+    '  generated_at timestamptz default now(),\r\n' +
+    '  parent_plan_id uuid references public.training_plans(id),\r\n' +
+    "  change_reason jsonb not null default '{}'::jsonb,\r\n" +
+    '  replaced_at timestamptz\r\n' +
+    ');\r\n' +
+    'alter table public.training_plans add column if not exists parent_plan_id uuid references public.training_plans(id);\r\n' +
+    "alter table public.training_plans add column if not exists change_reason jsonb not null default '{}'::jsonb;\r\n" +
+    'alter table public.training_plans add column if not exists replaced_at timestamptz;\r\r\n' +
+    'with ranked as (\r\n' +
+    '  select id, row_number() over (partition by user_id order by generated_at desc, id desc) as rn\r\n' +
+    '  from public.training_plans where is_active\r\n' +
+    ')\r\n' +
+    'update public.training_plans p set is_active = false, replaced_at = coalesce(p.replaced_at, now())\r\n' +
+    'from ranked r where p.id = r.id and r.rn > 1;\r\n' +
+    'create unique index if not exists one_active_training_plan_per_user\r\n' +
+    '  on public.training_plans(user_id) where is_active;\r\n' +
+    "select public._apply_owner_rls('training_plans');\r\n" +
+    '\r\n' +
+    "create or replace function public.activate_training_plan(p_plan_data jsonb, p_change_reason jsonb default '{}'::jsonb)\r\n" +
+    'returns setof public.training_plans\r\n' +
+    'language plpgsql security definer set search_path = public as $$\r\n' +
+    'declare\r\n' +
+    '  v_uid uuid := auth.uid();\r\n' +
+    '  v_parent uuid;\r\n' +
+    '  v_new uuid;\r\n' +
+    '  v_week integer := 1;\r\n' +
+    'begin\r\n' +
+    "  if v_uid is null then raise exception 'Se requiere autenticación'; end if;\r\n" +
+    "  if jsonb_typeof(p_plan_data) <> 'object' or jsonb_array_length(coalesce(p_plan_data->'days', '[]'::jsonb)) <> 7 then\r\n" +
+    "    raise exception 'El plan debe contener exactamente 7 días';\r\n" +
+    '  end if;\r\n' +
+    '  select p.id, coalesce(p.week_number, 0) + 1 into v_parent, v_week\r\n' +
+    '  from public.training_plans p where p.user_id = v_uid and p.is_active\r\n' +
+    '  order by p.generated_at desc limit 1 for update;\r\n' +
+    '\r\n' +
+    '  insert into public.training_plans(user_id, week_number, plan_data, is_active, parent_plan_id, change_reason)\r\n' +
+    "  values(v_uid, coalesce(v_week, 1), p_plan_data, false, v_parent, coalesce(p_change_reason, '{}'::jsonb))\r\n" +
+    '  returning id into v_new;\r\n' +
+    '  update public.training_plans set is_active = false, replaced_at = now()\r\n' +
+    '  where user_id = v_uid and is_active;\r\n' +
+    '  update public.training_plans set is_active = true, replaced_at = null where id = v_new;\r\n' +
+    '  update public.user_profiles set current_plan_day = 0, updated_at = now() where user_id = v_uid;\r\n' +
+    '  return query select p.* from public.training_plans p where p.id = v_new;\r\n' +
+    'end $$;\r\n' +
+    'grant execute on function public.activate_training_plan(jsonb, jsonb) to authenticated;\r\n' +
+    '\r\n' +
+    'create or replace function public.restore_previous_training_plan()\r\n' +
+    'returns setof public.training_plans\r\n' +
+    'language plpgsql security definer set search_path = public as $$\r\n' +
+    'declare\r\n' +
+    '  v_uid uuid := auth.uid();\r\n' +
+    '  v_current uuid;\r\n' +
+    '  v_previous uuid;\r\n' +
+    'begin\r\n' +
+    "  if v_uid is null then raise exception 'Se requiere autenticación'; end if;\r\n" +
+    '  select p.id, p.parent_plan_id into v_current, v_previous\r\n' +
+    '  from public.training_plans p where p.user_id = v_uid and p.is_active\r\n' +
+    '  order by p.generated_at desc limit 1 for update;\r\n' +
+    "  if v_current is null then raise exception 'No hay plan activo'; end if;\r\n" +
+    '  if v_previous is null then\r\n' +
+    '    select p.id into v_previous from public.training_plans p\r\n' +
+    '    where p.user_id = v_uid and p.id <> v_current\r\n' +
+    '    order by p.generated_at desc limit 1;\r\n' +
+    '  end if;\r\n' +
+    "  if v_previous is null then raise exception 'No hay un plan anterior para restaurar'; end if;\r\n" +
+    '  update public.training_plans set is_active = false, replaced_at = now() where id = v_current;\r\n' +
+    '  update public.training_plans set is_active = true, replaced_at = null where id = v_previous and user_id = v_uid;\r\n' +
+    '  update public.user_profiles set current_plan_day = 0, updated_at = now() where user_id = v_uid;\r\n' +
+    '  return query select p.* from public.training_plans p where p.id = v_previous;\r\n' +
+    'end $$;\r\n' +
+    'grant execute on function public.restore_previous_training_plan() to authenticated;\r\r\n' +
+    'create table if not exists public.food_logs (\r\n' +
+    '  id uuid primary key default uuid_generate_v4(),\r\n' +
+    '  user_id uuid references auth.users(id) on delete cascade not null,\r\n' +
+    '  logged_at timestamptz default now(),\r\n' +
+    '  meal_name text not null,\r\n' +
+    '  food_description text,\r\n' +
+    '  photo_url text,\r\n' +
+    '  calories integer not null default 0,\r\n' +
+    '  protein_g numeric(6,1) not null default 0,\r\n' +
+    '  carbs_g numeric(6,1) not null default 0,\r\n' +
+    '  fat_g numeric(6,1) not null default 0,\r\n' +
+    '  fiber_g numeric(6,1) not null default 0,\r\n' +
+    '  xp_credited_at timestamptz\r\n' +
+    ');\r\n' +
+    'alter table public.food_logs add column if not exists xp_credited_at timestamptz;\r\n' +
+    "select public._apply_owner_rls('food_logs');\r\r\r\r\r\n" +
+    'revoke update on public.food_logs from anon, authentic'... 64228 more characters
+  
+      at TestContext.<anonymous> (C:\GymUp\__tests__\loteDatos.test.ts:79:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: `\r\r\r\r\r\r\n\r\ncreate extension if not exists "uuid-ossp";\r\r\r\r\r\r\ncreate or replace function public._apply_owner_rls(tbl text) returns void\r\nlanguage plpgsql as $$\r\nbegin\r\n  execute format('alter table public.%I enable row level security', tbl);\r\n  execute format('grant select, insert, update, delete on public.%I to anon, authenticated', tbl);\r\n  execute format('drop policy if exists %I on public.%I', tbl||'_select', tbl);\r\n  execute format('drop policy if exists %I on public.%I', tbl||'_insert', tbl);\r\n  execute format('drop policy if exists %I on public.%I', tbl||'_update', tbl);\r\n  execute format('drop policy if exists %I on public.%I', tbl||'_delete', tbl);\r\n  execute format('create policy %I on public.%I for select using (auth.uid() = user_id)', tbl||'_select', tbl);\r\n  execute format('create policy %I on public.%I for insert with check (auth.uid() = user_id)', tbl||'_insert', tbl);\r\n  execute format('create policy %I on public.%I for update using (auth.uid() = user_id) with check (auth.uid() = user_id)', tbl||'_update', tbl);\r\n  execute format('create policy %I on public.%I for delete using (auth.uid() = user_id)', tbl||'_delete', tbl);\r\nend $$;\r\r\ncreate table if not exists public.user_profiles (\r\n  id uuid primary key default uuid_generate_v4(),\r\n  user_id uuid references auth.users(id) on delete cascade not null unique,\r\n  name text not null,\r\n  age integer not null check (age between 18 and 90),\r\n  weight_kg numeric(5,1) not null check (weight_kg between 30 and 300),\r\n  height_cm numeric(5,1) not null check (height_cm between 130 and 230),\r\r\r\r\r\n  sex text not null default 'unspecified' check (sex in ('male','female','unspecified')),\r\n  goal text not null check (goal in ('muscle_gain','fat_loss','performance','endurance')),\r\n  activity_level text not null check (activity_level in ('sedentary','light','moderate','active','very_active')),\r\n  training_experience text not null default 'principiante' check (training_experience in ('principiante','intermedio','avanzado')),\r\n  days_per_week integer not null default 3 check (days_per_week between 1 and 7),\r\n  equipment text not null default 'gym' check (equipment in ('gym','casa_basico','casa_sin_equipo')),\r\n  daily_calories integer not null default 2000,\r\n  daily_protein_g integer not null default 150,\r\n  daily_carbs_g integer not null default 200,\r\n  daily_fat_g integer not null default 65,\r\n  current_plan_day integer not null default 0 check (current_plan_day between 0 and 6),\r\n  last_active_date date,\r\n  is_premium boolean not null default false,\r\n  target_weight_kg numeric(5,1),          -- meta de peso (opcional)\r\n  goal_why text,                          -- motivación personal ("el porqué")\r\n  goal_start_weight_kg numeric(5,1),      -- peso al fijar la meta (para % de avance)\r\n  nickname text,                          -- cómo quiere que lo llame la app/el coach\r\n  created_at timestamptz default now(),\r\n  updated_at timestamptz default now()\r\n);\r\r\nalter table if exists public.user_profiles add column if not exists target_weight_kg numeric(5,1);\r\nalter table if exists public.user_profiles add column if not exists goal_why text;\r\nalter table if exists public.user_profiles add column if not exists goal_start_weight_kg numeric(5,1);\r\nalter table if exists public.user_profiles add column if not exists nickname text;\r\nalter table if exists public.user_profiles add column if not exists training_experience text not null default 'principiante';\r\nalter table if exists public.user_profiles add column if not exists days_per_week integer not null default 3;\r\nalter table if exists public.user_profiles add column if not exists equipment text not null default 'gym';\r\r\r\r\r\r\nalter table if exists public.user_profiles add column if not exists is_premium boolean not null default false;\r\nalter table if exists public.user_profiles add column if not exists sex text not null default 'unspecified';\r\r\r\ndo $$\r\nbegin\r\n  alter table public.user_profiles\r\n    add constraint user_profiles_sex_check check (sex in ('male','female','unspecified'));\r\nexception when duplicate_object then null;\r\nend $$;\r\nselect public._apply_owner_rls('user_profiles');\r\r\r\r\nrevoke update on public.user_profiles from anon, authenticated;\r\r\r\r\r\r\ngrant update (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,\r\n  training_experience, days_per_week, equipment,\r\n  daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,\r\n  current_plan_day, last_active_date, target_weight_kg, goal_why,\r\n  goal_start_weight_kg, updated_at)\r\n  on public.user_profiles to anon, authenticated;\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\nrevoke insert, delete on public.user_profiles from anon, authenticated;\r\r\r\r\r\r\r\r\ngrant insert (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,\r\n  training_experience, days_per_week, equipment,\r\n  daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,\r\n  current_plan_day, last_active_date, target_weight_kg, goal_why,\r\n  goal_start_weight_kg, updated_at)\r\n  on public.user_profiles to anon, authenticated;\r\r\r\r\r\r\r\r\r\r\ndrop policy if exists user_profiles_delete on public.user_profiles;\r\r\ncreate table if not exists public.training_plans (\r\n  id uuid primary key default uuid_generate_v4(),\r\n  user_id uuid references auth.users(id) on delete cascade not null,\r\n  week_number integer not null default 1,\r\n  plan_data jsonb not null,\r\n  is_active boolean default true,\r\n  generated_at timestamptz default now(),\r\n  parent_plan_id uuid references public.training_plans(id),\r\n  change_reason jsonb not null default '{}'::jsonb,\r\n  replaced_at timestamptz\r\n);\r\nalter table public.training_plans add column if not exists parent_plan_id uuid references public.training_plans(id);\r\nalter table public.training_plans add column if not exists change_reason jsonb not null default '{}'::jsonb;\r\nalter table public.training_plans add column if not exists replaced_at timestamptz;\r\r\nwith ranked as (\r\n  select id, row_number() over (partition by user_id order by generated_at desc, id desc) as rn\r\n  from public.training_plans where is_active\r\n)\r\nupdate public.training_plans p set is_active = false, replaced_at = coalesce(p.replaced_at, now())\r\nfrom ranked r where p.id = r.id and r.rn > 1;\r\ncreate unique index if not exists one_active_training_plan_per_user\r\n  on public.training_plans(user_id) where is_active;\r\nselect public._apply_owner_rls('training_plans');\r\n\r\ncreate or replace function public.activate_training_plan(p_plan_data jsonb, p_change_reason jsonb default '{}'::jsonb)\r\nreturns setof public.training_plans\r\nlanguage plpgsql security definer set search_path = public as $$\r\ndeclare\r\n  v_uid uuid := auth.uid();\r\n  v_parent uuid;\r\n  v_new uuid;\r\n  v_week integer := 1;\r\nbegin\r\n  if v_uid is null then raise exception 'Se requiere autenticación'; end if;\r\n  if jsonb_typeof(p_plan_data) <> 'object' or jsonb_array_length(coalesce(p_plan_data->'days', '[]'::jsonb)) <> 7 then\r\n    raise exception 'El plan debe contener exactamente 7 días';\r\n  end if;\r\n  select p.id, coalesce(p.week_number, 0) + 1 into v_parent, v_week\r\n  from public.training_plans p where p.user_id = v_uid and p.is_active\r\n  order by p.generated_at desc limit 1 for update;\r\n\r\n  insert into public.training_plans(user_id, week_number, plan_data, is_active, parent_plan_id, change_reason)\r\n  values(v_uid, coalesce(v_week, 1), p_plan_data, false, v_parent, coalesce(p_change_reason, '{}'::jsonb))\r\n  returning id into v_new;\r\n  update public.training_plans set is_active = false, replaced_at = now()\r\n  where user_id = v_uid and is_active;\r\n  update public.training_plans set is_active = true, replaced_at = null where id = v_new;\r\n  update public.user_profiles set current_plan_day = 0, updated_at = now() where user_id = v_uid;\r\n  return query select p.* from public.training_plans p where p.id = v_new;\r\nend $$;\r\ngrant execute on function public.activate_training_plan(jsonb, jsonb) to authenticated;\r\n\r\ncreate or replace function public.restore_previous_training_plan()\r\nreturns setof public.training_plans\r\nlanguage plpgsql security definer set search_path = public as $$\r\ndeclare\r\n  v_uid uuid := auth.uid();\r\n  v_current uuid;\r\n  v_previous uuid;\r\nbegin\r\n  if v_uid is null then raise exception 'Se requiere autenticación'; end if;\r\n  select p.id, p.parent_plan_id into v_current, v_previous\r\n  from public.training_plans p where p.user_id = v_uid and p.is_active\r\n  order by p.generated_at desc limit 1 for update;\r\n  if v_current is null then raise exception 'No hay plan activo'; end if;\r\n  if v_previous is null then\r\n    select p.id into v_previous from public.training_plans p\r\n    where p.user_id = v_uid and p.id <> v_current\r\n    order by p.generated_at desc limit 1;\r\n  end if;\r\n  if v_previous is null then raise exception 'No hay un plan anterior para restaurar'; end if;\r\n  update public.training_plans set is_active = false, replaced_at = now() where id = v_current;\r\n  update public.training_plans set is_active = true, replaced_at = null where id = v_previous and user_id = v_uid;\r\n  update public.user_profiles set current_plan_day = 0, updated_at = now() where user_id = v_uid;\r\n  return query select p.* from public.training_plans p where p.id = v_previous;\r\nend $$;\r\ngrant execute on function public.restore_previous_training_plan() to authenticated;\r\r\ncreate table if not exists public.food_logs (\r\n  id uuid primary key default uuid_generate_v4(),\r\n  user_id uuid references auth.users(id) on delete cascade not null,\r\n  logged_at timestamptz default now(),\r\n  meal_name text not null,\r\n  food_description text,\r\n  photo_url text,\r\n  calories integer not null default 0,\r\n  protein_g numeric(6,1) not null default 0,\r\n  carbs_g numeric(6,1) not null default 0,\r\n  fat_g numeric(6,1) not null default 0,\r\n  fiber_g numeric(6,1) not null default 0,\r\n  xp_credited_at timestamptz\r\n);\r\nalter table public.food_logs add column if not exists xp_credited_at timestamptz;\r\nselect public._apply_owner_rls('food_logs');\r\r\r\r\r\nrevoke update on public.food_logs from anon, authentic`... 64228 more characters,
+    expected: /create or replace function public\._dia_local\(p_ts timestamptz\)/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at __tests__\loteDatos.test.ts:2:4780
+✖ las tablas que crecen con cada sesión tienen índice por persona y fecha (2.8137ms)
+  AssertionError [ERR_ASSERTION]: falta el índice set_logs_user_logged on public.set_logs(user_id, logged_at desc)
+      at TestContext.<anonymous> (C:\GymUp\__tests__\loteDatos.test.ts:97:12)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at __tests__\loteDatos.test.ts:2:5382
+✖ la telemetría de IA se puede purgar; la analítica de producto, no (3.405ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /create or replace function public\.purgar_ai_telemetry\(p_dias integer default 90\)/. Input:
+  
+  '\r\r\r\r\r\r\n' +
+    '\r\n' +
+    'create extension if not exists "uuid-ossp";\r\r\r\r\r\r\n' +
+    'create or replace function public._apply_owner_rls(tbl text) returns void\r\n' +
+    'language plpgsql as $$\r\n' +
+    'begin\r\n' +
+    "  execute format('alter table public.%I enable row level security', tbl);\r\n" +
+    "  execute format('grant select, insert, update, delete on public.%I to anon, authenticated', tbl);\r\n" +
+    "  execute format('drop policy if exists %I on public.%I', tbl||'_select', tbl);\r\n" +
+    "  execute format('drop policy if exists %I on public.%I', tbl||'_insert', tbl);\r\n" +
+    "  execute format('drop policy if exists %I on public.%I', tbl||'_update', tbl);\r\n" +
+    "  execute format('drop policy if exists %I on public.%I', tbl||'_delete', tbl);\r\n" +
+    "  execute format('create policy %I on public.%I for select using (auth.uid() = user_id)', tbl||'_select', tbl);\r\n" +
+    "  execute format('create policy %I on public.%I for insert with check (auth.uid() = user_id)', tbl||'_insert', tbl);\r\n" +
+    "  execute format('create policy %I on public.%I for update using (auth.uid() = user_id) with check (auth.uid() = user_id)', tbl||'_update', tbl);\r\n" +
+    "  execute format('create policy %I on public.%I for delete using (auth.uid() = user_id)', tbl||'_delete', tbl);\r\n" +
+    'end $$;\r\r\n' +
+    'create table if not exists public.user_profiles (\r\n' +
+    '  id uuid primary key default uuid_generate_v4(),\r\n' +
+    '  user_id uuid references auth.users(id) on delete cascade not null unique,\r\n' +
+    '  name text not null,\r\n' +
+    '  age integer not null check (age between 18 and 90),\r\n' +
+    '  weight_kg numeric(5,1) not null check (weight_kg between 30 and 300),\r\n' +
+    '  height_cm numeric(5,1) not null check (height_cm between 130 and 230),\r\r\r\r\r\n' +
+    "  sex text not null default 'unspecified' check (sex in ('male','female','unspecified')),\r\n" +
+    "  goal text not null check (goal in ('muscle_gain','fat_loss','performance','endurance')),\r\n" +
+    "  activity_level text not null check (activity_level in ('sedentary','light','moderate','active','very_active')),\r\n" +
+    "  training_experience text not null default 'principiante' check (training_experience in ('principiante','intermedio','avanzado')),\r\n" +
+    '  days_per_week integer not null default 3 check (days_per_week between 1 and 7),\r\n' +
+    "  equipment text not null default 'gym' check (equipment in ('gym','casa_basico','casa_sin_equipo')),\r\n" +
+    '  daily_calories integer not null default 2000,\r\n' +
+    '  daily_protein_g integer not null default 150,\r\n' +
+    '  daily_carbs_g integer not null default 200,\r\n' +
+    '  daily_fat_g integer not null default 65,\r\n' +
+    '  current_plan_day integer not null default 0 check (current_plan_day between 0 and 6),\r\n' +
+    '  last_active_date date,\r\n' +
+    '  is_premium boolean not null default false,\r\n' +
+    '  target_weight_kg numeric(5,1),          -- meta de peso (opcional)\r\n' +
+    '  goal_why text,                          -- motivación personal ("el porqué")\r\n' +
+    '  goal_start_weight_kg numeric(5,1),      -- peso al fijar la meta (para % de avance)\r\n' +
+    '  nickname text,                          -- cómo quiere que lo llame la app/el coach\r\n' +
+    '  created_at timestamptz default now(),\r\n' +
+    '  updated_at timestamptz default now()\r\n' +
+    ');\r\r\n' +
+    'alter table if exists public.user_profiles add column if not exists target_weight_kg numeric(5,1);\r\n' +
+    'alter table if exists public.user_profiles add column if not exists goal_why text;\r\n' +
+    'alter table if exists public.user_profiles add column if not exists goal_start_weight_kg numeric(5,1);\r\n' +
+    'alter table if exists public.user_profiles add column if not exists nickname text;\r\n' +
+    "alter table if exists public.user_profiles add column if not exists training_experience text not null default 'principiante';\r\n" +
+    'alter table if exists public.user_profiles add column if not exists days_per_week integer not null default 3;\r\n' +
+    "alter table if exists public.user_profiles add column if not exists equipment text not null default 'gym';\r\r\r\r\r\r\n" +
+    'alter table if exists public.user_profiles add column if not exists is_premium boolean not null default false;\r\n' +
+    "alter table if exists public.user_profiles add column if not exists sex text not null default 'unspecified';\r\r\r\n" +
+    'do $$\r\n' +
+    'begin\r\n' +
+    '  alter table public.user_profiles\r\n' +
+    "    add constraint user_profiles_sex_check check (sex in ('male','female','unspecified'));\r\n" +
+    'exception when duplicate_object then null;\r\n' +
+    'end $$;\r\n' +
+    "select public._apply_owner_rls('user_profiles');\r\r\r\r\n" +
+    'revoke update on public.user_profiles from anon, authenticated;\r\r\r\r\r\r\n' +
+    'grant update (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,\r\n' +
+    '  training_experience, days_per_week, equipment,\r\n' +
+    '  daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,\r\n' +
+    '  current_plan_day, last_active_date, target_weight_kg, goal_why,\r\n' +
+    '  goal_start_weight_kg, updated_at)\r\n' +
+    '  on public.user_profiles to anon, authenticated;\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\n' +
+    'revoke insert, delete on public.user_profiles from anon, authenticated;\r\r\r\r\r\r\r\r\n' +
+    'grant insert (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,\r\n' +
+    '  training_experience, days_per_week, equipment,\r\n' +
+    '  daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,\r\n' +
+    '  current_plan_day, last_active_date, target_weight_kg, goal_why,\r\n' +
+    '  goal_start_weight_kg, updated_at)\r\n' +
+    '  on public.user_profiles to anon, authenticated;\r\r\r\r\r\r\r\r\r\r\n' +
+    'drop policy if exists user_profiles_delete on public.user_profiles;\r\r\n' +
+    'create table if not exists public.training_plans (\r\n' +
+    '  id uuid primary key default uuid_generate_v4(),\r\n' +
+    '  user_id uuid references auth.users(id) on delete cascade not null,\r\n' +
+    '  week_number integer not null default 1,\r\n' +
+    '  plan_data jsonb not null,\r\n' +
+    '  is_active boolean default true,\r\n' +
+    '  generated_at timestamptz default now(),\r\n' +
+    '  parent_plan_id uuid references public.training_plans(id),\r\n' +
+    "  change_reason jsonb not null default '{}'::jsonb,\r\n" +
+    '  replaced_at timestamptz\r\n' +
+    ');\r\n' +
+    'alter table public.training_plans add column if not exists parent_plan_id uuid references public.training_plans(id);\r\n' +
+    "alter table public.training_plans add column if not exists change_reason jsonb not null default '{}'::jsonb;\r\n" +
+    'alter table public.training_plans add column if not exists replaced_at timestamptz;\r\r\n' +
+    'with ranked as (\r\n' +
+    '  select id, row_number() over (partition by user_id order by generated_at desc, id desc) as rn\r\n' +
+    '  from public.training_plans where is_active\r\n' +
+    ')\r\n' +
+    'update public.training_plans p set is_active = false, replaced_at = coalesce(p.replaced_at, now())\r\n' +
+    'from ranked r where p.id = r.id and r.rn > 1;\r\n' +
+    'create unique index if not exists one_active_training_plan_per_user\r\n' +
+    '  on public.training_plans(user_id) where is_active;\r\n' +
+    "select public._apply_owner_rls('training_plans');\r\n" +
+    '\r\n' +
+    "create or replace function public.activate_training_plan(p_plan_data jsonb, p_change_reason jsonb default '{}'::jsonb)\r\n" +
+    'returns setof public.training_plans\r\n' +
+    'language plpgsql security definer set search_path = public as $$\r\n' +
+    'declare\r\n' +
+    '  v_uid uuid := auth.uid();\r\n' +
+    '  v_parent uuid;\r\n' +
+    '  v_new uuid;\r\n' +
+    '  v_week integer := 1;\r\n' +
+    'begin\r\n' +
+    "  if v_uid is null then raise exception 'Se requiere autenticación'; end if;\r\n" +
+    "  if jsonb_typeof(p_plan_data) <> 'object' or jsonb_array_length(coalesce(p_plan_data->'days', '[]'::jsonb)) <> 7 then\r\n" +
+    "    raise exception 'El plan debe contener exactamente 7 días';\r\n" +
+    '  end if;\r\n' +
+    '  select p.id, coalesce(p.week_number, 0) + 1 into v_parent, v_week\r\n' +
+    '  from public.training_plans p where p.user_id = v_uid and p.is_active\r\n' +
+    '  order by p.generated_at desc limit 1 for update;\r\n' +
+    '\r\n' +
+    '  insert into public.training_plans(user_id, week_number, plan_data, is_active, parent_plan_id, change_reason)\r\n' +
+    "  values(v_uid, coalesce(v_week, 1), p_plan_data, false, v_parent, coalesce(p_change_reason, '{}'::jsonb))\r\n" +
+    '  returning id into v_new;\r\n' +
+    '  update public.training_plans set is_active = false, replaced_at = now()\r\n' +
+    '  where user_id = v_uid and is_active;\r\n' +
+    '  update public.training_plans set is_active = true, replaced_at = null where id = v_new;\r\n' +
+    '  update public.user_profiles set current_plan_day = 0, updated_at = now() where user_id = v_uid;\r\n' +
+    '  return query select p.* from public.training_plans p where p.id = v_new;\r\n' +
+    'end $$;\r\n' +
+    'grant execute on function public.activate_training_plan(jsonb, jsonb) to authenticated;\r\n' +
+    '\r\n' +
+    'create or replace function public.restore_previous_training_plan()\r\n' +
+    'returns setof public.training_plans\r\n' +
+    'language plpgsql security definer set search_path = public as $$\r\n' +
+    'declare\r\n' +
+    '  v_uid uuid := auth.uid();\r\n' +
+    '  v_current uuid;\r\n' +
+    '  v_previous uuid;\r\n' +
+    'begin\r\n' +
+    "  if v_uid is null then raise exception 'Se requiere autenticación'; end if;\r\n" +
+    '  select p.id, p.parent_plan_id into v_current, v_previous\r\n' +
+    '  from public.training_plans p where p.user_id = v_uid and p.is_active\r\n' +
+    '  order by p.generated_at desc limit 1 for update;\r\n' +
+    "  if v_current is null then raise exception 'No hay plan activo'; end if;\r\n" +
+    '  if v_previous is null then\r\n' +
+    '    select p.id into v_previous from public.training_plans p\r\n' +
+    '    where p.user_id = v_uid and p.id <> v_current\r\n' +
+    '    order by p.generated_at desc limit 1;\r\n' +
+    '  end if;\r\n' +
+    "  if v_previous is null then raise exception 'No hay un plan anterior para restaurar'; end if;\r\n" +
+    '  update public.training_plans set is_active = false, replaced_at = now() where id = v_current;\r\n' +
+    '  update public.training_plans set is_active = true, replaced_at = null where id = v_previous and user_id = v_uid;\r\n' +
+    '  update public.user_profiles set current_plan_day = 0, updated_at = now() where user_id = v_uid;\r\n' +
+    '  return query select p.* from public.training_plans p where p.id = v_previous;\r\n' +
+    'end $$;\r\n' +
+    'grant execute on function public.restore_previous_training_plan() to authenticated;\r\r\n' +
+    'create table if not exists public.food_logs (\r\n' +
+    '  id uuid primary key default uuid_generate_v4(),\r\n' +
+    '  user_id uuid references auth.users(id) on delete cascade not null,\r\n' +
+    '  logged_at timestamptz default now(),\r\n' +
+    '  meal_name text not null,\r\n' +
+    '  food_description text,\r\n' +
+    '  photo_url text,\r\n' +
+    '  calories integer not null default 0,\r\n' +
+    '  protein_g numeric(6,1) not null default 0,\r\n' +
+    '  carbs_g numeric(6,1) not null default 0,\r\n' +
+    '  fat_g numeric(6,1) not null default 0,\r\n' +
+    '  fiber_g numeric(6,1) not null default 0,\r\n' +
+    '  xp_credited_at timestamptz\r\n' +
+    ');\r\n' +
+    'alter table public.food_logs add column if not exists xp_credited_at timestamptz;\r\n' +
+    "select public._apply_owner_rls('food_logs');\r\r\r\r\r\n" +
+    'revoke update on public.food_logs from anon, authentic'... 64228 more characters
+  
+      at TestContext.<anonymous> (C:\GymUp\__tests__\loteDatos.test.ts:103:10)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: `\r\r\r\r\r\r\n\r\ncreate extension if not exists "uuid-ossp";\r\r\r\r\r\r\ncreate or replace function public._apply_owner_rls(tbl text) returns void\r\nlanguage plpgsql as $$\r\nbegin\r\n  execute format('alter table public.%I enable row level security', tbl);\r\n  execute format('grant select, insert, update, delete on public.%I to anon, authenticated', tbl);\r\n  execute format('drop policy if exists %I on public.%I', tbl||'_select', tbl);\r\n  execute format('drop policy if exists %I on public.%I', tbl||'_insert', tbl);\r\n  execute format('drop policy if exists %I on public.%I', tbl||'_update', tbl);\r\n  execute format('drop policy if exists %I on public.%I', tbl||'_delete', tbl);\r\n  execute format('create policy %I on public.%I for select using (auth.uid() = user_id)', tbl||'_select', tbl);\r\n  execute format('create policy %I on public.%I for insert with check (auth.uid() = user_id)', tbl||'_insert', tbl);\r\n  execute format('create policy %I on public.%I for update using (auth.uid() = user_id) with check (auth.uid() = user_id)', tbl||'_update', tbl);\r\n  execute format('create policy %I on public.%I for delete using (auth.uid() = user_id)', tbl||'_delete', tbl);\r\nend $$;\r\r\ncreate table if not exists public.user_profiles (\r\n  id uuid primary key default uuid_generate_v4(),\r\n  user_id uuid references auth.users(id) on delete cascade not null unique,\r\n  name text not null,\r\n  age integer not null check (age between 18 and 90),\r\n  weight_kg numeric(5,1) not null check (weight_kg between 30 and 300),\r\n  height_cm numeric(5,1) not null check (height_cm between 130 and 230),\r\r\r\r\r\n  sex text not null default 'unspecified' check (sex in ('male','female','unspecified')),\r\n  goal text not null check (goal in ('muscle_gain','fat_loss','performance','endurance')),\r\n  activity_level text not null check (activity_level in ('sedentary','light','moderate','active','very_active')),\r\n  training_experience text not null default 'principiante' check (training_experience in ('principiante','intermedio','avanzado')),\r\n  days_per_week integer not null default 3 check (days_per_week between 1 and 7),\r\n  equipment text not null default 'gym' check (equipment in ('gym','casa_basico','casa_sin_equipo')),\r\n  daily_calories integer not null default 2000,\r\n  daily_protein_g integer not null default 150,\r\n  daily_carbs_g integer not null default 200,\r\n  daily_fat_g integer not null default 65,\r\n  current_plan_day integer not null default 0 check (current_plan_day between 0 and 6),\r\n  last_active_date date,\r\n  is_premium boolean not null default false,\r\n  target_weight_kg numeric(5,1),          -- meta de peso (opcional)\r\n  goal_why text,                          -- motivación personal ("el porqué")\r\n  goal_start_weight_kg numeric(5,1),      -- peso al fijar la meta (para % de avance)\r\n  nickname text,                          -- cómo quiere que lo llame la app/el coach\r\n  created_at timestamptz default now(),\r\n  updated_at timestamptz default now()\r\n);\r\r\nalter table if exists public.user_profiles add column if not exists target_weight_kg numeric(5,1);\r\nalter table if exists public.user_profiles add column if not exists goal_why text;\r\nalter table if exists public.user_profiles add column if not exists goal_start_weight_kg numeric(5,1);\r\nalter table if exists public.user_profiles add column if not exists nickname text;\r\nalter table if exists public.user_profiles add column if not exists training_experience text not null default 'principiante';\r\nalter table if exists public.user_profiles add column if not exists days_per_week integer not null default 3;\r\nalter table if exists public.user_profiles add column if not exists equipment text not null default 'gym';\r\r\r\r\r\r\nalter table if exists public.user_profiles add column if not exists is_premium boolean not null default false;\r\nalter table if exists public.user_profiles add column if not exists sex text not null default 'unspecified';\r\r\r\ndo $$\r\nbegin\r\n  alter table public.user_profiles\r\n    add constraint user_profiles_sex_check check (sex in ('male','female','unspecified'));\r\nexception when duplicate_object then null;\r\nend $$;\r\nselect public._apply_owner_rls('user_profiles');\r\r\r\r\nrevoke update on public.user_profiles from anon, authenticated;\r\r\r\r\r\r\ngrant update (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,\r\n  training_experience, days_per_week, equipment,\r\n  daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,\r\n  current_plan_day, last_active_date, target_weight_kg, goal_why,\r\n  goal_start_weight_kg, updated_at)\r\n  on public.user_profiles to anon, authenticated;\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\nrevoke insert, delete on public.user_profiles from anon, authenticated;\r\r\r\r\r\r\r\r\ngrant insert (user_id, name, nickname, age, sex, weight_kg, height_cm, goal, activity_level,\r\n  training_experience, days_per_week, equipment,\r\n  daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g,\r\n  current_plan_day, last_active_date, target_weight_kg, goal_why,\r\n  goal_start_weight_kg, updated_at)\r\n  on public.user_profiles to anon, authenticated;\r\r\r\r\r\r\r\r\r\r\ndrop policy if exists user_profiles_delete on public.user_profiles;\r\r\ncreate table if not exists public.training_plans (\r\n  id uuid primary key default uuid_generate_v4(),\r\n  user_id uuid references auth.users(id) on delete cascade not null,\r\n  week_number integer not null default 1,\r\n  plan_data jsonb not null,\r\n  is_active boolean default true,\r\n  generated_at timestamptz default now(),\r\n  parent_plan_id uuid references public.training_plans(id),\r\n  change_reason jsonb not null default '{}'::jsonb,\r\n  replaced_at timestamptz\r\n);\r\nalter table public.training_plans add column if not exists parent_plan_id uuid references public.training_plans(id);\r\nalter table public.training_plans add column if not exists change_reason jsonb not null default '{}'::jsonb;\r\nalter table public.training_plans add column if not exists replaced_at timestamptz;\r\r\nwith ranked as (\r\n  select id, row_number() over (partition by user_id order by generated_at desc, id desc) as rn\r\n  from public.training_plans where is_active\r\n)\r\nupdate public.training_plans p set is_active = false, replaced_at = coalesce(p.replaced_at, now())\r\nfrom ranked r where p.id = r.id and r.rn > 1;\r\ncreate unique index if not exists one_active_training_plan_per_user\r\n  on public.training_plans(user_id) where is_active;\r\nselect public._apply_owner_rls('training_plans');\r\n\r\ncreate or replace function public.activate_training_plan(p_plan_data jsonb, p_change_reason jsonb default '{}'::jsonb)\r\nreturns setof public.training_plans\r\nlanguage plpgsql security definer set search_path = public as $$\r\ndeclare\r\n  v_uid uuid := auth.uid();\r\n  v_parent uuid;\r\n  v_new uuid;\r\n  v_week integer := 1;\r\nbegin\r\n  if v_uid is null then raise exception 'Se requiere autenticación'; end if;\r\n  if jsonb_typeof(p_plan_data) <> 'object' or jsonb_array_length(coalesce(p_plan_data->'days', '[]'::jsonb)) <> 7 then\r\n    raise exception 'El plan debe contener exactamente 7 días';\r\n  end if;\r\n  select p.id, coalesce(p.week_number, 0) + 1 into v_parent, v_week\r\n  from public.training_plans p where p.user_id = v_uid and p.is_active\r\n  order by p.generated_at desc limit 1 for update;\r\n\r\n  insert into public.training_plans(user_id, week_number, plan_data, is_active, parent_plan_id, change_reason)\r\n  values(v_uid, coalesce(v_week, 1), p_plan_data, false, v_parent, coalesce(p_change_reason, '{}'::jsonb))\r\n  returning id into v_new;\r\n  update public.training_plans set is_active = false, replaced_at = now()\r\n  where user_id = v_uid and is_active;\r\n  update public.training_plans set is_active = true, replaced_at = null where id = v_new;\r\n  update public.user_profiles set current_plan_day = 0, updated_at = now() where user_id = v_uid;\r\n  return query select p.* from public.training_plans p where p.id = v_new;\r\nend $$;\r\ngrant execute on function public.activate_training_plan(jsonb, jsonb) to authenticated;\r\n\r\ncreate or replace function public.restore_previous_training_plan()\r\nreturns setof public.training_plans\r\nlanguage plpgsql security definer set search_path = public as $$\r\ndeclare\r\n  v_uid uuid := auth.uid();\r\n  v_current uuid;\r\n  v_previous uuid;\r\nbegin\r\n  if v_uid is null then raise exception 'Se requiere autenticación'; end if;\r\n  select p.id, p.parent_plan_id into v_current, v_previous\r\n  from public.training_plans p where p.user_id = v_uid and p.is_active\r\n  order by p.generated_at desc limit 1 for update;\r\n  if v_current is null then raise exception 'No hay plan activo'; end if;\r\n  if v_previous is null then\r\n    select p.id into v_previous from public.training_plans p\r\n    where p.user_id = v_uid and p.id <> v_current\r\n    order by p.generated_at desc limit 1;\r\n  end if;\r\n  if v_previous is null then raise exception 'No hay un plan anterior para restaurar'; end if;\r\n  update public.training_plans set is_active = false, replaced_at = now() where id = v_current;\r\n  update public.training_plans set is_active = true, replaced_at = null where id = v_previous and user_id = v_uid;\r\n  update public.user_profiles set current_plan_day = 0, updated_at = now() where user_id = v_uid;\r\n  return query select p.* from public.training_plans p where p.id = v_previous;\r\nend $$;\r\ngrant execute on function public.restore_previous_training_plan() to authenticated;\r\r\ncreate table if not exists public.food_logs (\r\n  id uuid primary key default uuid_generate_v4(),\r\n  user_id uuid references auth.users(id) on delete cascade not null,\r\n  logged_at timestamptz default now(),\r\n  meal_name text not null,\r\n  food_description text,\r\n  photo_url text,\r\n  calories integer not null default 0,\r\n  protein_g numeric(6,1) not null default 0,\r\n  carbs_g numeric(6,1) not null default 0,\r\n  fat_g numeric(6,1) not null default 0,\r\n  fiber_g numeric(6,1) not null default 0,\r\n  xp_credited_at timestamptz\r\n);\r\nalter table public.food_logs add column if not exists xp_credited_at timestamptz;\r\nselect public._apply_owner_rls('food_logs');\r\r\r\r\r\nrevoke update on public.food_logs from anon, authentic`... 64228 more characters,
+    expected: /create or replace function public\.purgar_ai_telemetry\(p_dias integer default 90\)/,
+    operator: 'match',
+    diff: 'simple'
+  }

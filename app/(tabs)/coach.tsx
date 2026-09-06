@@ -11,6 +11,8 @@ import { imageToOptimizedBase64 } from '../../lib/image';
 import { AI_SAFETY_RULES } from '../../lib/safety';
 import { parseAI, PostureResultSchema } from '../../lib/schemas';
 import { aiChat } from '../../lib/aiClient';
+import { mensajeDeFalloDeIA, esErrorNuestro } from '../../lib/mensajeDeFallo';
+import { captureError } from '../../lib/monitoring';
 import { canUseFeature } from '../../lib/subscription';
 import { track } from '../../lib/analytics';
 import { loadHealthSafe } from '../../lib/health';
@@ -72,6 +74,16 @@ const TECHNIQUE_RISK_COLORS = {
   low:    '#a8e063',
   medium: Colors.warning,
   high:   Colors.error,
+};
+
+// El nivel se enseñaba con `.toUpperCase()` sobre la clave del esquema:
+// "RIESGO POR TÉCNICA: HIGH". La clave es un contrato con la IA; lo que se
+// lee en pantalla, no.
+const TECHNIQUE_RISK_LABELS: Record<string, string> = {
+  none:   'NINGUNO',
+  low:    'BAJO',
+  medium: 'MEDIO',
+  high:   'ALTO',
 };
 
 async function analyzePosture(imageUri: string, exerciseName: string, healthBlock = ''): Promise<PostureResult> {
@@ -295,7 +307,7 @@ function CoachScreenContenido() {
       setPhotoUri(r.uri);
       await runAnalysis(r.uri);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('No pudimos abrir la imagen', 'Inténtalo de nuevo. Si sigue pasando, cierra Rityvo del todo y vuelve a abrirla.');
     }
   }
 
@@ -314,7 +326,7 @@ function CoachScreenContenido() {
       setPhotoUri(r.uri);
       await runAnalysis(r.uri);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('No pudimos abrir la imagen', 'Inténtalo de nuevo. Si sigue pasando, cierra Rityvo del todo y vuelve a abrirla.');
     }
   }
 
@@ -349,7 +361,11 @@ function CoachScreenContenido() {
       setPhase('result');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      Alert.alert('Error en el análisis', e.message);
+      // `e.message` a secas enseñaba "Network request failed" o el detalle de
+      // un esquema que no cuadró. Lo nuestro se enseña; lo ajeno se traduce y
+      // se manda a monitorización, que es donde sirve.
+      if (!esErrorNuestro(e)) captureError(e, { scope: 'posture.analyze' });
+      Alert.alert('No pudimos analizar la técnica', mensajeDeFalloDeIA(e));
       setPhase('select');
     }
   }
@@ -642,12 +658,12 @@ function CoachScreenContenido() {
                    result.technique_risk_level === 'medium' ? '⚠️' : '🚨'}
                 </Text>
                 <Text style={[s.injuryLabel, { color: techRiskColor }]}>
-                  RIESGO POR TÉCNICA: {result.technique_risk_level.toUpperCase()}
+                  RIESGO POR TÉCNICA: {TECHNIQUE_RISK_LABELS[result.technique_risk_level] ?? 'SIN DATO'}
                 </Text>
               </View>
               <Text style={s.injuryTxt}>{result.technique_risk}</Text>
               <Text style={s.injuryDisclaimer}>
-                Esto es feedback de coaching sobre tu forma de entrenamiento, no un diagnóstico médico. Si sientes dolor agudo o algo no se siente bien, para y consulta a un profesional de la salud.
+                Esto es una observación de tu coach sobre cómo ejecutas el movimiento, no un diagnóstico médico. Si sientes dolor agudo o algo no se siente bien, para y consulta a un profesional de la salud.
               </Text>
             </View>
 
@@ -688,11 +704,11 @@ function CoachScreenContenido() {
                   {c.severity !== 'good' && (
                     <>
                       <View style={[s.correctionFix, { borderLeftColor: cfg.color }]}>
-                        <Text style={s.correctionFixLabel}>FIX</Text>
+                        <Text style={s.correctionFixLabel}>CÓMO CORREGIRLO</Text>
                         <Text style={s.correctionFixTxt}>{c.fix}</Text>
                       </View>
                       <View style={[s.cuePill, { backgroundColor: cfg.color + '15' }]}>
-                        <Text style={[s.cuePillTxt, { color: cfg.color }]}>Cue: "{c.cue}"</Text>
+                        <Text style={[s.cuePillTxt, { color: cfg.color }]}>Piensa en: "{c.cue}"</Text>
                       </View>
                     </>
                   )}

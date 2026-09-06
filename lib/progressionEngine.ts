@@ -138,6 +138,6 @@ export function chooseIntervention(args: {
   }
   return {
     kind: 'double_progression', title: 'Haz el cambio mínimo',
-    detail: 'Conserva el ejercicio: completa primero el extremo alto de reps con 1–3 RIR y luego sube la carga 2.5–5%.',
+    detail: 'Conserva el ejercicio: llega primero al tope de repeticiones del rango dejando 1–3 en reserva (sin llegar al fallo) y luego sube el peso un 2.5–5%.',
   };
 }

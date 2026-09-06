@@ -39,41 +39,49 @@ Deno.serve(async (req) => {
 
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey);
 
-  // Usuarios inactivos 3+ días.
+  // Usuarios inactivos 3+ días. Se recorren por páginas: `.limit(1000)` era
+  // un techo silencioso — a partir del usuario 1001, nadie recibía nada y el
+  // conteo devuelto seguía pareciendo normal. Página de 500 para que el
+  // `.in()` de tokens no crezca sin control.
   const cutoff = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0];
-  const { data: profiles, error } = await admin
-    .from('user_profiles')
-    .select('user_id, name, last_active_date')
-    .or(`last_active_date.lte.${cutoff},last_active_date.is.null`)
-    .limit(1000);
-  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-
-  const userIds = (profiles ?? []).map((p: any) => p.user_id);
-  if (userIds.length === 0) return json({ sent: 0 });
-
-  const { data: tokens } = await admin
-    .from('push_tokens')
-    .select('user_id, token')
-    .in('user_id', userIds);
-
-  // Construir mensajes Expo (un mensaje aleatorio por token).
-  const messages = (tokens ?? []).map((t: any) => {
-    const m = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
-    return { to: t.token, sound: 'default', title: m.title, body: m.body };
-  });
-  if (messages.length === 0) return json({ sent: 0 });
-
-  // Expo acepta lotes de hasta 100.
+  const PAGINA = 500;
   let sent = 0;
-  for (let i = 0; i < messages.length; i += 100) {
-    const batch = messages.slice(i, i + 100);
-    const res = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(batch),
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data: profiles, error } = await admin
+      .from('user_profiles')
+      .select('user_id, name, last_active_date')
+      .or(`last_active_date.lte.${cutoff},last_active_date.is.null`)
+      .order('user_id')
+      .range(desde, desde + PAGINA - 1);
+    if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+
+    const userIds = (profiles ?? []).map((p: any) => p.user_id);
+    if (userIds.length === 0) break;
+
+    const { data: tokens } = await admin
+      .from('push_tokens')
+      .select('user_id, token')
+      .in('user_id', userIds);
+
+    // Construir mensajes Expo (un mensaje aleatorio por token).
+    const messages = (tokens ?? []).map((t: any) => {
+      const m = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
+      return { to: t.token, sound: 'default', title: m.title, body: m.body };
     });
-    if (res.ok) sent += batch.length;
-    else console.error('Expo push error:', await res.text());
+
+    // Expo acepta lotes de hasta 100.
+    for (let i = 0; i < messages.length; i += 100) {
+      const batch = messages.slice(i, i + 100);
+      const res = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch),
+      });
+      if (res.ok) sent += batch.length;
+      else console.error('Expo push error:', await res.text());
+    }
+
+    if (userIds.length < PAGINA) break;
   }
 
   return json({ sent });

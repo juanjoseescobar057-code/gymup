@@ -48,6 +48,31 @@ export type ResultadoExport =
   | { ok: true; json: string; tablas: number; filas: number; incompletas: string[] }
   | { ok: false; mensaje: string };
 
+// PostgREST devuelve como mucho 1000 filas por consulta y no avisa. El export
+// de alguien con un año de series (set_logs) o de eventos se quedaba en las
+// primeras mil y el sobre decía "completo". Se pagina hasta que una página
+// venga corta. Sin `order`: no todas las tablas comparten una columna
+// ordenable y, filtrando por una sola persona sin escrituras en paralelo, el
+// orden físico es estable en la práctica.
+const PAGINA = 1000;
+async function leerTodas(
+  tabla: string,
+  userId: string,
+): Promise<{ data: unknown[] | null; error: { message: string } | null }> {
+  const todas: unknown[] = [];
+  for (let desde = 0; ; desde += PAGINA) {
+    const { data, error } = await supabase
+      .from(tabla)
+      .select('*')
+      .eq('user_id', userId)
+      .range(desde, desde + PAGINA - 1);
+    if (error) return { data: null, error };
+    todas.push(...(data ?? []));
+    if ((data ?? []).length < PAGINA) break;
+  }
+  return { data: todas, error: null };
+}
+
 /**
  * Junta todo lo del usuario en un JSON.
  *
@@ -63,7 +88,7 @@ export async function exportarMisDatos(userId: string): Promise<ResultadoExport>
 
   for (const tabla of TABLAS) {
     try {
-      const { data, error } = await supabase.from(tabla).select('*').eq('user_id', userId);
+      const { data, error } = await leerTodas(tabla, userId);
       if (error) {
         // Una tabla que no existe en este proyecto no es un fallo del export.
         if (/does not exist|schema cache/i.test(error.message)) continue;

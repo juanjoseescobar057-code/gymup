@@ -48,7 +48,7 @@ function traducir(e: unknown, origen: 'camara' | 'galeria'): ResultadoFoto {
   if (esLanzadorNoRegistrado(e)) {
     return {
       estado: 'error',
-      titulo: 'Android cerró la app por detrás',
+      titulo: 'La cámara se quedó a medias',
       mensaje:
         'Tu teléfono cerró Rityvo en segundo plano y la cámara se quedó a medias. ' +
         'Ciérrala del todo y vuelve a abrirla.',

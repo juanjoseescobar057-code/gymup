@@ -174,8 +174,11 @@ export function projectGoal(args: {
       1
     )} kg en ${etaLabel.replace('~', 'unas ').replace('≈', 'unos ')}. Te faltan ${remainingKg.toFixed(1)} kg.`;
   } else if (reversing) {
-    headline = 'Vas en dirección contraria';
-    detail = `Tu peso se mueve al lado opuesto de tu meta de ${verb}. Revisemos tu plan y nutrición para reencaminarte.`;
+    // "Vas en dirección contraria" era un titular de alarma sobre un dato que
+    // oscila por agua, sal y descanso. Se describe la tendencia y se propone lo
+    // mismo que en la meseta: mirar primero lo básico, sin tocar el plan.
+    headline = 'La tendencia va al revés de tu meta';
+    detail = `En ${observationDays} días tu peso se ha movido hacia el lado contrario de ${verb}. Antes de tocar el plan revisemos lo de siempre: constancia, sueño, estrés y lo que comes. Faltan ${remainingKg.toFixed(1)} kg para tu meta.`;
   } else if (stalled) {
     headline = 'Posible meseta: revisemos el contexto';
     detail = `En ${observationDays} días la tendencia no muestra un cambio claro. Antes de ajustar calorías o rutina revisaremos adherencia, sueño, estrés, recuperación y variaciones normales. Faltan ${remainingKg.toFixed(1)} kg para tu meta.`;

@@ -297,6 +297,12 @@ create table if not exists public.set_logs (
 );
 select public._apply_owner_rls('set_logs');
 create index if not exists set_logs_user_exercise on public.set_logs(user_id, exercise_name, logged_at desc);
+-- "Lo último que hizo" sin filtrar por ejercicio (historial, export por
+-- páginas) no puede usar el índice de arriba: exercise_name va en medio.
+create index if not exists set_logs_user_logged on public.set_logs(user_id, logged_at desc);
+-- Clave foránea sin índice: borrar una sesión (o su cascada) recorría la
+-- tabla entera de series.
+create index if not exists set_logs_session on public.set_logs(session_id);
 alter table public.set_logs add column if not exists rir numeric(3,1) check (rir between 0 and 10);
 -- Índice único de (sesión, ejercicio, nº de serie) RETIRADO: rechazaba series
 -- legítimas. Ver la explicación completa en
@@ -511,6 +517,8 @@ alter table public.workout_sessions add constraint workout_sessions_completion_s
   check (completion_status is null or completion_status in ('completa', 'parcial', 'minima'));
 
 select public._apply_owner_rls('posture_feedback');
+create index if not exists posture_feedback_user_date on public.posture_feedback(user_id, recorded_at desc);
+create index if not exists posture_feedback_session on public.posture_feedback(session_id);
 
 -- ─── STATS / GAMIFICACIÓN ────────────────────────────────
 create table if not exists public.user_stats (
@@ -803,6 +811,18 @@ $$;
 -- cierra el abuso aunque sea más basta.
 drop function if exists public.apply_workout_stats(integer, date, text[]);
 drop function if exists public.apply_workout_stats(integer, date, text[], integer);
+-- ─── DÍA LOCAL ───────────────────────────────────────────
+-- Un solo sitio para decir qué día es. `completed_at::date` y
+-- `at time zone 'UTC'` hacían que un entreno terminado a las 8 de la noche en
+-- Bogotá (01:00 UTC) contara para la racha del día SIGUIENTE, y que un
+-- domingo por la noche cayera fuera de la semana de sus misiones. La app es
+-- de Colombia; cuando haya otra zona horaria, se guarda por usuario y se
+-- cambia aquí, no en cinco funciones.
+create or replace function public._dia_local(p_ts timestamptz)
+returns date language sql immutable parallel safe as $$
+  select (p_ts at time zone 'America/Bogota')::date
+$$;
+
 create or replace function public.apply_workout_stats(
   p_xp_delta integer default null,
   p_workout_date date default null,
@@ -874,14 +894,14 @@ begin
     update public.workout_sessions w set xp_credited_at = now()
     where w.id = p_session_id and w.user_id = v_uid
       and w.completed_at is not null and w.xp_credited_at is null
-    returning w.completed_at::date, w.completion_status into v_date, v_grado;
+    returning public._dia_local(w.completed_at), w.completion_status into v_date, v_grado;
   else
     update public.workout_sessions w set xp_credited_at = now()
     where w.id = (
       select x.id from public.workout_sessions x
       where x.user_id = v_uid and x.completed_at is not null and x.xp_credited_at is null
       order by x.completed_at desc limit 1 for update skip locked
-    ) returning w.completed_at::date, w.completion_status into v_date, v_grado;
+    ) returning public._dia_local(w.completed_at), w.completion_status into v_date, v_grado;
   end if;
   if v_date is null then
     return query
@@ -1206,7 +1226,7 @@ begin
   -- El objetivo sale del plan del usuario, no del catálogo.
   elsif v_kind = 'planned_workouts' then
     v_target := public._planned_workout_days(v_uid);
-    select count(distinct (w.started_at at time zone 'UTC')::date) into v_count
+    select count(distinct public._dia_local(w.started_at)) into v_count
     from public.workout_sessions w
     where w.user_id = v_uid and w.completed_at is not null
       and w.started_at >= v_start and w.started_at < v_end;
@@ -1216,7 +1236,7 @@ begin
   -- la app; esto premia haber comido lo que tu plan necesita.
   elsif v_kind = 'protein_days' then
     select count(*) into v_count from (
-      select (f.logged_at at time zone 'UTC')::date as dia, sum(f.protein_g) as prot
+      select public._dia_local(f.logged_at) as dia, sum(f.protein_g) as prot
       from public.food_logs f
       where f.user_id = v_uid and f.logged_at >= v_start and f.logged_at < v_end
       group by 1
@@ -1229,7 +1249,7 @@ begin
   -- la primera, no hacer nada en toda la semana cobraría la misión. Los días
   -- se cuentan solo hasta HOY: el resto de la semana todavía no ha pasado.
   elsif v_kind = 'rest_day' then
-    select count(distinct (w.started_at at time zone 'UTC')::date) into v_count
+    select count(distinct public._dia_local(w.started_at)) into v_count
     from public.workout_sessions w
     where w.user_id = v_uid and w.completed_at is not null
       and w.started_at >= v_start and w.started_at < v_end;
@@ -1343,6 +1363,7 @@ create table if not exists public.transform_photos (
   note text
 );
 select public._apply_owner_rls('transform_photos');
+create index if not exists transform_photos_user_date on public.transform_photos(user_id, date desc);
 
 -- ─── ESCANEO CORPORAL (sin fotos) ────────────────────────
 create table if not exists public.body_scans (
@@ -1716,6 +1737,27 @@ grant update (score, hallucination, score_reason, signals) on public.ai_telemetr
 drop policy if exists ai_telemetry_delete on public.ai_telemetry;
 create index if not exists ai_telemetry_user_ts on public.ai_telemetry(user_id, ts desc);
 create index if not exists ai_telemetry_conv on public.ai_telemetry(user_id, conversation_id);
+
+-- Retención. ai_telemetry crece con CADA llamada de IA (tokens, costo, score,
+-- latencia) y no alimenta ninguna vista de producto: a escala es la tabla que
+-- más rápido engorda. Esta función borra lo más viejo que N días. No se
+-- programa sola: desde el panel (Database → Cron) se agenda
+--   select public.purgar_ai_telemetry(90);
+-- analytics_events NO se purga: de ahí salen las cohortes y la retención.
+create or replace function public.purgar_ai_telemetry(p_dias integer default 90)
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  v_borradas integer;
+begin
+  if p_dias is null or p_dias < 30 then
+    raise exception 'purgar_ai_telemetry: mínimo 30 días de retención';
+  end if;
+  delete from public.ai_telemetry where ts < now() - make_interval(days => p_dias);
+  get diagnostics v_borradas = row_count;
+  return v_borradas;
+end $$;
+-- Solo service_role (el cron corre con él). Ningún cliente puede invocarla.
+revoke all on function public.purgar_ai_telemetry(integer) from public, anon, authenticated;
 
 -- ─── ANALÍTICA CONDUCTUAL (Behavioral Warehouse propio) ──
 -- Un evento por fila con capa de identidad completa (anonymous/session/user),

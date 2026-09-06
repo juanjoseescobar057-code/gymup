@@ -58,7 +58,6 @@ export default function LegalScreen() {
           accessibilityRole="button" accessibilityLabel={privacy ? 'Leer términos de uso' : 'Leer política de privacidad'}>
           <Text style={s.switchTxt}>{privacy ? 'LEER TÉRMINOS DE USO' : 'LEER POLÍTICA DE PRIVACIDAD'}</Text>
         </TouchableOpacity>
-        <Text style={s.note}>Estos textos deben recibir revisión jurídica local antes de una publicación comercial definitiva.</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -79,5 +78,4 @@ const s = StyleSheet.create({
   body: { fontFamily: Fonts.body, fontSize: Type.body, lineHeight: 22, color: Colors.textSecondary },
   switchDoc: { minHeight: 52, marginTop: Spacing.lg, borderRadius: Radii.lg, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
   switchTxt: { fontFamily: Fonts.heading, fontSize: Type.bodyLg, color: '#0a0a0b', letterSpacing: 0.7 },
-  note: { fontFamily: Fonts.body, fontSize: Type.micro, lineHeight: 16, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.lg },
 });

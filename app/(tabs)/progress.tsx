@@ -283,7 +283,7 @@ export default function ProgressScreen() {
     const { error } = await supabase
       .from('weight_entries')
       .upsert({ user_id: profile.user_id, date: today, weight: w }, { onConflict: 'user_id,date' });
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert('No se pudo guardar el peso', 'Revisa tu conexión e inténtalo de nuevo.'); return; }
     setWeights((prev: WeightEntry[]) => {
       const f = prev.filter((e: WeightEntry) => e.date !== today);
       return [...f, { date: today, weight: w }].sort((a: WeightEntry, b: WeightEntry) =>
@@ -330,7 +330,7 @@ export default function ProgressScreen() {
       .eq('user_id', profile.user_id)
       .select()
       .single();
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { Alert.alert('No se pudo guardar la meta', 'Revisa tu conexión e inténtalo de nuevo.'); return; }
     setProfile(data as any);
     track('goal_set', { removed: remove, has_why: !remove && !!goalWhyInput.trim() });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

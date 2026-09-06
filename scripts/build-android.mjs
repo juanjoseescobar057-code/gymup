@@ -168,6 +168,40 @@ const veredictoEnv = revisarEnv(localesEnv);
 if (!veredictoEnv.ok) morir(veredictoEnv.mensaje);
 console.log(`  ✔ ${veredictoEnv.mensaje}`);
 
+// ── 2b. Las credenciales de Sentry, desde .env ──
+//
+// Este script solo miraba `process.env`, así que las tres variables del upload
+// de source maps había que exportarlas a mano en CADA terminal desde la que se
+// compilara. Quien las pusiera en `.env` —el sitio evidente, y el único que ya
+// está en .gitignore— vería el build terminar bien y los errores seguirían
+// llegando sin simbolicar, sin que nada lo dijera.
+//
+// Solo estas tres claves, y solo si no vienen ya del entorno: no se vuelca el
+// .env entero para no cambiar por la puerta de atrás el resto del build.
+const CLAVES_SENTRY = ['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN'];
+const rutaEnv = path.join(raiz, '.env');
+if (fs.existsSync(rutaEnv)) {
+  const texto = fs.readFileSync(rutaEnv, 'utf8');
+  for (const clave of CLAVES_SENTRY) {
+    if (process.env[clave]) continue;
+    // Formato de .env: CLAVE=valor, con comillas opcionales y sin expansión.
+    const m = texto.match(new RegExp(`^\\s*${clave}\\s*=\\s*(.*)$`, 'm'));
+    const valor = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+    if (valor) process.env[clave] = valor;
+  }
+}
+
+const sentryCompleto = CLAVES_SENTRY.every((c) => process.env[c]);
+if (sentryCompleto) {
+  console.log('  ✔ Sentry: se subirán los source maps (errores legibles en producción)');
+} else {
+  const faltan = CLAVES_SENTRY.filter((c) => !process.env[c]);
+  console.log(
+    `  ⚠ Sentry: falta ${faltan.join(', ')} — los errores llegarán SIN simbolicar.\n` +
+      '    Añádelas a .env (ya está en .gitignore) y vuelve a compilar.',
+  );
+}
+
 // ── 3. versionCode: el error que solo se ve al subir a Play ──
 
 paso('Comprobando el versionCode');

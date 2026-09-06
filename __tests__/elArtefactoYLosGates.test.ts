@@ -80,6 +80,33 @@ test('el upload de source maps se enciende solo cuando hay credenciales', () => 
   assert.match(build, /process\.env\.SENTRY_AUTH_TOKEN && process\.env\.SENTRY_ORG/);
 });
 
+test('las credenciales de Sentry se leen de .env, no solo del entorno', () => {
+  // El script solo miraba `process.env`, así que había que exportarlas a mano
+  // en cada terminal. Quien las pusiera en .env —el sitio evidente, y el único
+  // ya ignorado por git— veía el build acabar bien y los errores seguían
+  // llegando sin simbolicar, sin que nada lo dijera.
+  const build = leer('scripts', 'build-android.mjs');
+  assert.match(build, /const CLAVES_SENTRY = \['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN'\]/);
+  assert.match(build, /if \(process\.env\[clave\]\) continue;/, 'el entorno tiene que ganarle al archivo');
+  // Solo esas tres: volcar el .env entero cambiaría el resto del build por la
+  // puerta de atrás.
+  assert.ok(!/for \(const \[k, v\] of Object\.entries\(.*env.*\)\)/.test(build));
+  // Y lo dice en voz alta en las dos direcciones.
+  assert.match(build, /se subirán los source maps/);
+  assert.match(build, /los errores llegarán SIN simbolicar/);
+});
+
+test('el ejemplo de .env documenta las tres, y ninguna viaja en el bundle', () => {
+  const ejemplo = leer('.env.example');
+  for (const clave of ['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN']) {
+    assert.match(ejemplo, new RegExp(`^${clave}=`, 'm'), `falta ${clave} en .env.example`);
+    assert.ok(
+      !new RegExp(`EXPO_PUBLIC_${clave}`).test(ejemplo),
+      `${clave} con prefijo EXPO_PUBLIC_ acabaría dentro del APK`,
+    );
+  }
+});
+
 test('release:check puede bloquear de verdad', () => {
   const check = leer('scripts', 'check-release-readiness.mjs');
   assert.match(check, /process\.exit\(1\)/, 'no hay ninguna salida en error: no bloquea nada');

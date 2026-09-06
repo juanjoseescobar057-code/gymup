@@ -523,6 +523,18 @@ export default function ProgressScreen() {
           ))}
         </View>
 
+        {/* Tu mes: calendario de entrenos + qué ejercicios hiciste. */}
+        <TouchableOpacity style={s.mesCard} onPress={() => router.push('/actividad' as any)} activeOpacity={0.85}
+          accessibilityRole="button" accessibilityLabel="Ver tu mes"
+          accessibilityHint="Abre el calendario del mes con tus entrenos, el tiempo y los ejercicios que hiciste">
+          <Text style={{ fontSize: 22 }} importantForAccessibility="no">📅</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.mesCardTitulo}>Tu mes</Text>
+            <Text style={s.mesCardSub}>Qué días entrenaste, cuánto y qué ejercicios hiciste</Text>
+          </View>
+          <Text style={s.mesCardFlecha} importantForAccessibility="no">›</Text>
+        </TouchableOpacity>
+
         {/* Comodín de racha (+ comprar con XP) */}
         <View style={s.freezeRow}>
           <Text style={{ fontSize: 18 }}>🧊</Text>
@@ -902,6 +914,10 @@ const s = StyleSheet.create({
   xpBg: { height: 5, backgroundColor: Colors.border, borderRadius: 10, overflow: 'hidden', marginBottom: 4 },
   xpFill: { height: '100%', backgroundColor: Colors.accent, borderRadius: 10 },
   xpNext: { fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted },
+  mesCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: Spacing.lg, marginBottom: 16, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.lg, padding: Spacing.md },
+  mesCardTitulo: { fontFamily: Fonts.bodySemi, fontSize: 15, color: Colors.textPrimary },
+  mesCardSub: { fontFamily: Fonts.body, fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  mesCardFlecha: { fontFamily: Fonts.heading, fontSize: 22, color: Colors.textMuted },
   freezeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: Spacing.lg, marginBottom: 16, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radii.md, padding: 12 },
   freezeTxt: { flex: 1, fontFamily: Fonts.body, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
   freezeBuyBtn: { backgroundColor: Colors.bgSelected, borderWidth: 1, borderColor: Colors.accentBorder, borderRadius: Radii.full, paddingHorizontal: 10, paddingVertical: 6 },

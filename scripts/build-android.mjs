@@ -187,6 +187,9 @@ const VERSION_CODES_QUEMADOS = [
   22, // Rityvo 1.3.0, subido a prueba interna
   23, // Rityvo 1.3.0, instalado desde prueba interna (confirmado por Sentry: release 1.3.0+23)
   24, // Rityvo 1.3.0, subido a prueba interna (el de la cuarta auditoría)
+  25, // Rityvo 1.4.0, subido a Play ANTES de que la compuerta encontrara el
+      // bloqueante del onboarding (paso 0 en blanco). NO repartir a testers:
+      // se reemplaza por el 26, que es el mismo release ya corregido.
 ];
 
 const appJson = JSON.parse(fs.readFileSync(path.join(raiz, 'app.json'), 'utf8'));

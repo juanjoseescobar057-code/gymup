@@ -504,6 +504,9 @@ export default function DashboardScreen() {
                 key={i}
                 onPress={() => tapCup(i)}
                 style={s.waterCup}
+                // Emoji de 22 px con 4 de padding: ~30 dp de área táctil, y son
+                // ocho seguidos. El hitSlop los sube a los 44 dp sin tocar la fila.
+                hitSlop={A11y.hitSlop}
                 accessibilityRole="checkbox"
                 accessibilityLabel={`Vaso de agua ${i + 1} de ${WATER_GOAL}`}
                 accessibilityState={{ checked: i < water }}

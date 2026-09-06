@@ -1165,7 +1165,14 @@ export default function WorkoutSessionScreen() {
       )}
 
       {!resting && exercises.length > 0 && (
-        <ScrollView contentContainerStyle={{ padding: Spacing.lg }}>
+        <ScrollView
+          contentContainerStyle={{ padding: Spacing.lg }}
+          // Los campos de peso/reps/RIR van al final de la pantalla. En
+          // Android la ventana se redimensiona sola (adjustResize); en iOS
+          // esta prop hace que el scroll siga al campo enfocado.
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
           {sessionConfig && sessionAdaptationMessage({
             availableMinutes: sessionConfig.minutes,
             energy: sessionConfig.energy,

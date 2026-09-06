@@ -1022,7 +1022,7 @@ const s = StyleSheet.create({
   logoutBtn: { borderWidth: 1, borderColor: Colors.error, borderRadius: Radii.lg, paddingVertical: 16, alignItems: 'center' },
   logoutTxt: { fontFamily: Fonts.bodySemi, fontSize: 15, color: Colors.error },
   versionTxt: {
-    fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textDisabled,
+    fontFamily: Fonts.body, fontSize: Type.caption, color: Colors.textMuted,
     textAlign: 'center', marginTop: Spacing.lg,
   },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },

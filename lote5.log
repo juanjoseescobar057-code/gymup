@@ -1,0 +1,14 @@
+✔ el arranque tiene tope: a los 15 s enseña el botón de reintentar (3.3933ms)
+✔ el onboarding tiene vuelta atrás, visible y con el botón físico (3.8096ms)
+✔ los vasos de agua se pueden tocar con un dedo normal (1.8042ms)
+✔ el permiso de cámara negado para siempre lleva a los ajustes (1.423ms)
+✔ textDisabled solo colorea placeholders, nunca texto que haya que leer (33.6791ms)
+✔ las pantallas con campos al final siguen al teclado en iOS (3.6641ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 838.1829

@@ -325,7 +325,7 @@ const s = StyleSheet.create({
   zonaLbl: { fontFamily: Fonts.bodySemi, fontSize: 14, marginBottom: 2 },
   tip: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted, lineHeight: 19, marginBottom: 2 },
   pieFoto: {
-    fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textDisabled,
+    fontFamily: Fonts.body, fontSize: Type.micro, color: Colors.textMuted,
     lineHeight: 15, marginTop: Spacing.md,
   },
 

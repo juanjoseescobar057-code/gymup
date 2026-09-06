@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -32,8 +32,19 @@ export default function Index() {
     checkProfile();
   }, []);
 
+  // El arranque no tenía tope: una consulta que ni responde ni falla (red
+  // que se queda a medias, DNS colgado) dejaba el spinner para siempre, sin
+  // botón. A los 15 s se enseña "No pudimos conectar" con su Reintentar. Si
+  // la cadena original termina después, navega igual: nunca peor que antes.
+  const ARRANQUE_MAX_MS = 15_000;
+  const terminadoRef = useRef(false);
+
   async function checkProfile() {
     setConnectionError(false);
+    terminadoRef.current = false;
+    const vigilante = setTimeout(() => {
+      if (!terminadoRef.current) setConnectionError(true);
+    }, ARRANQUE_MAX_MS);
     try {
       const { data: { session }, error: errSesion } = await supabase.auth.getSession();
 
@@ -139,6 +150,9 @@ export default function Index() {
         return;
       }
       router.replace('/(auth)/onboarding' as any);
+    } finally {
+      terminadoRef.current = true;
+      clearTimeout(vigilante);
     }
   }
 

@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Dimensions, Animated, KeyboardAvoidingView,
-  Platform, Alert, Keyboard, TouchableWithoutFeedback,
+  Platform, Alert, Keyboard, TouchableWithoutFeedback, BackHandler,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -120,6 +120,18 @@ export default function OnboardingScreen() {
   const setOnboardingComplete = useUserStore((s: any) => s.setOnboardingComplete);
   const slideAnim = useRef(new Animated.Value(0)).current;
 
+  // Botón físico "atrás" de Android: retrocede un paso en vez de cerrar la
+  // app con todo lo respondido dentro. Mientras se genera el plan (paso 4)
+  // no hace nada.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (step === 4) return true;
+      if (step > 1) { prevStep(); return true; }
+      return false;
+    });
+    return () => sub.remove();
+  }, [step]);
+
   function nextStep() {
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -129,6 +141,21 @@ export default function OnboardingScreen() {
       Animated.timing(slideAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
     ]).start();
     setTimeout(() => setStep((s) => s + 1), 220);
+  }
+
+  // Existía nextStep y ninguna vuelta: la única forma de corregir el objetivo
+  // elegido en el paso 2 era cerrar la app. Misma animación, al revés. Nunca
+  // desde el 1 (no hay a dónde) ni desde el 4 (se está generando el plan).
+  function prevStep() {
+    if (step <= 1 || step >= 4) return;
+    Keyboard.dismiss();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Animated.sequence([
+      Animated.timing(slideAnim, { toValue: width, duration: 220, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: -width, duration: 0, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start();
+    setTimeout(() => setStep((s) => s - 1), 220);
   }
 
   function validateStep1(): boolean {
@@ -644,6 +671,10 @@ export default function OnboardingScreen() {
               {/* PASO 2 */}
               {step === 2 && (
                 <View>
+                  <TouchableOpacity style={s.back} onPress={prevStep} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button" accessibilityLabel="Volver al paso anterior">
+                    <Text style={s.backTxt}>← Atrás</Text>
+                  </TouchableOpacity>
                   <Text style={s.title}>TU{'\n'}<Text style={s.accent}>META.</Text></Text>
                   <Text style={s.sub}>Elige tu objetivo y nivel de actividad actual.</Text>
 
@@ -812,6 +843,10 @@ export default function OnboardingScreen() {
               {/* PASO 3: Tamizaje de salud (estilo PAR-Q+) */}
               {step === 3 && (
                 <View>
+                  <TouchableOpacity style={s.back} onPress={prevStep} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button" accessibilityLabel="Volver al paso anterior">
+                    <Text style={s.backTxt}>← Atrás</Text>
+                  </TouchableOpacity>
                   <Text style={s.title}>TU{'\n'}<Text style={s.accent}>SALUD.</Text></Text>
                   <Text style={s.sub}>
                     Un buen coach pregunta esto ANTES de ponerte a entrenar. Tu plan y tu coach
@@ -973,6 +1008,8 @@ const s = StyleSheet.create({
   },
   badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent },
   badgeText: { fontFamily: Fonts.bodySemi, fontSize: Type.micro, color: Colors.accent, letterSpacing: 0.8 },
+  back: { alignSelf: 'flex-start', paddingVertical: 8, paddingRight: 12, marginBottom: 4 },
+  backTxt: { fontFamily: Fonts.bodySemi, fontSize: Type.body, color: Colors.textMuted },
   title: { fontFamily: Fonts.heading, fontSize: 58, color: Colors.textPrimary, lineHeight: 54, letterSpacing: -0.5, marginBottom: 12 },
   accent: { color: Colors.accent },
   sub: { fontFamily: Fonts.body, fontSize: 15, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.xl },

@@ -142,6 +142,7 @@ export default function HealthScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: Spacing.lg, paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
         >
           <Text style={s.intro}>
             Tu plan y tu coach se adaptan a esto en cada recomendación. Mantenlo al día: si una

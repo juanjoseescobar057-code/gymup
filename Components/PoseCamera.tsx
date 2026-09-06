@@ -10,8 +10,8 @@
 // ⚠️ Requiere el modelo en assets/models/movenet.tflite.
 // ─────────────────────────────────────────────────────────
 
-import { Component, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Linking, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import {
   Camera, useCameraDevice, useCameraPermission, useFrameProcessor,
 } from 'react-native-vision-camera';
@@ -92,6 +92,19 @@ function PoseCameraInner({ active, onPose, onUnavailable }: Props) {
   const model = useTensorflowModel(require('../assets/models/movenet.tflite'), []);
   const { resize } = useResizePlugin();
   const requestedRef = useRef(false);
+  // Android deja de preguntar tras un "no volver a preguntar": entonces
+  // requestPermission() devuelve false al instante y el botón "Conceder
+  // permiso" no hacía nada, para siempre. Cuando pasa eso, la única salida
+  // real son los ajustes del teléfono, y el botón tiene que llevar allí.
+  const [denegado, setDenegado] = useState(false);
+  async function pedirPermiso() {
+    if (denegado) {
+      Linking.openSettings().catch(() => {});
+      return;
+    }
+    const ok = await requestPermission();
+    if (!ok) setDenegado(true);
+  }
 
   // Estado que sobrevive ENTRE frames. Tiene que ser shared value: el frame
   // processor corre en otro runtime y un useRef normal no cruza hasta allá.
@@ -104,7 +117,7 @@ function PoseCameraInner({ active, onPose, onUnavailable }: Props) {
   useEffect(() => {
     if (!hasPermission && !requestedRef.current) {
       requestedRef.current = true;
-      requestPermission();
+      pedirPermiso();
     }
   }, [hasPermission]);
 
@@ -197,11 +210,14 @@ function PoseCameraInner({ active, onPose, onUnavailable }: Props) {
         <Text style={{ fontSize: 44, marginBottom: 12 }}
           importantForAccessibility="no" accessibilityElementsHidden>📷</Text>
         <Text style={s.msg}>
-          Rityvo necesita la cámara para contar tus reps y corregir tu técnica.
+          {denegado
+            ? 'El permiso de cámara está apagado para Rityvo. Actívalo en los ajustes del teléfono y vuelve aquí.'
+            : 'Rityvo necesita la cámara para contar tus reps y corregir tu técnica.'}
         </Text>
-        <TouchableOpacity style={s.permBtn} onPress={() => requestPermission()} activeOpacity={0.85}
-          accessibilityRole="button" accessibilityLabel="Conceder permiso de cámara">
-          <Text style={s.permBtnTxt}>Conceder permiso</Text>
+        <TouchableOpacity style={s.permBtn} onPress={pedirPermiso} activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={denegado ? 'Abrir los ajustes del teléfono' : 'Conceder permiso de cámara'}>
+          <Text style={s.permBtnTxt}>{denegado ? 'Abrir ajustes del teléfono' : 'Conceder permiso'}</Text>
         </TouchableOpacity>
       </View>
     );

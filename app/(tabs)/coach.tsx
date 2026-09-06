@@ -552,7 +552,7 @@ function CoachScreenContenido() {
           <Text style={s.analyzingTitle}>Analizando postura</Text>
           <Text style={s.analyzingEx}>{selectedEx.emoji} {selectedEx.name}</Text>
           <Text style={s.analyzingMsg}>
-            GPT-4o está evaluando{'\n'}técnica, forma y correcciones...
+            Tu coach está revisando{'\n'}tu técnica y qué corregir...
           </Text>
           {[
             'Verificando si el ejercicio es visible...',

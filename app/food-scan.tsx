@@ -320,7 +320,7 @@ function FoodScanScreenContenido() {
         <View style={s.analyzingBox}>
           <ActivityIndicator color={Colors.accent} size="large" />
           <Text style={s.analyzingTitle}>Analizando tu plato</Text>
-          <Text style={s.analyzingMsg}>GPT-4o calculando macros...</Text>
+          <Text style={s.analyzingMsg}>Calculando tus macros...</Text>
         </View>
       </SafeAreaView>
     );

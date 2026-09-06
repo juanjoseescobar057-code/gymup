@@ -338,7 +338,7 @@ function FridgeScanScreenContenido() {
           <ActivityIndicator color={Colors.accent} size="large" />
           <Text style={s.analyzingTitle}>Analizando tu nevera</Text>
           <Text style={s.analyzingMsg}>
-            GPT-4o está identificando ingredientes{'\n'}y creando recetas para tu objetivo...
+            Identificando ingredientes{'\n'}y creando recetas para tu objetivo...
           </Text>
         </View>
       </SafeAreaView>

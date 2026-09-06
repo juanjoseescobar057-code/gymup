@@ -918,7 +918,7 @@ export default function OnboardingScreen() {
                     }]} />
                   </View>
                   <Text style={s.genNote}>
-                    GPT-4o está diseñando{'\n'}un plan de 7 días solo para ti.
+                    Tu coach está diseñando{'\n'}un plan de 7 días solo para ti.
                   </Text>
                 </View>
               )}

@@ -832,7 +832,7 @@ function BodyScanScreenContenido() {
           <ActivityIndicator color={Colors.accent} size="large" />
           <Text style={s.analyzingTitle}>Analizando tu cuerpo</Text>
           <Text style={s.analyzingMsg}>
-            GPT-4o evaluando {photos.length} foto{photos.length > 1 ? 's' : ''}{'\n'}
+            Analizando {photos.length} foto{photos.length > 1 ? 's' : ''}{'\n'}
             con expertise de coach profesional...
           </Text>
           {[

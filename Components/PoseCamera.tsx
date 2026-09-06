@@ -97,13 +97,20 @@ function PoseCameraInner({ active, onPose, onUnavailable }: Props) {
   // permiso" no hacía nada, para siempre. Cuando pasa eso, la única salida
   // real son los ajustes del teléfono, y el botón tiene que llevar allí.
   const [denegado, setDenegado] = useState(false);
+  // Cuántas veces se ha pedido. Latir a la primera negativa era peor que el
+  // fallo original: Android SÍ vuelve a preguntar tras un "no" simple, y quien
+  // rechazó sin querer se quedaba con un botón que ya nunca pedía permiso y
+  // solo mandaba a los ajustes. Se asume "no vuelvas a preguntar" recién a la
+  // segunda negativa, que es cuando Android deja de mostrar el diálogo.
+  const intentos = useRef(0);
   async function pedirPermiso() {
     if (denegado) {
       Linking.openSettings().catch(() => {});
       return;
     }
+    intentos.current += 1;
     const ok = await requestPermission();
-    if (!ok) setDenegado(true);
+    if (!ok && intentos.current >= 2) setDenegado(true);
   }
 
   // Estado que sobrevive ENTRE frames. Tiene que ser shared value: el frame

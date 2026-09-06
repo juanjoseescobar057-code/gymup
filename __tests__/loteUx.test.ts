@@ -22,9 +22,11 @@ test('el arranque tiene tope: a los 15 s enseña el botón de reintentar', () =>
   assert.match(src, /const ARRANQUE_MAX_MS = 15_000;/);
   const i = src.indexOf('async function checkProfile');
   const cuerpo = src.slice(i, i + 900);
-  assert.match(cuerpo, /const vigilante = setTimeout\(\(\) => \{\s*if \(!terminadoRef\.current\) setConnectionError\(true\);/);
+  // El `vigente()` lo añadió la compuerta del build 25: sin él, «Reintentar»
+  // dejaba dos arranques vivos (ver compuertaBuild25.test.ts).
+  assert.match(cuerpo, /const vigilante = setTimeout\(\(\) => \{\s*if \(vigente\(\) && !terminadoRef\.current\) setConnectionError\(true\);/);
   // Y el vigilante se apaga siempre, salga como salga.
-  assert.match(src, /\} finally \{\s*terminadoRef\.current = true;\s*clearTimeout\(vigilante\);/);
+  assert.match(src, /\} finally \{[\s\S]{0,120}clearTimeout\(vigilante\);/);
 });
 
 test('el onboarding tiene vuelta atrás, visible y con el botón físico', () => {
@@ -41,13 +43,18 @@ test('los vasos de agua se pueden tocar con un dedo normal', () => {
   const src = leerCodigo('app', '(tabs)', 'index.tsx');
   const i = src.indexOf('onPress={() => tapCup(i)}');
   assert.ok(i > 0);
-  assert.match(src.slice(i, i + 200), /hitSlop=\{A11y\.hitSlop\}/);
+  // Solo vertical: el hitSlop simétrico invadía al vaso vecino, que se dibuja
+  // encima (ver compuertaBuild25.test.ts). Lo que este test protege es que
+  // SIGA habiendo área táctil ampliada, no cuál.
+  assert.match(src.slice(i, i + 260), /hitSlop=\{\{ top: 10, bottom: 10/);
 });
 
 test('el permiso de cámara negado para siempre lleva a los ajustes', () => {
   const src = leerCodigo('Components', 'PoseCamera.tsx');
   assert.match(src, /Linking\.openSettings\(\)/);
-  assert.match(src, /const ok = await requestPermission\(\);\s*if \(!ok\) setDenegado\(true\);/);
+  // A la SEGUNDA negativa, no a la primera: Android vuelve a preguntar tras un
+  // "no" simple (ver compuertaBuild25.test.ts).
+  assert.match(src, /const ok = await requestPermission\(\);\s*if \(!ok && intentos\.current >= 2\) setDenegado\(true\);/);
   assert.match(src, /Abrir ajustes del teléfono/);
   assert.ok(!/onPress=\{\(\) => requestPermission\(\)\}/.test(src), 'el botón sigue pidiendo un permiso que Android ya no va a mostrar');
 });

@@ -504,9 +504,12 @@ export default function DashboardScreen() {
                 key={i}
                 onPress={() => tapCup(i)}
                 style={s.waterCup}
-                // Emoji de 22 px con 4 de padding: ~30 dp de área táctil, y son
-                // ocho seguidos. El hitSlop los sube a los 44 dp sin tocar la fila.
-                hitSlop={A11y.hitSlop}
+                // Emoji de 22 px con 4 de padding: ~30 dp de alto, y son ocho
+                // en fila. El hitSlop estándar (10 por lado) sube el alto a 50,
+                // pero los huecos horizontales son de ~6 dp: los 10 de los
+                // lados invadían al vecino —que se dibuja encima— y tocar el
+                // borde derecho de un vaso llenaba el SIGUIENTE. Solo vertical.
+                hitSlop={{ top: 10, bottom: 10, left: 2, right: 2 }}
                 accessibilityRole="checkbox"
                 accessibilityLabel={`Vaso de agua ${i + 1} de ${WATER_GOAL}`}
                 accessibilityState={{ checked: i < water }}

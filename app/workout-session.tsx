@@ -760,7 +760,14 @@ export default function WorkoutSessionScreen() {
   // entero era de lo vetado, no queda nada. Eso NO se resuelve dejándole
   // entrenar una lista vacía ni improvisando: hay que regenerar el plan con la
   // salud nueva, que es una decisión suya y cuesta un toque.
-  if (revalidado.vacio && planExercisesCrudos.length > 0) {
+  // `injuriesStatus === 'ok'` NO es opcional aquí. La revalidación corre con
+  // saludDesconocida = injuriesStatus !== 'ok', o sea con el veto estricto
+  // puesto mientras el tamizaje todavía carga. En ese primer render, un día de
+  // impacto o cardio choca entero, la lista queda vacía y se pintaba esta
+  // pantalla: acusaba a alguien perfectamente sano de haber cambiado su salud
+  // y lo sacaba del entreno. La compuerta clínica de más abajo ya cubre el caso
+  // «todavía no lo sé» con su propia pantalla, que es la honesta.
+  if (injuriesStatus === 'ok' && revalidado.vacio && planExercisesCrudos.length > 0) {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.header}>

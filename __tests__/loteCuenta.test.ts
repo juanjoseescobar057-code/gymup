@@ -77,7 +77,11 @@ test('cerrar sesión comprueba el signOut ANTES de borrar lo local', () => {
 
 test('un fallo al cerrar sesión se explica y deja todo intacto', () => {
   assert.match(perfil, /No pudimos cerrar la sesión/);
-  assert.match(perfil, /Tu cuenta sigue abierta y no se ha tocado nada/);
+  // Decía "no se ha tocado nada" y era falso: para entonces ya se cancelaron
+  // los avisos diarios y se borró el token push (ver compuertaBuild25.test.ts).
+  // Lo que este test protege sigue siendo lo mismo: que se diga qué queda en pie.
+  assert.match(perfil, /Tu sesión sigue abierta y tus datos están intactos/);
+  assert.ok(!/no se ha tocado nada/.test(perfil), 'vuelve a prometer más de lo que cumple');
 });
 
 // ── Borrar cuenta: un toque, no dos ──

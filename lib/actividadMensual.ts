@@ -39,7 +39,13 @@ export type ActividadMensual = {
  * mes anterior para la comparación. Un solo rango de sesiones cubre los dos
  * meses; las series solo se piden para el mes que se ve.
  */
-export async function fetchActividadMensual(userId: string, anio: number, mes: number): Promise<ActividadMensual> {
+export async function fetchActividadMensual(
+  userId: string,
+  anio: number,
+  mes: number,
+  /** El "hoy" del teléfono, para que el mes en curso divida entre los días que van. */
+  hoy?: Date,
+): Promise<ActividadMensual> {
   const inicioAnterior = new Date(anio, mes - 1, 1);
   const inicio = new Date(anio, mes, 1);
   const fin = new Date(anio, mes + 1, 1);
@@ -72,5 +78,8 @@ export async function fetchActividadMensual(userId: string, anio: number, mes: n
   const mesAnterior = inicioAnterior.getMonth();
   const entrenosMesAnterior = sesiones.filter((s) => esDelMes(s.completed_at, anioAnterior, mesAnterior)).length;
 
-  return { resumen: resumirMes(sesiones, series, anio, mes), entrenosMesAnterior };
+  const enCurso = !!hoy && hoy.getFullYear() === anio && hoy.getMonth() === mes;
+  const diasContados = enCurso ? hoy.getDate() : undefined;
+
+  return { resumen: resumirMes(sesiones, series, anio, mes, diasContados), entrenosMesAnterior };
 }

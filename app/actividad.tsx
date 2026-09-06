@@ -8,7 +8,7 @@
 // cuerpo ni de comida: no hay nada que esconder en modo recuperación.
 // ─────────────────────────────────────────────────────────
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions,
 } from 'react-native';
@@ -42,12 +42,20 @@ export default function ActividadScreen() {
 
   const esMesActual = anio === hoy.getFullYear() && mes === hoy.getMonth();
 
+  // Cada carga se numera. Tocar ‹ dos veces lanza dos peticiones que nadie
+  // cancela, y la del mes vacío responde antes que la del mes cargado (que
+  // pagina): la lenta llegaba después y pintaba SUS números bajo el título del
+  // otro mes, sin spinner y de forma estable. Solo escribe la última pedida.
+  const peticion = useRef(0);
+
   const cargar = useCallback(async () => {
     if (!profile) { setLoading(false); return; }
+    const mia = ++peticion.current;
     setLoading(true);
     setFallo(false);
     try {
-      const d = await fetchActividadMensual(profile.user_id, anio, mes);
+      const d = await fetchActividadMensual(profile.user_id, anio, mes, hoy);
+      if (mia !== peticion.current) return; // llegó tarde: ya se pidió otro mes
       setDatos(d);
       track('monthly_activity_viewed', {
         month: `${anio}-${String(mes + 1).padStart(2, '0')}`,
@@ -55,10 +63,11 @@ export default function ActividadScreen() {
         is_current_month: anio === hoy.getFullYear() && mes === hoy.getMonth(),
       });
     } catch (e) {
-      captureError(e, { scope: 'actividad_mensual', anio, mes });
+      if (mia !== peticion.current) return; // el fallo de una petición vieja no
+      captureError(e, { scope: 'actividad_mensual', anio, mes });  // tapa un mes bueno
       setFallo(true);
     } finally {
-      setLoading(false);
+      if (mia === peticion.current) setLoading(false);
     }
   }, [profile?.user_id, anio, mes]);
 
@@ -168,7 +177,8 @@ export default function ActividadScreen() {
               <View key={i} style={s.filaDias}>
                 {fila.map((d, j) => {
                   if (d == null) return <View key={j} style={s.celda} />;
-                  const entreno = (resumen.porDia[d]?.entrenos ?? 0) > 0;
+                  const dd = resumen.porDia[d];
+                  const entreno = !!dd && (dd.entrenos > 0 || dd.ejercicios.length > 0);
                   const esHoy = esMesActual && d === hoy.getDate();
                   const futuro = esMesActual && d > hoy.getDate();
                   const sel = diaSel === d;
@@ -202,7 +212,11 @@ export default function ActividadScreen() {
             <View style={s.detalle} accessible
               accessibilityLabel={`${nombreDia(diaSel)} ${diaSel}: ${detalleDia.entrenos} ${detalleDia.entrenos === 1 ? 'entreno' : 'entrenos'}, ${etiquetaDuracion(detalleDia.minutos)}. ${detalleDia.ejercicios.join(', ')}`}>
               <Text style={s.detalleTitulo}>
-                {nombreDia(diaSel)[0].toUpperCase()}{nombreDia(diaSel).slice(1)} {diaSel} · {detalleDia.entrenos === 1 ? '1 entreno' : `${detalleDia.entrenos} entrenos`} · {etiquetaDuracion(detalleDia.minutos)}
+                {nombreDia(diaSel)[0].toUpperCase()}{nombreDia(diaSel).slice(1)} {diaSel} · {
+                  detalleDia.entrenos === 0
+                    ? 'sesión sin terminar'
+                    : `${detalleDia.entrenos === 1 ? '1 entreno' : `${detalleDia.entrenos} entrenos`} · ${etiquetaDuracion(detalleDia.minutos)}`
+                }
               </Text>
               {detalleDia.ejercicios.length > 0 ? (
                 <Text style={s.detalleTxt}>{detalleDia.ejercicios.join(' · ')}</Text>

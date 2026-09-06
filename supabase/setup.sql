@@ -2373,3 +2373,27 @@ grant execute on function public.record_ai_cost(uuid, numeric) to service_role;
 -- Lo escribe supabase/functions/rc-webhook a partir de period_type.
 alter table public.user_profiles
   add column if not exists is_trial boolean not null default false;
+
+-- ─── CORRECCIÓN POR EL CAMBIO A HORA LOCAL ───────────────
+-- last_workout_date se venía guardando con el día en UTC. Al pasar a hora de
+-- Bogotá (public._dia_local), un entreno de las 8 de la noche que se había
+-- anotado como "mañana" pasa a ser "hoy": la primera vez que esa persona
+-- entrenara después de actualizar, el gap le saldría 0, la racha no avanzaría
+-- y se vería castigada por un cambio nuestro.
+--
+-- Se recalcula desde la fuente de verdad —las sesiones ya acreditadas— con la
+-- misma función que usa apply_workout_stats de aquí en adelante. Va al FINAL
+-- del archivo a propósito: necesita user_stats, workout_sessions y _dia_local
+-- ya creados. Es idempotente y se puede volver a ejecutar: solo toca las filas
+-- que no coinciden con lo que dicen las sesiones.
+update public.user_stats s
+set last_workout_date = fuente.dia
+from (
+  select w.user_id, max(public._dia_local(w.completed_at)) as dia
+  from public.workout_sessions w
+  where w.completed_at is not null
+    and w.xp_credited_at is not null
+  group by w.user_id
+) fuente
+where fuente.user_id = s.user_id
+  and s.last_workout_date is distinct from fuente.dia;

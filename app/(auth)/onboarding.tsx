@@ -132,7 +132,21 @@ export default function OnboardingScreen() {
     return () => sub.remove();
   }, [step]);
 
+  // CERROJO DE ANIMACIÓN. El paso no cambia hasta 220 ms después del toque, así
+  // que la guarda de prevStep leía un `step` que todavía no se había movido:
+  // dos toques seguidos en «← Atrás» —o dos veces el botón físico, que es un
+  // gesto de lo más normal— encolaban DOS restas y dejaban step en 0. Ningún
+  // bloque renderiza en 0: pantalla negra, sin campos, sin botones, y con el
+  // botón físico devolviendo false, o sea cerrar la app y perder el formulario
+  // entero. Lo mismo hacia adelante saltaba un paso completo.
+  //
+  // Dos capas a propósito: el cerrojo ignora el segundo toque, y el clamp
+  // dentro del updater funcional impide salirse del rango pase lo que pase.
+  const animando = useRef(false);
+
   function nextStep() {
+    if (animando.current) return;
+    animando.current = true;
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.sequence([
@@ -140,14 +154,19 @@ export default function OnboardingScreen() {
       Animated.timing(slideAnim, { toValue: width, duration: 0, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
     ]).start();
-    setTimeout(() => setStep((s) => s + 1), 220);
+    setTimeout(() => {
+      setStep((s) => Math.min(4, s + 1));
+      animando.current = false;
+    }, 220);
   }
 
   // Existía nextStep y ninguna vuelta: la única forma de corregir el objetivo
   // elegido en el paso 2 era cerrar la app. Misma animación, al revés. Nunca
   // desde el 1 (no hay a dónde) ni desde el 4 (se está generando el plan).
   function prevStep() {
+    if (animando.current) return;
     if (step <= 1 || step >= 4) return;
+    animando.current = true;
     Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.sequence([
@@ -155,7 +174,10 @@ export default function OnboardingScreen() {
       Animated.timing(slideAnim, { toValue: -width, duration: 0, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
     ]).start();
-    setTimeout(() => setStep((s) => s - 1), 220);
+    setTimeout(() => {
+      setStep((s) => (s <= 1 ? s : s - 1));
+      animando.current = false;
+    }, 220);
   }
 
   function validateStep1(): boolean {

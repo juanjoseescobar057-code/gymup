@@ -94,6 +94,13 @@ export function resumirMes(
   series: SerieDelMes[],
   anio: number,
   mes: number,
+  /**
+   * Días del mes que ya han PASADO. Solo importa en el mes en curso, que es el
+   * que la pantalla abre por defecto: dividir los entrenos del día 3 entre las
+   * 4,4 semanas del mes entero daba "0,7 por semana" a alguien que llevaba
+   * tres entrenos en tres días. Por omisión, el mes completo.
+   */
+  diasContados?: number,
 ): ResumenMes {
   const porDia: Record<number, DiaDelMes> = {};
   const dia = (n: number) => (porDia[n] ??= { entrenos: 0, minutos: 0, ejercicios: [] });
@@ -148,12 +155,18 @@ export function resumirMes(
     }))
     .sort((a, b) => b.series - a.series || b.dias - a.dias || a.nombre.localeCompare(b.nombre));
 
+  // Un día cuenta como día de gimnasio si hay sesión terminada O si hay series
+  // registradas. Solo con sesiones terminadas, quien empieza un entreno,
+  // registra tres series y lo abandona veía sus series sumadas en los totales
+  // y el día en blanco en el calendario: la pantalla se contradecía sola.
   const diasEntrenados = Object.keys(porDia)
     .map(Number)
-    .filter((n) => porDia[n].entrenos > 0)
+    .filter((n) => porDia[n].entrenos > 0 || porDia[n].ejercicios.length > 0)
     .sort((a, b) => a - b);
 
-  const semanas = diasDelMes(anio, mes) / 7;
+  const totalDias = diasDelMes(anio, mes);
+  const transcurridos = Math.max(1, Math.min(diasContados ?? totalDias, totalDias));
+  const semanas = transcurridos / 7;
 
   return {
     anio,

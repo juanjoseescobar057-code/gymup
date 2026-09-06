@@ -66,7 +66,10 @@ test('cerrar sesión olvida el token push de este dispositivo, antes de signOut'
   const i = perfil.indexOf('async function handleLogout');
   const fin = perfil.indexOf('\n  async function ', i + 10);
   const bloque = perfil.slice(i, fin > 0 ? fin : undefined);
-  const iOlvidar = bloque.indexOf('await olvidarPushToken()');
+  // Va dentro de un Promise.race con tope de 5 s desde la compuerta del build
+  // 25 (dos llamadas de red delante del botón), así que se ancla en la llamada,
+  // no en el `await` que la envolvía.
+  const iOlvidar = bloque.indexOf('olvidarPushToken()');
   const iSignOut = bloque.indexOf('supabase.auth.signOut()');
   assert.ok(iOlvidar > 0, 'el logout no olvida el token');
   assert.ok(iOlvidar < iSignOut, 'después de signOut ya no hay sesión para pasar el RLS');

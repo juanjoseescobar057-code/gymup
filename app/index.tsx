@@ -38,12 +38,19 @@ export default function Index() {
   // la cadena original termina después, navega igual: nunca peor que antes.
   const ARRANQUE_MAX_MS = 15_000;
   const terminadoRef = useRef(false);
+  // Cada intento se numera. Sin esto, «Reintentar» dejaba DOS cadenas de
+  // arranque vivas a la vez, cada una escribiendo el store y programando
+  // notificaciones, y la vieja podía navegar a las pestañas encima de lo que
+  // la nueva estuviera haciendo. Solo manda el intento vigente.
+  const intentoRef = useRef(0);
 
   async function checkProfile() {
+    const mio = ++intentoRef.current;
+    const vigente = () => intentoRef.current === mio;
     setConnectionError(false);
     terminadoRef.current = false;
     const vigilante = setTimeout(() => {
-      if (!terminadoRef.current) setConnectionError(true);
+      if (vigente() && !terminadoRef.current) setConnectionError(true);
     }, ARRANQUE_MAX_MS);
     try {
       const { data: { session }, error: errSesion } = await supabase.auth.getSession();
@@ -54,12 +61,12 @@ export default function Index() {
       // justo lo que el comentario de más abajo dice que no puede pasar. Ahora
       // se enseña la pantalla de conexión, con reintento.
       if (errSesion && /network|fetch|timeout|abort|retryable/i.test(`${errSesion.name} ${errSesion.message}`)) {
-        setConnectionError(true);
+        if (vigente()) setConnectionError(true);
         return;
       }
 
       if (!session) {
-        router.replace('/(auth)/onboarding' as any);
+        if (vigente()) router.replace('/(auth)/onboarding' as any);
         return;
       }
 
@@ -81,12 +88,12 @@ export default function Index() {
         captureError(errorPerfil, { scope: 'arranque.perfil', code: errorPerfil.code });
         // La pantalla de error de conexión que ya existe más abajo: explica y
         // ofrece reintentar, en vez de mandar a rehacer el registro.
-        setConnectionError(true);
+        if (vigente()) setConnectionError(true);
         return;
       }
 
       if (!profile) {
-        router.replace('/(auth)/onboarding' as any);
+        if (vigente()) router.replace('/(auth)/onboarding' as any);
         return;
       }
 
@@ -137,6 +144,11 @@ export default function Index() {
       // horas). Antes se programaban tres avisos fijos ignorando la tabla.
       setupDailyNotifications(session.user.id).catch(() => {});
 
+      // Un arranque lento pero BUENO puede pasarse de los 15 s y encontrarse
+      // la pantalla de "No pudimos conectar" delante. Si llegamos hasta aquí
+      // sí hay perfil: se retira el error en vez de navegar por debajo de él.
+      if (!vigente()) return;
+      setConnectionError(false);
       setOnboardingComplete(true);
       router.replace('/(tabs)' as any);
 
@@ -146,12 +158,15 @@ export default function Index() {
         // No hay forma de saber si el usuario tiene cuenta o no sin llegar al
         // servidor — mandarlo a onboarding aquí crearía una cuenta duplicada
         // por un problema de red pasajero. Se queda aquí con reintento.
-        setConnectionError(true);
+        if (vigente()) setConnectionError(true);
         return;
       }
-      router.replace('/(auth)/onboarding' as any);
+      if (vigente()) router.replace('/(auth)/onboarding' as any);
     } finally {
-      terminadoRef.current = true;
+      // Solo el intento vigente puede declarar el arranque terminado: si lo
+      // marcara una cadena vieja al acabar tarde, el vigilante de la nueva
+      // creería que ya llegó y no volvería a avisar nunca.
+      if (vigente()) terminadoRef.current = true;
       clearTimeout(vigilante);
     }
   }

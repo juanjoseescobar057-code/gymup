@@ -54,3 +54,4 @@ docs/backup-historial/
 # Exportaciones de chats pueden contener credenciales ya revocadas y datos personales.
 docs/*conversacion*.md
 docs/*conversación*.md
+build25.log

@@ -412,7 +412,15 @@ export default function ProfileScreen() {
             await resetAnalyticsIdentity();
             // El token push de este teléfono se quedaba a nombre de la cuenta
             // que se va. Antes de signOut, que después ya no hay sesión.
-            await olvidarPushToken();
+            //
+            // Con tope: son dos llamadas de red (Expo y Supabase) delante del
+            // único botón que la persona ya tocó, y sin indicador. Si tardan,
+            // el botón parece muerto. Cinco segundos y seguimos: el token se
+            // pisa por upsert en el siguiente inicio de sesión.
+            await Promise.race([
+              olvidarPushToken(),
+              new Promise((r) => setTimeout(r, 5000)),
+            ]);
             // CERRAR LA SESIÓN PRIMERO, Y COMPROBARLO. Iba al final e ignorado:
             // si la red fallaba, la sesión seguía viva en el teléfono mientras
             // la app ya había borrado el store y los datos locales y se iba al
@@ -423,7 +431,12 @@ export default function ProfileScreen() {
             if (errSalir) {
               Alert.alert(
                 'No pudimos cerrar la sesión',
-                'Parece un problema de conexión. Tu cuenta sigue abierta y no se ha tocado nada; inténtalo en un momento.'
+                // Decía "no se ha tocado nada" y era mentira: para cuando se
+                // intenta el signOut ya se cancelaron las notificaciones y se
+                // borró el token push de este teléfono. Tus DATOS siguen
+                // intactos —que es lo que preocupa— pero los avisos no.
+                'Parece un problema de conexión. Tu sesión sigue abierta y tus datos están intactos, ' +
+                'pero los recordatorios diarios quedaron en pausa: vuelven al reintentar o al reabrir la app.'
               );
               return;
             }

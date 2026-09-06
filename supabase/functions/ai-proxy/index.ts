@@ -47,10 +47,19 @@ const ALLOWED_MODELS = new Set(['gpt-4o', 'gpt-4o-mini', 'gpt-4o-2024-08-06']);
 
 // ─── PRESUPUESTO EN DINERO: el techo de verdad ───────────
 // Ingreso neto por premium: 24.900 COP menos ~15% de Play ≈ $5.00 USD/mes.
-// El presupuesto de IA es el 40% de eso. Un tope en llamadas siempre se puede
+// El presupuesto de IA es el 46% de eso. Un tope en llamadas siempre se puede
 // burlar eligiendo las caras; este no, porque está en la misma unidad que la
 // pérdida.
-const PRESUPUESTO_PREMIUM_USD = 2.00;
+//
+// ERA 2.00, con una cuenta que no incluía lo que corre solo. Cuando el test de
+// economía empezó a sumar el saludo diario, el juez de calidad y el destilado de
+// memoria —llamadas que nadie pide y que igual se cobran— el "usuario intensivo
+// real" salió a $2,20/mes: se quedaba sin IA el día 27. El destilado (~$0,29/mes)
+// es lo que lo saca, y NO se baja a un modelo más barato porque guarda lesiones
+// y condiciones: perder "hernia L5-S1" en un resumen es un riesgo clínico, no de
+// calidad. Así que sube el techo, y queda por debajo del 50% que exige
+// __tests__/economiaPremium.test.ts.
+const PRESUPUESTO_PREMIUM_USD = 2.30;
 
 // La prueba de 7 días no paga nada, así que su techo es lo que estamos
 // dispuestos a invertir en adquirir a esa persona.
@@ -399,8 +408,23 @@ Deno.serve(async (req) => {
     p_modelo: body.model,
   });
   if (budgetError) {
+    // Un duplicado en vuelo (mismo request_id, reserva abierta y joven). No es
+    // un fallo del servidor: es la segunda de dos peticiones idénticas a la
+    // vez, y la primera ya está en camino.
+    if (/peticion_en_curso/.test(budgetError.message)) {
+      return json({ error: 'Ya estamos con esa petición. Dale un momento.', code: 'peticion_en_curso' }, 409);
+    }
     console.error('reservar_ai:', budgetError.message);
     return json({ error: 'No se pudo verificar el presupuesto. Intenta luego.' }, 503);
+  }
+  // -1 = la PLATAFORMA está saturada (techo global por hora). No es culpa de la
+  // persona y pagar no lo arregla: ni "tu máximo del mes" ni paywall.
+  if (restante === -1) {
+    console.log('ai-proxy: techo global por hora alcanzado');
+    return json({
+      error: 'Hay mucha gente usando la IA ahora mismo. Inténtalo en unos minutos.',
+      code: 'plataforma_saturada',
+    }, 503);
   }
   // null = no cabía, y reservar_ai ya deshizo su propia reserva.
   //

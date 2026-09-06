@@ -1845,6 +1845,15 @@ from (
 ) t
 group by 1 order by 1;
 
+-- LAS VISTAS DE OPERADOR NO SON DEL CLIENTE. Son agregados cross-usuario
+-- (actividad diaria, retención por cohorte, curva de fuerza, rasgos) para el
+-- panel del equipo. Sin este revoke, PostgREST las expone a cualquier JWT de
+-- 'authenticated' con el grant por defecto, y una vista no hereda las
+-- políticas RLS de sus tablas salvo con security_invoker — que no tienen.
+revoke all on public.v_user_traits, public.v_daily_activity,
+  public.v_cohort_retention, public.v_power_curve
+  from public, anon, authenticated;
+
 -- ─── USO DE IA (rate limit por feature) ──────────────────
 create table if not exists public.ai_usage (
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -2136,6 +2145,7 @@ create or replace function public.reservar_ai(
 returns numeric
 language plpgsql security definer set search_path = public as $$
 declare
+  v_creado timestamptz;
   -- El id llega EXPLÍCITO porque ahora la llama el service role, y con service
   -- role auth.uid() es null. El proxy lo saca del JWT que ya verificó, nunca del
   -- cuerpo de la petición: es el mismo criterio que record_ai_cost.
@@ -2166,10 +2176,24 @@ begin
   -- Un reintento de verdad es: mismo id, MISMO USUARIO, y la reserva todavía
   -- abierta (real_usd null, o sea que la petición anterior no llegó a cuadrarse).
   -- Cualquier otra cosa es una petición nueva y se cobra como tal.
-  select reservado_usd into v_ya
+  select reservado_usd, creado_at into v_ya, v_creado
     from public.ai_reservas
    where request_id = p_request_id and user_id = v_uid and real_usd is null;
   if found then
+    -- ABIERTA Y JOVEN = PETICIÓN EN VUELO, no un reintento. Diez peticiones
+    -- concurrentes con el mismo id entraban todas por aquí: ninguna sumaba al
+    -- presupuesto ni al freno global, las diez llegaban a OpenAI y solo la
+    -- primera en terminar apuntaba su costo. Una cuenta gratis podía gastar
+    -- ~50 veces su techo mensual en un día sin que nada lo viera.
+    --
+    -- El proxy cierra SIEMPRE su reserva en menos de 60 s (tiempo máximo de
+    -- OpenAI + salir()). Así que una reserva abierta más joven que dos minutos
+    -- no es un reintento legítimo: es un duplicado en curso, y se rechaza. Una
+    -- más vieja sí es una huérfana (el proxy murió entre reservar y cuadrar) y
+    -- ahí el reintento conserva el sentido original.
+    if v_creado > now() - interval '2 minutes' then
+      raise exception 'peticion_en_curso';
+    end if;
     select coalesce(cost_usd, 0) into v_total from public.ai_cost_usage
      where user_id = v_uid and month = v_mes;
     return p_budget_usd - coalesce(v_total, 0);
@@ -2187,7 +2211,11 @@ begin
     from public.ai_reservas where creado_at > now() - interval '1 hour';
   if v_global + p_estimado_usd > public.techo_global_hora() then
     raise notice 'techo global por hora alcanzado: % + % > %', v_global, p_estimado_usd, public.techo_global_hora();
-    return null;
+    -- -1, no null. Con null el proxy le decía a la persona "alcanzaste el
+    -- máximo de IA de este mes", cuando lo que pasaba es que la PLATAFORMA
+    -- estaba saturada: se le cobraba a ella un problema nuestro, y el paywall
+    -- se abría por una causa que pagar no arregla.
+    return -1;
   end if;
 
   -- 3. RESERVA DEL USUARIO. El insert...on conflict do update es una sola

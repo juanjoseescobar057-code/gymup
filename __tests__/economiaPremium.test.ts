@@ -59,6 +59,12 @@ const COSTO_USD: Record<string, number> = {
   body_scan: 0.0092,
   plan: 0.0338,
   scan_check: 0.0005,
+  // Lo que corre SOLO, sin que la persona lo pida. No estaba, y el test
+  // certificaba como "cabe" un día que no cabía: el destilado de memoria en
+  // gpt-4o cuesta lo mismo que un mensaje de chat.
+  suggestion: 0.0005, // saludo diario, ya en mini (medido $0,0085 en 4o)
+  scoring: 0.0003,    // juez de calidad por respuesta, mini (medido)
+  memoria: 0.0098,    // destilado de memoria, gpt-4o, cada 4 turnos
 };
 
 /** Lo que cuesta un día en el que alguien agota TODO lo que se le prometió. */
@@ -126,6 +132,10 @@ const DIA_INTENSIVO_REAL = {
   body_scan: 1 / 7,     // un análisis corporal por semana
   scan_check: 3 / 7,    // sus tres validaciones, prorrateadas
   plan: 1 / 30,         // rehacer el plan una vez al mes
+  // Y lo que corre SOLO ese mismo día, sin que la persona lo pida:
+  suggestion: 1,        // el saludo de la portada, una vez al abrir
+  scoring: 4,           // el juez de calidad, uno por respuesta del coach
+  memoria: 1,           // el destilado de memoria: 4 mensajes / cadencia 4
 };
 
 test('un usuario intensivo real cabe en el presupuesto', () => {

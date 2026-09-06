@@ -143,7 +143,12 @@ export default function CoachChatScreen() {
   function maybeDistill(history: ChatMessage[], force = false) {
     if (!profile) return;
     const userCount = history.filter((m) => m.role === 'user').length;
-    if (!force && userCount - distilledRef.current < 2) return;
+    // Cada 4 mensajes, no 2. El destilado corre solo, en gpt-4o, y cuesta lo
+    // mismo que un mensaje del chat (~$0,01): a cada 2 añadía ~60% al costo de
+    // la conversación sin que nadie lo pidiera. Dentro de la sesión no se pierde
+    // nada (el coach ve los últimos 10 mensajes) y el cursor se reanuda al
+    // volver, así que la ventana más larga no deja hechos fuera.
+    if (!force && userCount - distilledRef.current < 4) return;
     if (userCount <= distilledRef.current) return; // nada nuevo que destilar
     const prev = distilledRef.current;
     distilledRef.current = userCount;
@@ -279,7 +284,9 @@ export default function CoachChatScreen() {
       const reply = await askCoach(history, snapshot, mem, meta);
       resolveReply(reply);
       // Presión alta: destilar YA a memoria antes de que el contexto se degrade.
-      if (contextPressure >= 70) maybeDistill(history, true);
+      // 85, no 70: a 70 los usuarios con memoria establecida destilaban en CADA
+      // turno por este camino, y la cadencia de arriba no servía de nada.
+      if (contextPressure >= 85) maybeDistill(history, true);
       const withReply: ChatMessage[] = [...history, { role: 'assistant', content: reply }];
       setMessages(withReply);
       persist(withReply);

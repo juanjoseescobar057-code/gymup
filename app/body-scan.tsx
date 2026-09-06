@@ -101,7 +101,11 @@ async function validatePhoto(
   poseLabel: string
 ): Promise<{ valid: boolean; reason: string }> {
   const data = await aiChat({
-      model: 'gpt-4o',
+      // MINI. Esta es una pregunta binaria —¿se ve una persona de cuerpo entero?—
+      // con detail:low y 150 tokens de salida. Se documentaba a ~$0,0005 y en
+      // gpt-4o costaba 6-8 veces eso. El análisis de verdad (analyzeBodyPhotos)
+      // sigue en gpt-4o: ahí sí se mira el cuerpo.
+      model: 'gpt-4o-mini',
       messages: [{
         role: 'user',
         content: [

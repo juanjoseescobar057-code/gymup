@@ -52,7 +52,9 @@ function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
  * El proxy ya distingue el motivo con un `code`. Eso es lo estable; el texto
  * esta para que lo lea una persona y va a seguir cambiando.
  */
-export type CodigoDeIA = 'limit_reached' | 'budget_reached' | 'premium_required' | null;
+export type CodigoDeIA =
+  | 'limit_reached' | 'budget_reached' | 'premium_required'
+  | 'peticion_en_curso' | 'plataforma_saturada' | null;
 
 export class ErrorDeIA extends Error {
   readonly codigo: CodigoDeIA;
@@ -156,7 +158,7 @@ async function aiChatRaw(body: object, feature: AIFeature, requestId?: string): 
     // Solo se confía en el cuerpo si trae un `code` NUESTRO. Sin esa condición
     // esto sería una vía para que el texto del proveedor —que cita el prompt, y
     // el prompt lleva las directivas de salud— acabara en la pantalla.
-    const NUESTROS = ['limit_reached', 'budget_reached', 'premium_required'];
+    const NUESTROS = ['limit_reached', 'budget_reached', 'premium_required', 'peticion_en_curso', 'plataforma_saturada'];
     let delServidor: string | null = null;
     let codigoServidor: CodigoDeIA = null;
     try {
@@ -174,6 +176,11 @@ async function aiChatRaw(body: object, feature: AIFeature, requestId?: string): 
     }
     if (res.status === 402) {
       throw new ErrorDeIA(delServidor ?? 'Esta función es Premium. Suscríbete para usarla.', codigoServidor ?? 'premium_required', 402);
+    }
+    // Duplicado en vuelo o plataforma saturada: el servidor ya lo explicó en
+    // castellano; el genérico "IA no disponible (409)" sería peor.
+    if (delServidor && (codigoServidor === 'peticion_en_curso' || codigoServidor === 'plataforma_saturada')) {
+      throw new ErrorDeIA(delServidor, codigoServidor, res.status);
     }
     // Tampoco aquí: este mensaje lo ve el usuario Y lo guarda logAiCall en
     // ai_telemetry. Adjuntar `msg` metía el cuerpo del proveedor —con el

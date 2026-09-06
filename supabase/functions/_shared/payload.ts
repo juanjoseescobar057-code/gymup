@@ -95,8 +95,14 @@ export function inspectMessages(messages: unknown[], maxImageBytes: number): Ins
         } else if (url.length > maxImageBytes) {
           marcar('Una de las imágenes es demasiado grande.');
         }
-      } else if (typeof p?.text === 'string') {
+      } else if (p?.type === 'text' && typeof p.text === 'string') {
         textChars += p.text.length;
+      } else {
+        // Cualquier otro tipo —'file' con un PDF en base64, 'input_audio', lo
+        // que OpenAI añada mañana— entraba sin medirse: ni cuenta para el
+        // estimado ni para el tope de caracteres. La app solo manda texto e
+        // imágenes; lo demás se rechaza en vez de pasar gratis.
+        marcar('Tipo de contenido no admitido.');
       }
     }
   }

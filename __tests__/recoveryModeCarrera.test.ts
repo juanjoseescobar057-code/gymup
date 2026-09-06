@@ -117,9 +117,11 @@ test('cerrar sesión olvida TODO lo de la persona anterior', () => {
   assert.ok(salidas.length > 0, 'no encontré ningún signOut');
   for (const m of salidas) {
     assert.match(
-      perfil.slice(Math.max(0, m.index! - 300), m.index!),
+      // Ventana simétrica: signOut va primero y comprobado; olvidarSesion,
+      // justo después del éxito (ver borradoLocal.test.ts).
+      perfil.slice(Math.max(0, m.index! - 300), m.index! + 900),
       /olvidarSesion\(\)/,
-      'cada signOut tiene que olvidar la salud antes',
+      'cada signOut tiene que olvidar la salud de la persona anterior',
     );
   }
 });

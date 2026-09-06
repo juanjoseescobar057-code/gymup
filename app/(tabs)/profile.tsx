@@ -113,16 +113,27 @@ export default function ProfileScreen() {
   const [editModal, setEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [replanning, setReplanning] = useState(false);
-  const [accountEmail, setAccountEmail] = useState<string | null>(null);
+  // undefined = todavía no sabemos (o no pudimos leerlo). null = de verdad no
+  // hay correo. Con un solo null para las dos cosas, un fallo de red al abrir
+  // Perfil decía "tu cuenta es anónima, si cierras sesión lo pierdes todo" a
+  // alguien que SÍ tenía correo. Amenazar con perderlo todo por un fallo de red
+  // es de lo peor que puede hacer una pantalla.
+  const [accountEmail, setAccountEmail] = useState<string | null | undefined>(undefined);
   const [authSheet, setAuthSheet] = useState(false);
   const [replayConsent, setReplayConsentState] = useState(false);
+  // Borrar cuenta llama a una Edge Function que tarda. Sin este estado, un
+  // segundo toque durante la espera lanzaba OTRO borrado sobre una cuenta que
+  // ya no existía, y la respuesta era "no se pudo eliminar, tu cuenta sigue
+  // intacta" — falso las dos cosas.
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    getAccountEmail().then(setAccountEmail).catch(() => {});
+    getAccountEmail().then((e) => setAccountEmail(e ?? null)).catch(() => setAccountEmail(undefined));
     getSessionReplayConsent().then(setReplayConsentState).catch(() => {});
   }, []);
 
-  const isAnon = !accountEmail;
+  const isAnon = accountEmail === null;
+  const cuentaDesconocida = accountEmail === undefined;
 
   // Campos editables
   const [name, setName] = useState(profile?.name ?? '');
@@ -294,8 +305,11 @@ export default function ProfileScreen() {
           text: 'Eliminar todo',
           style: 'destructive',
           onPress: async () => {
+            if (deleting) return;
+            setDeleting(true);
             const res = await deleteAccountServerSide();
             if (!res.ok) {
+              setDeleting(false);
               Alert.alert(
                 'No se pudo eliminar tu cuenta',
                 `${res.error ?? 'Error desconocido.'}\n\nTu cuenta y tus datos siguen intactos. Puedes intentarlo de nuevo.`,
@@ -377,9 +391,11 @@ export default function ProfileScreen() {
   }
 
   async function handleLogout() {
-    const warning = isAnon
-      ? 'Tu cuenta es anónima (sin email). Si cierras sesión NO podrás recuperar tus datos: perderás racha, historial y fotos. Te recomendamos "Guardar mi progreso" antes de salir. ¿Continuar?'
-      : 'Podrás volver a entrar con tu email y contraseña para recuperar tus datos. ¿Cerrar sesión?';
+    const warning = cuentaDesconocida
+      ? 'No pudimos comprobar si tu cuenta tiene correo. Si no lo tiene, al cerrar sesión no podrás volver a entrar. Revisa tu conexión y vuelve a intentarlo, o guarda tu progreso antes. ¿Cerrar sesión igual?'
+      : isAnon
+        ? 'Tu cuenta es anónima (sin email). Si cierras sesión NO podrás recuperar tus datos: perderás racha, historial y fotos. Te recomendamos "Guardar mi progreso" antes de salir. ¿Continuar?'
+        : 'Podrás volver a entrar con tu email y contraseña para recuperar tus datos. ¿Cerrar sesión?';
     Alert.alert(
       'Cerrar sesión',
       warning,
@@ -393,6 +409,20 @@ export default function ProfileScreen() {
             phReset();
             await cancelDailyNotifications();
             await resetAnalyticsIdentity();
+            // CERRAR LA SESIÓN PRIMERO, Y COMPROBARLO. Iba al final e ignorado:
+            // si la red fallaba, la sesión seguía viva en el teléfono mientras
+            // la app ya había borrado el store y los datos locales y se iba al
+            // onboarding — un estado a medias en el que la siguiente apertura
+            // encontraba sesión y perfil pero ninguna caché. Ahora, si no se
+            // puede cerrar, no se toca nada y se dice.
+            const { error: errSalir } = await supabase.auth.signOut();
+            if (errSalir) {
+              Alert.alert(
+                'No pudimos cerrar la sesión',
+                'Parece un problema de conexión. Tu cuenta sigue abierta y no se ha tocado nada; inténtalo en un momento.'
+              );
+              return;
+            }
             // Lo que sabíamos de la salud era de OTRA persona. Sin esto, el modo
             // recuperación (y el tamizaje en caché) sobrevivían al cambio de
             // cuenta en un teléfono compartido.
@@ -404,7 +434,6 @@ export default function ProfileScreen() {
             // promete borrarlo todo, y en un teléfono compartido o vendido eso
             // no es un detalle.
             await borrarDatosLocales();
-            await supabase.auth.signOut();
             setProfile(null as any);
             setOnboardingComplete(false);
             router.replace('/(auth)/onboarding' as any);
@@ -648,7 +677,11 @@ export default function ProfileScreen() {
         {/* Cuenta */}
         <Text style={s.sectionLbl} accessibilityRole="header">CUENTA</Text>
         <View style={s.card}>
-          {isAnon ? (
+          {cuentaDesconocida ? (
+            <View style={s.row} accessible accessibilityLabel="Comprobando tu cuenta">
+              <Text style={s.rowLabel}>Comprobando tu cuenta…</Text>
+            </View>
+          ) : isAnon ? (
             <TouchableOpacity style={s.row} onPress={() => setAuthSheet(true)}
               accessibilityRole="button" accessibilityLabel="Guardar mi progreso creando una cuenta"
               accessibilityHint="Tu cuenta es anónima. Crea una cuenta para no perder tus datos">
@@ -739,7 +772,7 @@ export default function ProfileScreen() {
         onClose={() => setAuthSheet(false)}
         onSuccess={() => {
           setAuthSheet(false);
-          getAccountEmail().then(setAccountEmail).catch(() => {});
+          getAccountEmail().then((e) => setAccountEmail(e ?? null)).catch(() => setAccountEmail(undefined));
         }}
       />
 

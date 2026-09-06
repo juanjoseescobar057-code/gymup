@@ -45,7 +45,7 @@ export async function linkEmailPassword(
     email: email.trim().toLowerCase(),
     password,
   });
-  if (error) return { ok: false, needsEmailConfirm: false, error: error.message };
+  if (error) return { ok: false, needsEmailConfirm: false, error: traducirErrorAuth(error.message) };
 
   // Si el proyecto exige confirmar el email, el cambio queda pendiente.
   const needsEmailConfirm = !!data.user && !data.user.email_confirmed_at;
@@ -102,6 +102,9 @@ export async function deleteAccountServerSide(): Promise<DeleteAccountResult> {
 }
 
 /** Inicia sesión en una cuenta existente (recuperar datos en otro dispositivo). */
+export { traducirErrorAuth } from './erroresAuth';
+import { traducirErrorAuth } from './erroresAuth';
+
 export async function signInExisting(
   email: string,
   password: string
@@ -111,7 +114,7 @@ export async function signInExisting(
     email: email.trim().toLowerCase(),
     password,
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: traducirErrorAuth(error.message) };
   return { ok: true };
 }
 
@@ -157,8 +160,20 @@ export async function requestPasswordReset(
   );
   // Un fallo de RED sí se reporta (si no, la persona espera un correo que
   // nunca se pidió). Lo que no se revela es si la cuenta existe.
-  if (error && /network|fetch|timeout/i.test(error.message)) {
+  if (error && /network|fetch|timeout|abort/i.test(error.message)) {
     return { ok: false, error: 'No pudimos conectar. Revisa tu conexión e intenta de nuevo.' };
+  }
+  // El RATE LIMIT y el fallo del servidor de correo TAMPOCO se tragan. Se
+  // devolvía ok:true con un 429 detrás, y la pantalla decía "te enviamos el
+  // enlace" a alguien a quien no se le envió nada: se quedaba mirando la
+  // bandeja. Ninguno de los dos revela si la cuenta existe —el límite es por
+  // remitente y el SMTP falla igual para todos— así que decir la verdad aquí no
+  // rompe la ambigüedad deliberada de arriba.
+  if (error && /rate limit|too many|over_email_send_rate_limit|429/i.test(error.message)) {
+    return { ok: false, error: 'Pediste varios enlaces seguidos. Espera un minuto y vuelve a intentarlo.' };
+  }
+  if (error && /error sending|smtp|mail/i.test(error.message)) {
+    return { ok: false, error: 'No pudimos enviar el correo ahora mismo. Inténtalo en unos minutos.' };
   }
   return { ok: true };
 }

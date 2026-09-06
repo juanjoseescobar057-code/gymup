@@ -67,9 +67,13 @@ test('cerrar sesion y borrar cuenta llaman al borrado local', () => {
   assert.ok(salidas.length > 0);
   for (const m of salidas) {
     assert.match(
-      perfil.slice(Math.max(0, m.index! - 700), m.index!),
+      // Ventana SIMÉTRICA. Al cerrar sesión, signOut va ahora PRIMERO y se
+      // comprueba: si la red falla no se toca nada. La limpieza local viene
+      // justo después del éxito. Lo que este test protege es que toda salida
+      // limpie el dispositivo, no que lo haga antes que la red.
+      perfil.slice(Math.max(0, m.index! - 700), m.index! + 900),
       /borrarDatosLocales\(\)/,
-      'cada salida tiene que limpiar el dispositivo antes',
+      'cada salida tiene que limpiar el dispositivo',
     );
   }
 });

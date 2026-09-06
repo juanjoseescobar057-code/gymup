@@ -35,7 +35,17 @@ export default function Index() {
   async function checkProfile() {
     setConnectionError(false);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: errSesion } = await supabase.auth.getSession();
+
+      // Un fallo de RED al leer la sesión no es "no hay sesión". Con el token
+      // vencido y sin conexión, getSession intenta refrescarlo, falla, y
+      // devolvía null: la app mandaba al onboarding a alguien registrado —
+      // justo lo que el comentario de más abajo dice que no puede pasar. Ahora
+      // se enseña la pantalla de conexión, con reintento.
+      if (errSesion && /network|fetch|timeout|abort|retryable/i.test(`${errSesion.name} ${errSesion.message}`)) {
+        setConnectionError(true);
+        return;
+      }
 
       if (!session) {
         router.replace('/(auth)/onboarding' as any);

@@ -24,6 +24,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../constants/theme';
 import { initMonitoring } from '../lib/monitoring';
+import { supabase } from '../lib/supabase';
+import { useUserStore } from '../store/userStore';
+import { router } from 'expo-router';
 
 initMonitoring();
 
@@ -40,6 +43,21 @@ Notifications.setNotificationHandler({
 });
 
 export default function RootLayout() {
+  // SI LA SESIÓN SE CAE, LA APP SE ENTERA. Nadie escuchaba SIGNED_OUT: si el
+  // token se revocaba desde el servidor —contraseña cambiada en otro
+  // dispositivo, cuenta borrada, sesión invalidada— la pantalla seguía viva
+  // con el perfil en el store y cada acción fallaba una a una sin explicar
+  // nada. Ahora se vacía el store y se vuelve al inicio de sesión.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((evento) => {
+      if (evento === 'SIGNED_OUT') {
+        try { useUserStore.getState().olvidarSesion(); } catch {}
+        router.replace('/(auth)/onboarding' as any);
+      }
+    });
+    return () => { sub.subscription.unsubscribe(); };
+  }, []);
+
   const pathname = usePathname();
 
   // Analítica conductual propia: identidad + sesiones + cola por lotes.

@@ -148,7 +148,7 @@ export default function ActividadScreen() {
               <Text style={s.kpiNum}>{resumen.entrenos}</Text>
               <Text style={s.kpiLbl}>{resumen.entrenos === 1 ? 'entreno' : 'entrenos'}</Text>
               <Text style={s.kpiSub}>
-                {resumen.entrenos > 0 ? `≈ ${resumen.porSemana} por semana · ` : ''}
+                {resumen.porSemana > 0 ? `≈ ${resumen.porSemana} por semana · ` : ''}
                 {etiquetaComparacion(resumen.entrenos, datos!.entrenosMesAnterior, mes - 1)}
               </Text>
             </View>
@@ -198,11 +198,15 @@ export default function ActividadScreen() {
                 })}
               </View>
             ))}
-            {resumen.entrenos === 0 && (
+            {/* Anclado en los días MARCADOS, no en las sesiones terminadas: el
+                coach en vivo guarda series sin sesión (live-coach.tsx pasa
+                session_id null), así que el calendario podía tener días
+                pintados y este texto decir debajo que el mes está vacío. */}
+            {resumen.diasEntrenados.length === 0 && (
               <Text style={s.calendarioVacio}>
                 {esMesActual
-                  ? 'Este mes todavía no tiene entrenos. Cuando termines uno, aquí se marca el día.'
-                  : `Sin entrenos en ${nombreMes}.`}
+                  ? 'Este mes todavía no tienes días de gimnasio. En cuanto registres uno, aquí se marca.'
+                  : `Sin días de gimnasio en ${nombreMes}.`}
               </Text>
             )}
           </View>
@@ -210,7 +214,15 @@ export default function ActividadScreen() {
           {/* Día tocado */}
           {diaSel != null && detalleDia && (
             <View style={s.detalle} accessible
-              accessibilityLabel={`${nombreDia(diaSel)} ${diaSel}: ${detalleDia.entrenos} ${detalleDia.entrenos === 1 ? 'entreno' : 'entrenos'}, ${etiquetaDuracion(detalleDia.minutos)}. ${detalleDia.ejercicios.join(', ')}`}>
+              // La misma frase que se ve. Decía "0 entrenos, 0 min" en el día
+              // sin sesión terminada, justo lo que el texto visible dejó de
+              // decir por mentiroso: quien escucha la pantalla no puede
+              // recibir una versión peor que quien la ve.
+              accessibilityLabel={`${nombreDia(diaSel)} ${diaSel}: ${
+                detalleDia.entrenos === 0
+                  ? 'sesión sin terminar'
+                  : `${detalleDia.entrenos} ${detalleDia.entrenos === 1 ? 'entreno' : 'entrenos'}, ${etiquetaDuracion(detalleDia.minutos)}`
+              }. ${detalleDia.ejercicios.join(', ')}`}>
               <Text style={s.detalleTitulo}>
                 {nombreDia(diaSel)[0].toUpperCase()}{nombreDia(diaSel).slice(1)} {diaSel} · {
                   detalleDia.entrenos === 0

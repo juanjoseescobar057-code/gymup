@@ -22,9 +22,16 @@ test('el arranque tiene tope: a los 15 s enseña el botón de reintentar', () =>
   assert.match(src, /const ARRANQUE_MAX_MS = 15_000;/);
   const i = src.indexOf('async function checkProfile');
   const cuerpo = src.slice(i, i + 900);
-  // El `vigente()` lo añadió la compuerta del build 25: sin él, «Reintentar»
-  // dejaba dos arranques vivos (ver compuertaBuild25.test.ts).
-  assert.match(cuerpo, /const vigilante = setTimeout\(\(\) => \{\s*if \(vigente\(\) && !terminadoRef\.current\) setConnectionError\(true\);/);
+  // Lo que este test protege es que EXISTA el temporizador y que su única
+  // acción sea encender el error. Las condiciones que lo acotan —vigente(),
+  // terminadoRef, navegadoRef— las fija compuertaBuild25.test.ts una por una;
+  // aquí se comprueban por presencia para que añadir otra no rompa el test.
+  const iVigilante = cuerpo.indexOf('const vigilante = setTimeout(');
+  assert.ok(iVigilante > 0, 'no hay temporizador de arranque');
+  const cuerpoVigilante = cuerpo.slice(iVigilante, cuerpo.indexOf('ARRANQUE_MAX_MS)', iVigilante));
+  assert.match(cuerpoVigilante, /setConnectionError\(true\)/);
+  assert.match(cuerpoVigilante, /vigente\(\)/);
+  assert.match(cuerpoVigilante, /!terminadoRef\.current/);
   // Y el vigilante se apaga siempre, salga como salga.
   assert.match(src, /\} finally \{[\s\S]{0,120}clearTimeout\(vigilante\);/);
 });

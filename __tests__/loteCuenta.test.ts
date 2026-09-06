@@ -82,6 +82,10 @@ test('un fallo al cerrar sesión se explica y deja todo intacto', () => {
   // Lo que este test protege sigue siendo lo mismo: que se diga qué queda en pie.
   assert.match(perfil, /Tu sesión sigue abierta y tus datos están intactos/);
   assert.ok(!/no se ha tocado nada/.test(perfil), 'vuelve a prometer más de lo que cumple');
+  // "vuelven al reintentar" también era falso: reintentar los vuelve a
+  // cancelar antes de intentar el signOut.
+  assert.ok(!/vuelven al reintentar/.test(perfil));
+  assert.match(perfil, /se reprograman la próxima vez que abras la app/);
 });
 
 // ── Borrar cuenta: un toque, no dos ──

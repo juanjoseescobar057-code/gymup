@@ -66,13 +66,16 @@ test('cerrar sesión olvida el token push de este dispositivo, antes de signOut'
   const i = perfil.indexOf('async function handleLogout');
   const fin = perfil.indexOf('\n  async function ', i + 10);
   const bloque = perfil.slice(i, fin > 0 ? fin : undefined);
-  // Va dentro de un Promise.race con tope de 5 s desde la compuerta del build
-  // 25 (dos llamadas de red delante del botón), así que se ancla en la llamada,
-  // no en el `await` que la envolvía.
+  // Se INTENTA antes de signOut, que es cuando todavía hay sesión para pasar
+  // el RLS. Desde la compuerta del build 25 va dentro de un Promise.race con
+  // tope de 5 s: con la red muerta puede no llegar a completarse, y eso es
+  // deliberado —el botón no puede quedarse colgado— porque el token se pisa
+  // por upsert en el siguiente inicio de sesión.
   const iOlvidar = bloque.indexOf('olvidarPushToken()');
   const iSignOut = bloque.indexOf('supabase.auth.signOut()');
-  assert.ok(iOlvidar > 0, 'el logout no olvida el token');
-  assert.ok(iOlvidar < iSignOut, 'después de signOut ya no hay sesión para pasar el RLS');
+  assert.ok(iOlvidar > 0, 'el logout no intenta olvidar el token');
+  assert.ok(iOlvidar < iSignOut, 'se intenta después de signOut, cuando ya no hay sesión para el RLS');
+  assert.match(bloque.slice(iOlvidar - 120, iSignOut), /Promise\.race/, 'sin tope, el botón puede colgarse');
 });
 
 // ── El día es el de Bogotá, en un solo sitio ──

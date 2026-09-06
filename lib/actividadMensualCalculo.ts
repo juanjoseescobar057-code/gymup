@@ -166,6 +166,12 @@ export function resumirMes(
 
   const totalDias = diasDelMes(anio, mes);
   const transcurridos = Math.max(1, Math.min(diasContados ?? totalDias, totalDias));
+  // Menos de una semana no da para hablar de ritmo semanal: el día 1 con un
+  // entreno salía "≈ 7 por semana", y con dos "≈ 14". Extrapolar desde una
+  // muestra de un día es tan falso como el problema anterior, solo que en el
+  // otro extremo. 0 significa "todavía no hay ventana", y la pantalla se
+  // calla en vez de inventar un número.
+  const VENTANA_MINIMA_DIAS = 7;
   const semanas = transcurridos / 7;
 
   return {
@@ -175,7 +181,7 @@ export function resumirMes(
     minutos,
     series: totalSeries,
     volumenKg: Math.round(volumenKg),
-    porSemana: Math.round((entrenos / semanas) * 10) / 10,
+    porSemana: transcurridos < VENTANA_MINIMA_DIAS ? 0 : Math.round((entrenos / semanas) * 10) / 10,
     diasEntrenados,
     porDia,
     ejercicios,

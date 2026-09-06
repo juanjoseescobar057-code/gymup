@@ -77,14 +77,33 @@ test('solo el arranque vigente escribe estado o navega', () => {
   const src = leerCodigo('app', 'index.tsx');
   assert.match(src, /const mio = \+\+intentoRef\.current/);
   assert.match(src, /const vigente = \(\) => intentoRef\.current === mio/);
-  // Ninguna salida escribe sin comprobar.
-  assert.ok(!/^\s*setConnectionError\(true\);/m.test(src), 'queda un setConnectionError sin guardia');
+  // Ninguna salida escribe sin comprobar. Por SEMÁNTICA, no por formato: la
+  // versión anterior de este test solo prohibía que la llamada empezara una
+  // línea, así que una salida nueva escrita en una sola línea la burlaba.
+  const errores = [...src.matchAll(/setConnectionError\(true\)/g)];
+  assert.ok(errores.length >= 3, 'faltan salidas de error que vigilar');
+  for (const m of errores) {
+    assert.match(
+      src.slice(Math.max(0, m.index! - 90), m.index!),
+      /vigente\(\)/,
+      `un setConnectionError(true) sin vigente() cerca: ...${src.slice(Math.max(0, m.index! - 70), m.index! + 25)}`,
+    );
+  }
   for (const m of src.matchAll(/router\.replace\('\/\(auth\)\/onboarding'/g)) {
     assert.match(src.slice(Math.max(0, m.index! - 60), m.index!), /if \(vigente\(\)\) /);
   }
-  // Un arranque lento pero bueno retira su propio error en vez de navegar por debajo.
-  assert.match(src, /if \(!vigente\(\)\) return;\s*setConnectionError\(false\);\s*setOnboardingComplete\(true\)/);
-  // Y una cadena vieja no puede declarar terminado el arranque de la nueva.
+  // ASIMETRÍA: el ÉXITO entra siempre. Con el guardia también en el camino
+  // bueno, un arranque lento que terminara tras tocar Reintentar se
+  // descartaba con el perfil ya escrito y dejaba la pantalla clavada en el
+  // error, sin forma de entrar salvo matar la app.
+  assert.match(src, /navegadoRef\.current = true;\s*setConnectionError\(false\);\s*setOnboardingComplete\(true\)/);
+  assert.ok(
+    !/if \(!vigente\(\)\) return;\s*setConnectionError\(false\)/.test(src),
+    'el camino de éxito volvió a exigir ser el intento vigente',
+  );
+  // Y una vez dentro, ningún vigilante rezagado repinta el error.
+  assert.match(src, /if \(!navegadoRef\.current && vigente\(\) && !terminadoRef\.current\) setConnectionError\(true\)/);
+  // Una cadena vieja tampoco declara terminado el arranque de la nueva.
   assert.match(src, /if \(vigente\(\)\) terminadoRef\.current = true/);
 });
 
@@ -135,12 +154,23 @@ test('«por semana» del mes en curso divide entre los dias que van, no entre el
   // Sin decir cuantos dias van: mes entero (30 dias => 4.29 semanas) => 0.7
   const mesEntero = resumirMes(sesiones, [], 2026, 8);
   assert.equal(mesEntero.porSemana, 0.7);
-  // Diciendo que estamos a dia 3: tres entrenos en tres dias => 7 por semana.
-  const enCurso = resumirMes(sesiones, [], 2026, 8, 3);
-  assert.equal(enCurso.porSemana, 7);
+  // Menos de una semana NO da un ritmo semanal: extrapolar "3 entrenos en 3
+  // dias => 7 por semana" es tan falso como el 0.7 de antes, en el otro
+  // extremo. 0 significa "todavia no hay ventana" y la pantalla se calla.
+  assert.equal(resumirMes(sesiones, [], 2026, 8, 3).porSemana, 0);
+  assert.equal(resumirMes(sesiones, [], 2026, 8, 1).porSemana, 0);
+  assert.equal(resumirMes(sesiones, [], 2026, 8, 6).porSemana, 0);
+  // A partir de una semana si, y sobre los dias que van.
+  assert.equal(resumirMes(sesiones, [], 2026, 8, 7).porSemana, 3);
   // Y no se puede pasar del mes ni bajar de un dia.
   assert.equal(resumirMes(sesiones, [], 2026, 8, 999).porSemana, 0.7);
   assert.ok(Number.isFinite(resumirMes(sesiones, [], 2026, 8, 0).porSemana));
+});
+
+test('la pantalla se calla el ritmo semanal cuando no hay ventana', () => {
+  const src = leerCodigo('app', 'actividad.tsx');
+  assert.match(src, /\{resumen\.porSemana > 0 \? `≈ \$\{resumen\.porSemana\} por semana · ` : ''\}/);
+  assert.ok(!/resumen\.entrenos > 0 \? `≈/.test(src), 'vuelve a enseñar el ritmo sin ventana suficiente');
 });
 
 test('un entreno abandonado marca el dia: las series ya contaban en los totales', () => {
@@ -160,8 +190,26 @@ test('un entreno abandonado marca el dia: las series ya contaban en los totales'
 test('la pantalla marca el dia por sesion O por series, y lo dice sin mentir', () => {
   const src = leerCodigo('app', 'actividad.tsx');
   assert.match(src, /const entreno = !!dd && \(dd\.entrenos > 0 \|\| dd\.ejercicios\.length > 0\)/);
-  assert.match(src, /sesión sin terminar/);
   assert.ok(!/\(resumen\.porDia\[d\]\?\.entrenos \?\? 0\) > 0/.test(src));
+  // El coach en vivo guarda series SIN sesion (live-coach.tsx pasa
+  // session_id null), asi que estos dos estados se dan de verdad y las tres
+  // superficies —celda, texto visible y lector de pantalla— tienen que decir
+  // lo mismo. El aviso de mes vacio se contradecia con los dias ya pintados.
+  assert.equal((src.match(/sesión sin terminar/g) ?? []).length, 2,
+    'el texto visible y la etiqueta de accesibilidad tienen que coincidir');
+  assert.match(src, /\{resumen\.diasEntrenados\.length === 0 && \(/);
+  assert.ok(!/\{resumen\.entrenos === 0 && \(/.test(src),
+    'el aviso de mes vacio vuelve a mirar solo las sesiones terminadas');
+});
+
+test('el coach en vivo guarda series sin sesion: por eso el dia se marca por series', () => {
+  // Este es el hecho del que dependen los dos asserts de arriba. Si algun dia
+  // el coach en vivo pasa a crear sesion, esta prueba avisa de que la razon
+  // del arreglo desaparecio (y de que hay que revisarlo, no de que este mal).
+  const vivo = leerCodigo('app', 'live-coach.tsx');
+  assert.match(vivo, /saveSetLogs\(profile\.user_id, null,/);
+  const setLogs = leerCodigo('lib', 'setLogs.ts');
+  assert.match(setLogs, /sessionId: string \| null/);
 });
 
 // ── MEDIO: la racha, tras mover el dia de UTC a Bogota ──
@@ -179,4 +227,9 @@ test('el cambio a hora local recalcula las fechas de racha ya guardadas', () => 
   assert.match(bloque, /max\(public\._dia_local\(w\.completed_at\)\)/);
   assert.match(bloque, /w\.xp_credited_at is not null/, 'solo cuentan las sesiones ya acreditadas');
   assert.match(bloque, /is distinct from fuente\.dia/, 'tiene que ser idempotente');
+  // LO MÁS IMPORTANTE de toda la sentencia. Es un UPDATE sin filtro contra
+  // user_stats de producción: sin la correlación del join, le pondría a TODO
+  // el mundo la fecha de un usuario cualquiera.
+  assert.match(bloque, /where fuente\.user_id = s\.user_id/, 'el UPDATE pisaría a todos los usuarios');
+  assert.match(bloque, /group by w\.user_id/, 'la subconsulta tiene que agrupar por persona');
 });

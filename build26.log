@@ -1,0 +1,2691 @@
+
+> gymup@1.4.0 build:android
+> node scripts/build-android.mjs
+
+
+[1m── Comprobando el entorno de Android[0m
+  ✔ SDK 36, build-tools 36.0.0 y NDK 27.1.12297006
+
+[1m── Comprobando la keystore de subida[0m
+  ✔ keystore configurada y encontrada
+
+[1m── Comprobando las variables de entorno[0m
+  ✔ sin archivos .env*.local: manda .env, el que está versionado
+
+[1m── Comprobando el versionCode[0m
+  versión 1.4.0 (versionCode 26)
+  [33m⚠ Si este número ya se subió a Play alguna vez y no está en
+    VERSION_CODES_QUEMADOS, cancela ahora (Ctrl+C): Google lo quema al
+    subirlo, aunque después descartes el borrador.[0m
+
+[1m── Verificando el proyecto (secretos, tipos, tests)[0m
+
+> gymup@1.4.0 verify
+> npm run check:secrets && npm run check:syntax && npm run typecheck && npm test
+
+
+> gymup@1.4.0 check:secrets
+> node scripts/check-secrets.mjs
+
+Secret scan OK (311 archivos rastreados)
+
+> gymup@1.4.0 check:syntax
+> node scripts/check-syntax.mjs
+
+Sintaxis OK (13 scripts y plugins, 9 archivos de edge functions)
+
+> gymup@1.4.0 typecheck
+> tsc --noEmit
+
+
+> gymup@1.4.0 test
+> node --require ./scripts/node-userinfo-shim.cjs --import tsx --test --test-concurrency=1 __tests__/*.test.ts
+
+✔ septiembre de 2026 empieza en martes: una celda vacía y luego el 1 (6.3337ms)
+✔ un mes que empieza en domingo rellena seis huecos (lunes primero) (0.4949ms)
+✔ diasDelMes sabe de bisiestos (0.2925ms)
+✔ cuenta entrenos, minutos y días del mes, y deja fuera lo de otros meses (26.7593ms)
+✔ las series se cuentan sin las vacías y el volumen solo con peso y reps (1.5623ms)
+✔ los ejercicios van por series, con días distintos y la mejor serie del mes (0.9406ms)
+✔ entrenos por semana usa las semanas reales del mes (0.4781ms)
+✔ un mes sin nada no rompe (0.4427ms)
+✔ duraciones legibles (0.567ms)
+✔ kilos con miles separados por espacio (0.881ms)
+✔ la comparación con el mes anterior no juzga (0.5354ms)
+✔ la pantalla existe, está en la pila y se llega desde Progreso (8.4657ms)
+✔ la lectura pagina y solo pide series del mes que se ve (2.63ms)
+✔ parseRepsHigh toma el tope de un rango (2.2304ms)
+✔ progressionAdvice: superar objetivo → progresar (0.5374ms)
+✔ progressionAdvice: cumplir objetivo → mantener (0.3276ms)
+✔ progressionAdvice: quedarse corto → deload (0.2751ms)
+✔ summarizePerformance agrupa por ejercicio (0.9917ms)
+✔ clasifica los fallos que de verdad se ven en producción (4.3707ms)
+✔ NUNCA devuelve un fragmento del cuerpo (3.578ms)
+✔ un cuerpo vacío se distingue de uno sin clasificar (0.7965ms)
+✔ el conjunto de códigos posibles es cerrado y corto (1.1215ms)
+✔ computeCostUsd: gpt-4o exacto (2.5023ms)
+✔ computeCostUsd: versión con fecha usa el prefijo (0.4159ms)
+✔ computeCostUsd: mini NO cae en tarifa de gpt-4o (match más largo) (0.3226ms)
+✔ computeCostUsd: modelo desconocido o nulo → null (0.3335ms)
+✔ computeCostUsd: tokens nulos cuentan como 0 (0.347ms)
+✔ summarize: totales, errores y costo (2.1106ms)
+✔ summarize: score promedio solo de filas puntuadas + alucinaciones (0.9179ms)
+✔ summarize: vacío no divide por cero (0.7784ms)
+✔ rowsWithinHours: filtra por ventana (2.4958ms)
+✔ computeContextPressure: conversación fresca es baja, larga y dispersa es alta (1.4822ms)
+✔ turnBuckets: degradación por tramo de turnos (1.1174ms)
+✔ groupConversations: ficha técnica con costo total y señales (36.8438ms)
+✔ un cuerpo normal pasa entero (82.5979ms)
+✔ un cuerpo por encima del techo se corta y devuelve null (2.2349ms)
+✔ justo en el techo pasa; un byte más, no (1.6942ms)
+✔ el techo se mide en BYTES, no en caracteres (1.6021ms)
+✔ un cuerpo vacío no es un error (0.6249ms)
+✔ cuenta los caracteres de un content de texto plano (0.642ms)
+✔ cuenta el texto dentro de un content por partes (0.4204ms)
+✔ el base64 de una imagen NO cuenta como texto (5.2046ms)
+✔ un content que no es ni texto ni lista se ignora sin romper (0.8027ms)
+✔ una URL remota se rechaza (1.1176ms)
+✔ los esquemas raros también se rechazan (0.96ms)
+✔ una imagen sin url se rechaza (0.7221ms)
+✔ una imagen por encima del techo por imagen se rechaza (2.1104ms)
+✔ la foto real de la app pasa sin problema (1.485ms)
+✔ una imagen mala entre varias buenas se detecta igual (0.3816ms)
+✔ strictestPolicy devuelve TODOS los campos de FeaturePolicy (3.9895ms)
+✔ FeaturePolicy tiene los cuatro campos esperados (1.6792ms)
+✔ los topes combinados toman el MÍNIMO, nunca el máximo (0.8095ms)
+✔ un tope no numérico corta la petición antes de tocar la base (0.327ms)
+✔ la autorización se comprueba contra true, no contra false (0.4475ms)
+✔ shouldRotateSession: primera vez siempre rota (2.6266ms)
+✔ shouldRotateSession: dentro del gap NO rota, pasado el gap SÍ (0.5604ms)
+✔ makeId: prefijo + tiempo ordenable + sufijo (0.7293ms)
+✔ pickAcquisitionParams: solo llaves conocidas y strings sanas (3.2402ms)
+✔ el interruptor se busca por la feature, no por la clave del contador (3.9408ms)
+✔ el grado de la sesión llega a la acreditación (1.0251ms)
+✔ una sesión mínima no suma a la racha ni al total (0.5265ms)
+✔ sin grado se paga entero, como antes (0.4747ms)
+✔ la marca de acreditación no la puede tocar el cliente (4.4328ms)
+✔ borrar su propio historial sigue siendo un derecho (1.1699ms)
+✔ con la salud ilegible, el coach no recibe nada corporal (2.8837ms)
+✔ el porqué escrito por la persona tampoco sale (0.3431ms)
+✔ sin recompensas corporales desaparecen las insignias de comida y macros (0.747ms)
+✔ pero quedan las de entrenar y constancia (1.0252ms)
+✔ sin el modo están todas (1.2059ms)
+✔ la pantalla que las PINTA también las filtra (3.4727ms)
+✔ con cardiopatía no se programa un dropset, aunque el ejercicio suene inocuo (2.7104ms)
+✔ un RIR al fallo también se corrige (1.7644ms)
+✔ sin condición que lo vete, un dropset a los 40 pasa (1.6862ms)
+✔ todos los interruptores tienen quien los consulte (12.7439ms)
+✔ energía, sueño, estrés y dolor no viajan a PostHog (2.2784ms)
+✔ el JSON de "exportar mis datos" se borra con la cuenta (5.4104ms)
+✔ sin precios reales no se afirma ningún ahorro (3.0156ms)
+✔ tras una ausencia larga el peso se precarga reducido (5.7186ms)
+✔ sin ausencia el peso no se toca (3.5085ms)
+✔ el peso reducido se redondea a un salto de disco real (4.0095ms)
+✔ se borra todo lo de la persona (5.3031ms)
+✔ el tamizaje de salud en cache no sobrevive (0.4148ms)
+✔ una clave NUEVA se borra sola, sin que nadie se acuerde (0.2719ms)
+✔ se conserva lo que no es de nadie (0.4ms)
+✔ no se toca lo que no es nuestro (0.4516ms)
+✔ cerrar sesion y borrar cuenta llaman al borrado local (3.5749ms)
+✔ un fallo del almacenamiento no atrapa a nadie dentro de su cuenta (2.8496ms)
+✔ ninguna pantalla llama a launchCameraAsync ni a launchImageLibraryAsync (19.2026ms)
+✔ cada pantalla que pide una foto atiende los tres desenlaces (13.9506ms)
+✔ el helper reconoce el lanzador sin registrar y ofrece la galería (2.8408ms)
+✔ el mensaje al usuario no contiene el error crudo (2.4548ms)
+✔ los fallos de cámara llegan a monitorización (2.3009ms)
+✔ sin datos de nada, igual dice algo útil (4.3671ms)
+✔ un día de descanso no deja la pantalla en blanco (0.9195ms)
+✔ nunca devuelve más de tres (1.503ms)
+✔ una condición médica va SIEMPRE de primera (0.5302ms)
+✔ si no se pudo leer el tamizaje, se dice y se va a lo conservador (0.4242ms)
+✔ la condición se nombra en cristiano, no con la clave interna (0.4404ms)
+✔ nombra el ejercicio estancado y cuántas sesiones lleva (0.517ms)
+✔ no avisa de meseta con datos flojos (0.4153ms)
+✔ la decisión del motor de progresión pesa más que un récord (0.6503ms)
+✔ collect_data no se muestra: no es un consejo, es la falta de uno (1.003ms)
+✔ volver tras una pausa no lleva reproche (0.8722ms)
+✔ una racha rota no se menciona como fracaso (0.4781ms)
+✔ sin meta de proteína no se inventa el aviso (0.4774ms)
+✔ cerca de la meta no molesta; lejos sí avisa con el número exacto (0.5097ms)
+✔ una racha corta no se celebra (0.4499ms)
+✔ igualar la mejor racha se reconoce como tal (0.4537ms)
+✔ cada consejo trae una clave que no cambia entre llamadas (2.5765ms)
+✔ una mala noche suelta no dispara nada (0.6159ms)
+✔ con pocas sesiones registradas tampoco avisa (0.6835ms)
+✔ un patrón real sí avisa, y dice sobre cuántas sesiones (0.8888ms)
+✔ sin datos de sueño no se inventa el consejo (0.5335ms)
+✔ NUNCA menciona horas de sueño (0.5735ms)
+✔ el consejo de sueño es accionable, no un regaño (0.9334ms)
+✔ la salud sigue mandando por encima del sueño (0.3948ms)
+✔ dos toques en «atrás» no pueden sacar el onboarding de su rango de pasos (5.5854ms)
+✔ la carga del mes descarta las respuestas que llegan tarde (4.176ms)
+✔ «tu plan necesita un ajuste» no se pinta mientras el tamizaje carga (5.5493ms)
+✔ solo el arranque vigente escribe estado o navega (3.0661ms)
+✔ negar la camara una vez no mata el reintento para siempre (2.8746ms)
+✔ el aviso de fallo al cerrar sesion no promete lo que no puede (3.5895ms)
+✔ olvidar el token push no puede colgar el boton de cerrar sesion (4.3072ms)
+✔ el area tactil de un vaso no invade la del siguiente (3.2141ms)
+✔ «por semana» del mes en curso divide entre los dias que van, no entre el mes entero (3.6536ms)
+✔ un entreno abandonado marca el dia: las series ya contaban en los totales (2.1493ms)
+✔ la pantalla marca el dia por sesion O por series, y lo dice sin mentir (3.2283ms)
+✔ el cambio a hora local recalcula las fechas de racha ya guardadas (2.7871ms)
+✔ app/workout-session.tsx no deja entrenar sin tamizaje (5.0144ms)
+✔ app/live-coach.tsx no deja entrenar sin tamizaje (2.561ms)
+✔ app/(tabs)/coach.tsx no deja entrenar sin tamizaje (2.5672ms)
+✔ el coach en vivo usa el componente, no una copia (4.0581ms)
+✔ la compuerta envuelve al componente, no vive dentro (2.4412ms)
+✔ falla CERRADO: si no se puede leer el tamizaje, no se entrena (0.7071ms)
+✔ sin perfil tampoco se entrena (0.3962ms)
+✔ un tamizaje 'blocked' corta y manda a Mi salud (0.3492ms)
+✔ el bloqueo dice qué hacer ante una señal de alarma real (0.6724ms)
+✔ los motivos del bloqueo se muestran, no solo el título (0.5989ms)
+✔ se puede reintentar sin salir de la pantalla (0.3383ms)
+✔ parseColor entiende hex corto, largo y rgba (8.6312ms)
+✔ el contraste de referencia es correcto (1.1209ms)
+✔ el gris de la versión anterior NO habría pasado (2.8792ms)
+✔ textPrimary sobre bg cumple 4.5:1 (0.6996ms)
+✔ textSecondary sobre bg cumple 4.5:1 (0.6556ms)
+✔ textMuted sobre bg cumple 4.5:1 (1.7144ms)
+✔ textPrimary sobre bgCard cumple 4.5:1 (1.0738ms)
+✔ textSecondary sobre bgCard cumple 4.5:1 (0.4208ms)
+✔ textMuted sobre bgCard cumple 4.5:1 (0.3204ms)
+✔ textPrimary sobre bgInput cumple 4.5:1 (0.5267ms)
+✔ textSecondary sobre bgInput cumple 4.5:1 (0.4355ms)
+✔ textMuted sobre bgInput cumple 4.5:1 (0.4218ms)
+✔ accent sobre bgCard cumple 3:1 (texto grande / no textual) (0.6421ms)
+✔ warning sobre bgCard cumple 3:1 (texto grande / no textual) (0.4717ms)
+✔ error sobre bgCard cumple 3:1 (texto grande / no textual) (0.3762ms)
+✔ info sobre bgCard cumple 3:1 (texto grande / no textual) (0.3965ms)
+✔ success sobre bgCard cumple 3:1 (texto grande / no textual) (0.3164ms)
+✔ premium sobre bgCard cumple 3:1 (texto grande / no textual) (0.4632ms)
+✔ el texto sobre el botón de acento es legible (0.6062ms)
+✔ textDisabled NO cumple AA, y eso es intencional (0.769ms)
+✔ premium no es el verde de acción (1.0541ms)
+✔ el cliente no manda al paywall por algo que el servidor da gratis (3.2528ms)
+✔ regenerar el plan no es Premium en ningun lado (0.8182ms)
+✔ el insight de la portada solo se genera para quien lo va a ver (5.4411ms)
+✔ lo que se genera para Premium se pinta para Premium (3.9286ms)
+✔ algo llama a setSignInSheet(true): la hoja de iniciar sesión se abre (2.5176ms)
+✔ el enlace de volver no está duplicado en el paso 1 (0.5698ms)
+✔ la hoja de iniciar sesión sigue montada en el onboarding (0.6588ms)
+✔ el enlace de volver está en el PRIMER paso, antes de teclear nada (0.9416ms)
+✔ el correo ya no se anuncia como opcional (0.9252ms)
+✔ vincular el correo no está condicionado a que lo haya escrito (0.7906ms)
+✔ handleFinish valida la cuenta ANTES de crear nada (1.0683ms)
+✔ si vincular falla, el registro se detiene (1.0687ms)
+✔ un correo ya registrado ofrece iniciar sesión, no inventarse otro (0.6207ms)
+✔ hay campo de repetir contraseña y se compara (0.7534ms)
+✔ la comprobación de contraseña corta sigue puesta (2.4974ms)
+✔ signInAnonymously se llama en un solo sitio (311.3684ms)
+✔ todo lo que se exporta también se borra (2.5437ms)
+✔ lo que se borra y no se exporta tiene una razón escrita (0.5742ms)
+✔ el perfil de salud está en las dos listas, y en singular (0.299ms)
+✔ las tablas con contenido real del usuario están en las dos listas (0.465ms)
+✔ no hay tablas repetidas en ninguna lista (0.4994ms)
+✔ DEPLOY.md solo cita archivos que existen (8.2782ms)
+✔ PRICING.md solo cita archivos que existen (3.2973ms)
+✔ docs/DEPLOY_PRESUPUESTO.md solo cita archivos que existen (4.4199ms)
+✔ docs/RELEASE_GATES.md solo cita archivos que existen (2.9276ms)
+✔ ninguna guia manda aplicar migraciones sueltas (8.4727ms)
+✔ DEPLOY.md manda correr setup.sql (3.8624ms)
+✔ cada feature con cupo anunciado tiene un costo medido (2.2516ms)
+✔ si el máximo teórico no cabe, el paywall tiene que decirlo (6.2632ms)
+✔ un usuario intensivo real cabe en el presupuesto (0.6288ms)
+✔ la prueba de 7 días dura los 7 días (0.6263ms)
+✔ el presupuesto de la prueba sigue siendo un costo de adquisición razonable (0.474ms)
+✔ el presupuesto Premium no se come el ingreso (0.305ms)
+✔ el plan gratis no puede dar pérdidas (0.6135ms)
+✔ solo un fallo de RED acepta la foto sin comprobar (3.9836ms)
+✔ un error CON respuesta no acepta la foto (0.6486ms)
+✔ el consentimiento enumera lo que de verdad se almacena (1.0074ms)
+✔ lo que se guarda y lo que se consiente no se han separado (0.895ms)
+✔ cada foto le llega al modelo con su vista (0.4083ms)
+✔ el modelo sabe qué vistas NO tiene (0.3146ms)
+✔ se sigue pudiendo analizar con fotos parciales (0.4343ms)
+✔ el prompt dice que NO tiene la foto anterior (0.4832ms)
+✔ y encuadra la diferencia como lo que es (0.4471ms)
+✔ la ficha del coach pide las columnas que necesita (7.4312ms)
+✔ y todo eso llega al prompt, no solo se consulta (2.7751ms)
+✔ la fecha del análisis se le dice al coach (2.8281ms)
+✔ el modo recuperación sigue retirando el análisis corporal (2.6058ms)
+✔ regenerateAdaptivePlan acepta las notas del análisis (3.4938ms)
+✔ las notas no pueden pisar el desempeño real (2.7786ms)
+✔ hay UNA sola implementación del ajuste con vista previa (7.0167ms)
+✔ el ajuste desde el análisis respeta el mismo cupo (4.2269ms)
+✔ nada se aplica sin enseñar antes qué cambia (3.6348ms)
+✔ los permisos que no usamos están bloqueados (2.0776ms)
+✔ el bloqueo va en app.json, no en android/ (0.4108ms)
+✔ el backup de Android está desactivado (0.4262ms)
+✔ los permisos que SÍ usamos siguen ahí (0.2908ms)
+✔ el upload de source maps se enciende solo cuando hay credenciales (1.6197ms)
+✔ release:check puede bloquear de verdad (2.2365ms)
+✔ el hook de EAS bloquea, porque ese build es para publicar (2.7591ms)
+✔ el uso diario sigue sin bloquear (3.4719ms)
+✔ el ejemplo no afirma simetría (3.1464ms)
+✔ se pide explícitamente comparar los dos lados (0.769ms)
+✔ la comparación va en las instrucciones, no en el ejemplo (0.4162ms)
+✔ sigue prohibido tratar el cuerpo como un defecto (0.6114ms)
+✔ un ejercicio vetado por una condición NUEVA no sobrevive (5.5983ms)
+✔ sin condiciones nuevas el plan no se toca (2.5434ms)
+✔ si no queda ningún ejercicio se marca, no se entrena una lista vacía (1.0845ms)
+✔ un día vacío de origen NO es "vacío" en el sentido peligroso (0.4306ms)
+✔ un fallo del validador falla CERRADO (3.0182ms)
+✔ la sesión revalida antes de enseñar nada (3.7341ms)
+✔ la revalidación va ANTES de adaptar por tiempo y energía (6.7177ms)
+✔ la sesión usa la salud ACTUAL, no la del plan (4.127ms)
+✔ si la salud se lleva el día entero, hay pantalla que lo explica (3.6683ms)
+✔ sin variable de entorno, la lista es el entitlement de la app (5.7468ms)
+✔ una variable vacía NO deja la lista vacía (0.547ms)
+✔ se puede renombrar el entitlement sin tocar el código (0.6502ms)
+✔ una fecha futura está vigente y una pasada no (0.476ms)
+✔ sin fecha de expiración es vitalicia (0.2919ms)
+✔ una entrada nula NO concede nada (0.3085ms)
+✔ una fecha ilegible no concede (0.4189ms)
+✔ el entitlement correcto y vigente da Premium (0.7497ms)
+✔ un entitlement AJENO no da Premium (0.6803ms)
+✔ el entitlement correcto pero EXPIRADO no da Premium (0.7672ms)
+✔ una suscripción activa NO cuela si hay entitlements configurados (0.5446ms)
+✔ sin subscriber no hay Premium (0.4087ms)
+✔ un subscriber sin nada no da Premium (0.4121ms)
+✔ sin entitlements configurados, una suscripción activa SÍ cuenta (0.4456ms)
+✔ una compra vitalicia sigue contando (0.4326ms)
+✔ con el entitlement renombrado por entorno, quien pagó conserva Premium (0.4094ms)
+✔ entre varios entitlements, basta con que el nuestro esté vigente (0.4ms)
+✔ un evento del entitlement correcto se aplica (0.5215ms)
+✔ un evento de otro entitlement NO cambia el estado (0.5461ms)
+✔ sin entitlement_ids se aplica como siempre, NO se niega (0.4755ms)
+✔ se acepta el campo viejo en singular (0.8871ms)
+✔ si el evento toca varios entitlements y uno es el nuestro, cuenta (0.3899ms)
+✔ la basura dentro del array no rompe la decisión (0.2934ms)
+✔ saca las versiones del catálogo de React Native (4.6096ms)
+✔ un catálogo con otro formato devuelve null, no valores a medias (0.6979ms)
+✔ lee el catálogo real del proyecto, no solo el de ejemplo (3.4549ms)
+✔ con todo instalado no falta nada (0.5245ms)
+✔ android-37 NO sirve para un proyecto que pide compileSdk 36 (0.689ms)
+✔ sin NDK avisa, y explica por qué hace falta (0.5355ms)
+✔ un NDK de otra versión no cuenta como tenerlo (0.416ms)
+✔ sin CMake avisa: es lo que dispara la compilación nativa (0.3903ms)
+✔ un SDK vacío no revienta: enumera todo lo que falta (1.2516ms)
+✔ una ruta con espacios se rechaza (1.73ms)
+✔ una ruta sin espacios pasa (0.7069ms)
+✔ el mensaje explica el mecanismo, no solo "hay un espacio" (0.7241ms)
+✔ el mensaje propone la ruta concreta a mover, no una genérica (0.6406ms)
+✔ el mensaje dice dónde se instala cada cosa (1.003ms)
+✔ lee archivos con finales de línea de Windows (CRLF) (6.8231ms)
+✔ lee archivos con finales de línea de Unix (LF) (0.6419ms)
+✔ ignora comentarios y líneas en blanco (0.3513ms)
+✔ quita comillas y espacios alrededor del valor (0.3502ms)
+✔ un valor con signos igual dentro se conserva entero (0.6232ms)
+✔ un valor vacío es una clave válida, no una línea ignorada (0.4475ms)
+✔ sin archivos .local, adelante (0.9022ms)
+✔ un .env.local aborta el build AUNQUE sus valores coincidan con .env (0.7241ms)
+✔ también atrapa .env.production.local, que tiene aún más prioridad (1.0207ms)
+✔ con varios archivos los nombra todos, no solo el primero (1.5792ms)
+✔ el mensaje dice cuántas claves trae cada archivo (0.8537ms)
+✔ un archivo vacío o ilegible también aborta (0.655ms)
+✔ setup.sql es SQL válido de principio a fin (219.1849ms)
+✔ cada cuerpo de función abre y cierra con $$ (7.995ms)
+✔ el archivo se puede volver a correr: todo es idempotente (39.4063ms)
+✔ las funciones de dinero existen y las crea este archivo (1.3331ms)
+✔ setup.sql crea tablas (4.6469ms)
+✔ ninguna sentencia toca una tabla antes de crearla (42.189ms)
+✔ las políticas RLS se aplican después de crear su tabla (17.3094ms)
+✔ el helper de RLS se define antes de usarse (0.6435ms)
+✔ el caso concreto que rompía: mission_catalog (1.9069ms)
+✔ setup.sql es el ÚNICO .sql ejecutable; el resto vive en historico/ (5.9836ms)
+✔ no queda ninguna carpeta que parezca de migraciones (1.1343ms)
+✔ cada .rpc() que llama el código está creada en setup.sql (2.1172ms)
+✔ increment_ai_usage NO recibe el user_id de quien llama (2.9119ms)
+✔ increment_ai_usage rechaza un tope nulo (0.9431ms)
+✔ las RPC de servicio no son ejecutables por el cliente (3.0418ms)
+✔ el banco de pruebas extrae los tres prompts (4.8956ms)
+✔ ninguno extrajo codigo en vez de un prompt (0.534ms)
+✔ los prompts tienen un tamano razonable (0.8085ms)
+✔ el buildType release deja de usar la keystore de depuración (2.3658ms)
+✔ el buildType debug se queda como estaba (0.3886ms)
+✔ las contraseñas de subida se leen de gradle.properties, no se incrustan (0.9485ms)
+✔ sin keystore configurada, un build de release falla en voz alta (0.6819ms)
+✔ un build de depuración NO falla por no tener la keystore (0.3401ms)
+✔ aplicarlo dos veces no duplica nada (0.4427ms)
+✔ el snapshot corresponde a la versión de plantilla que se compila (0.4707ms)
+✔ el android/app/build.gradle real quedó firmado con la keystore de subida (1.8875ms)
+✔ si Expo cambia la plantilla, el plugin lanza en vez de seguir (1.3083ms)
+✔ la reserva exige un request_id (2.9802ms)
+✔ la idempotencia está atada al dueño y a una reserva viva (0.5856ms)
+✔ reservar_ai no la puede llamar el cliente (1.4625ms)
+✔ el proxy reserva con el service role (0.39ms)
+✔ si el contador diario corta, la reserva se devuelve (0.722ms)
+✔ el estimado es conservador, no la media (0.4581ms)
+✔ el mismo request_id no reserva dos veces (0.5633ms)
+✔ la firma vieja se elimina (0.5434ms)
+✔ cuadrar dos veces no resta dos veces (0.6508ms)
+✔ cada peticion deja una fila con lo reservado y lo real (0.9263ms)
+✔ el libro mayor no lo escribe el cliente (0.9755ms)
+✔ existe un techo para toda la plataforma, no solo por usuario (0.6112ms)
+✔ el freno global se comprueba ANTES que el del usuario (0.5052ms)
+✔ el proxy manda el request_id (0.2976ms)
+✔ el cliente genera un id estable por llamada (0.3317ms)
+✔ la cabecera nueva pasa el CORS (0.4587ms)
+✔ trendPerWeek: sin datos suficientes es 0 (2.1137ms)
+✔ trendPerWeek: baja lineal de 1kg/semana (0.6903ms)
+✔ trendPerWeek: ordena aunque lleguen desordenados (0.3915ms)
+✔ projectGoal: pérdida de grasa en camino da ETA y onTrack (0.989ms)
+✔ projectGoal: sin meta de peso => hasGoal false (0.4616ms)
+✔ projectGoal: subir de peso pero bajando => reversing (0.5789ms)
+✔ projectGoal: peso estable => stalled (0.5458ms)
+✔ projectGoal: dos pesajes no etiquetan estancamiento (0.6919ms)
+✔ projectGoal: meta ya alcanzada (0.677ms)
+✔ etaFromWeeks: formatos (0.6679ms)
+✔ reemplaza una propiedad existente en vez de añadir otra igual (2.4258ms)
+✔ añade la propiedad si no estaba (0.8704ms)
+✔ no toca las demás propiedades ni los comentarios (0.6938ms)
+✔ sube el heap por encima del valor de la plantilla (0.7025ms)
+✔ limita los procesos hijo: 4 núcleos no dan para 4 workers (0.4714ms)
+✔ cada ajuste explica por qué está (0.3635ms)
+✔ aplicarlo dos veces deja el archivo igual (0.5806ms)
+✔ riesgo: joven sano = bajo, sin directivas (3.2974ms)
+✔ riesgo: dolor de pecho = ALTO y requiere médico (1.4897ms)
+✔ riesgo: cardiopatía = ALTO; con autorización ya no exige clearance pero sigue alto (0.8125ms)
+✔ riesgo: hipertensión o lesión = moderado; embarazo = alto (0.9915ms)
+✔ riesgo: 60+ años sube a moderado aunque esté sano (0.7866ms)
+✔ directivas: SÍNTOMAS ACTIVOS sin evaluar = NO prescribir nada (ni caminatas) (0.7838ms)
+✔ directivas: alto por CONDICIÓN estable sin autorización = modo suave (caminatas) (0.5768ms)
+✔ directivas: alto CON autorización = cautela máxima, no modo seguro (0.6477ms)
+✔ directivas: las banderas PAR-Q persisten AUNQUE haya autorización (0.7101ms)
+✔ directivas: embarazo con visto médico usa guía ACOG, no topes de cardiopatía (0.9194ms)
+✔ directivas: LÍMITE MÉDICO siempre presente cuando hay directivas (0.6173ms)
+✔ directivas clínicas del panel: cauda equina, brote artrítico, betabloqueadores, hiperglucemia (0.9834ms)
+✔ directivas por condición: hipertensión → Valsalva; hernia → prohibir peso muerto (2.3672ms)
+✔ directivas por lesión: rodilla evita sentadilla profunda y saltos (0.7265ms)
+✔ directivas por edad: 65+ prohíbe fallo y técnicas de intensidad; 55-64 sin máximos (0.5624ms)
+✔ directivas: other_note se incluye truncada y con cautela (1.0744ms)
+✔ la REGLA FINAL siempre cierra el bloque cuando hay directivas (1.1519ms)
+✔ healthSummary legible (1.1572ms)
+✔ highRiskKeys: detecta el set de razones alto (para invalidar autorizaciones viejas) (3.1913ms)
+✔ exerciseRiskZones: mapea ejercicios a zonas que cargan (2.1211ms)
+✔ exerciseConflicts: cruza ejercicio con lesiones declaradas (0.5172ms)
+✔ HEALTH_UNKNOWN_DIRECTIVE existe y es conservadora (fail-closed) (0.2462ms)
+✔ recuperar la contraseña tiene su propio paso (4.397ms)
+✔ desde el paso de recuperar se puede volver (2.3625ms)
+✔ los errores se enseñan en la hoja, no en un cuadro del sistema (1.9263ms)
+✔ el error se limpia al corregir el campo (0.7047ms)
+✔ se puede ver la contraseña que se escribe (0.7845ms)
+✔ la validación no gasta un viaje de red (0.8419ms)
+✔ el aviso al recuperar no revela si la cuenta existe (0.9732ms)
+✔ la hoja se reinicia al cerrarse (0.7213ms)
+✔ sigue avisando de que un correo sin confirmar no sirve para entrar (0.6781ms)
+✔ el botón principal tiene altura de dedo (1.1097ms)
+✔ user_stats no acepta insert, update ni delete del cliente (5.2744ms)
+✔ los resultados solo los escribe el servidor (0.67ms)
+✔ un reporte de IA no se puede reescribir ni borrar (3.407ms)
+✔ pero se sigue pudiendo reportar y ver lo reportado (2.815ms)
+✔ el costo y los tokens de la telemetria no los puede reescribir el cliente (2.2138ms)
+✔ pero el juez de calidad sigue pudiendo adjuntar su puntuacion (0.5224ms)
+✔ un evento de analitica no se reescribe ni se borra (2.2943ms)
+✔ el historial de analisis corporal se sigue pudiendo borrar (4.3208ms)
+✔ las funciones de riesgo arrancan BLOQUEADAS (3.8769ms)
+✔ lo que no es de riesgo arranca disponible (0.4608ms)
+✔ un apagado sobrevive a quedarse sin red (0.3822ms)
+✔ el arranque ESPERA a los interruptores (2.5713ms)
+✔ el guardia se entera si la respuesta llega despues del render (0.6038ms)
+✔ ai-proxy comprueba el interruptor (0.7455ms)
+✔ el servidor corta ANTES de reservar presupuesto (0.6233ms)
+✔ si no se puede leer el interruptor, no se ejecuta (0.4435ms)
+✔ la validacion de foto se apaga CON el analisis corporal (0.3892ms)
+✔ el analisis de tecnica tiene su propio interruptor (0.5193ms)
+✔ feature_flags es de lectura para el cliente (2.0242ms)
+✔ reactivar algo apagado es una decision manual (1.6946ms)
+✔ ninguna página pública lleva notas internas (14.3315ms)
+✔ los documentos siguen completos (4.4772ms)
+✔ las dos URLs que exige Play existen como archivo (1.1565ms)
+✔ el estado de las aprobaciones se lleva fuera de lo público (2.705ms)
+✔ la versión de terms en el código coincide con la del documento (7.1133ms)
+✔ la versión de privacy en el código coincide con la del documento (4.5304ms)
+✔ el .md y el .html publicados dicen lo mismo (8.9567ms)
+✔ sin nada guardado, falta todo (1.8714ms)
+✔ con todo en la versión vigente, no falta nada (0.6402ms)
+✔ una versión ANTERIOR no cuenta como aceptada (0.485ms)
+✔ aceptar uno solo deja el otro pendiente (0.3522ms)
+✔ un documento desconocido no acepta nada por su cuenta (0.3706ms)
+✔ no leer los consentimientos NO es haberlos aceptado (0.4046ms)
+✔ se guarda una fila por documento, con su versión (0.8556ms)
+✔ lo que se guarda es exactamente lo que deja de estar pendiente (0.4354ms)
+✔ la tabla de consentimientos existe y guarda versión y fecha (1.1803ms)
+✔ un consentimiento no se puede modificar ni borrar (1.9769ms)
+✔ el borrado de la cuenta se lleva los consentimientos (0.4974ms)
+✔ alguien pregunta de verdad qué documentos faltan (4.7028ms)
+✔ el aviso solo desaparece si de verdad quedó constancia (2.6639ms)
+✔ un fallo de red no saca un muro legal (2.7266ms)
+✔ cubrir las cuatro metas cuenta como día completo (3.3891ms)
+✔ quedarse corto en UNA meta no es un día completo (0.447ms)
+✔ un día sin comer nada no se cuela como perfecto (1.8602ms)
+✔ el aviso de proteína no aparece por debajo del 80% (0.6149ms)
+✔ entre 80% y 100% dice cuánto falta (1.6253ms)
+✔ al 100% o más confirma sin regañar ni felicitar la comida (0.6596ms)
+✔ una meta de proteína en cero no divide entre cero (0.4762ms)
+✔ una comida bien puesta se guarda sin avisos (0.7097ms)
+✔ sin nombre no se guarda (0.5574ms)
+✔ cero calorías no se registra (0.9154ms)
+✔ macros negativos se rechazan uno por uno (0.6646ms)
+✔ campos vacíos o basura (NaN) no pasan como cero (0.4985ms)
+✔ el desajuste calorías/macros avisa pero NO bloquea (0.563ms)
+✔ un registro a ojo (macros en cero) no dispara el aviso de desajuste (0.3184ms)
+✔ el saludo proactivo usa gpt-4o-mini (7.6445ms)
+✔ el chat del coach se queda en gpt-4o (2.66ms)
+✔ Premium puede ajustar su plan más de una vez al día (1.3291ms)
+✔ gratis y prueba se quedan en 1 (1.4424ms)
+✔ el botón del plan dice qué hace, no con qué está hecho (3.379ms)
+✔ la pantalla de historial existe y la abre alguien (11.2179ms)
+✔ el historial está detrás de la compuerta del modo recuperación (2.9644ms)
+✔ el historial no promete fotos que no existen (2.8262ms)
+✔ el historial enseña la grasa como rango, no como número exacto (4.1353ms)
+✔ un fallo de red no se enseña como "no tienes análisis" (3.2768ms)
+✔ sin condiciones, el déficit se aplica como siempre (4.3406ms)
+✔ un trastorno alimentario declarado quita el déficit (0.6956ms)
+✔ embarazo, diabetes y enfermedad renal, igual (0.5478ms)
+✔ cada caso explica por qué, y deriva a un profesional (0.6132ms)
+✔ menor de edad tampoco recibe déficit (0.7758ms)
+✔ ganar músculo no se toca: el ajuste es sobre el DÉFICIT (1.3207ms)
+✔ el registro pasa el tamizaje (4.5155ms)
+✔ editar el perfil también, y falla CERRADO (5.0834ms)
+✔ un ejercicio sustituido no conserva el RIR al fallo (6.1681ms)
+✔ sin veto, el RIR del plan se respeta (0.6288ms)
+✔ la telemetría del plan no manda qué le veta el tamizaje (4.0433ms)
+✔ con tope cero se dice que es Premium, no "llegaste al límite de 0" (3.0521ms)
+✔ con tope mayor que cero sí se dice el número (3.9413ms)
+✔ el humor de regreso ya no menciona a la ex de nadie (8.8467ms)
+✔ el primer texto del onboarding no exige élite ni prohíbe excusas (4.7543ms)
+✔ el coach tiene reglas de cómo hablar: sin jerga, sin comparar, sin culpa (3.2531ms)
+✔ app/(auth)/onboarding.tsx no abre ninguna alerta titulada "Error" (4.4152ms)
+✔ app/(tabs)/coach.tsx no abre ninguna alerta titulada "Error" (3.0184ms)
+✔ app/(tabs)/profile.tsx no abre ninguna alerta titulada "Error" (3.6167ms)
+✔ app/(tabs)/progress.tsx no abre ninguna alerta titulada "Error" (3.9492ms)
+✔ app/food-scan.tsx no abre ninguna alerta titulada "Error" (3.2507ms)
+✔ app/fridge-scan.tsx no abre ninguna alerta titulada "Error" (3.3066ms)
+✔ app/body-scan.tsx no abre ninguna alerta titulada "Error" (5.4444ms)
+✔ ningún Alert enseña error.message de Supabase tal cual (23.4103ms)
+✔ un fallo de análisis enseña lo nuestro y traduce lo ajeno (1.738ms)
+✔ las tres pantallas de análisis pasan por el traductor (9.1875ms)
+✔ al fallar el registro se dice que las respuestas siguen ahí (3.2179ms)
+✔ la pantalla legal no enseña la nota interna de revisión jurídica (2.8044ms)
+✔ el nivel de riesgo por técnica se lee en castellano (3.4459ms)
+✔ las zonas de lesión llegan con su etiqueta, no con la clave (0.7802ms)
+✔ el panel de telemetría se cierra fuera de desarrollo (2.6884ms)
+✔ el error genérico de IA no enseña el código HTTP (2.4812ms)
+✔ ir al revés de la meta se describe, no se grita (1.6695ms)
+✔ el análisis corporal no predice con bola de cristal ni pinta el cuerpo en rojo (3.3439ms)
+✔ el consejo del día no habla de "límite de calorías" (2.5965ms)
+✔ los avisos de cupo, el plan y la cámara hablan claro (16.2048ms)
+✔ los errores de Supabase Auth se traducen y nunca se enseñan crudos (8.1834ms)
+✔ iniciar sesión y vincular correo pasan por la traducción (2.8216ms)
+✔ un rate limit al pedir el enlace se dice, no se traga (0.7019ms)
+✔ pero sigue sin revelar si la cuenta existe (0.8266ms)
+✔ cerrar sesión comprueba el signOut ANTES de borrar lo local (1.5295ms)
+✔ un fallo al cerrar sesión se explica y deja todo intacto (1.3124ms)
+✔ borrar cuenta tiene estado ocupado y un segundo toque no relanza (1.1048ms)
+✔ un fallo de red al leer el correo NO convierte la cuenta en anónima (0.7015ms)
+✔ con la cuenta sin comprobar, no se amenaza con perderlo todo (2.1029ms)
+✔ sin red y con el token vencido no se manda al onboarding (8.1757ms)
+✔ si la sesión se revoca, la app se entera y vuelve al inicio (4.026ms)
+✔ el mejor histórico se pide por ejercicio y se queda con lo más pesado (4.4899ms)
+✔ el export pagina en vez de quedarse en las primeras mil filas (2.7763ms)
+✔ la pantalla de inicio carga el plan ACTIVO, como el arranque (3.4034ms)
+✔ la reactivación recorre a todos los inactivos, no a los primeros mil (1.2065ms)
+✔ cerrar sesión olvida el token push de este dispositivo, antes de signOut (4.8089ms)
+✔ el esquema define el día local una sola vez (2.715ms)
+✔ las tablas que crecen con cada sesión tienen índice por persona y fecha (2.3777ms)
+✔ la telemetría de IA se puede purgar; la analítica de producto, no (2.4148ms)
+✔ un duplicado en vuelo (mismo request_id, reserva joven) se rechaza (4.5706ms)
+✔ la huérfana de verdad SIGUE aceptándose como reintento (0.8084ms)
+✔ el proxy traduce el duplicado a 409 con código propio (0.783ms)
+✔ el freno global devuelve -1 y el proxy lo distingue del presupuesto agotado (1.2896ms)
+✔ a la persona no se le dice que es SU máximo cuando es la plataforma (1.0396ms)
+✔ las vistas cross-usuario están revocadas para el cliente (1.0805ms)
+✔ el revoke va DESPUÉS de crear las vistas (1.0723ms)
+✔ una parte de tipo desconocido se rechaza en vez de pasar gratis (0.7094ms)
+✔ el cliente confía en los dos códigos nuevos y enseña su mensaje (1.1525ms)
+✔ la comprobación de la foto usa el modelo barato (4.7391ms)
+✔ el destilado de memoria corre cada 4 mensajes y no fuerza a la primera (8.42ms)
+✔ el test de economía cuenta lo automático (3.936ms)
+✔ el techo Premium cubre el día intensivo honesto y no se come el ingreso (1.0033ms)
+✔ el arranque tiene tope: a los 15 s enseña el botón de reintentar (4.4036ms)
+✔ el onboarding tiene vuelta atrás, visible y con el botón físico (3.3733ms)
+✔ los vasos de agua se pueden tocar con un dedo normal (2.9605ms)
+✔ el permiso de cámara negado para siempre lleva a los ajustes (2.5731ms)
+✔ textDisabled solo colorea placeholders, nunca texto que haya que leer (80.6702ms)
+✔ las pantallas con campos al final siguen al teclado en iOS (5.1376ms)
+✔ persona promedio en fat_loss queda con macros razonables (2.7365ms)
+✔ persona muy pequeña sedentaria NUNCA baja del piso de seguridad (0.5824ms)
+✔ muscle_gain da más calorías que fat_loss para el mismo perfil (0.6092ms)
+✔ los ids de producto del codigo aparecen en las guias de despliegue (8.3289ms)
+✔ ninguna guia manda crear un id que el codigo no busca (8.0125ms)
+✔ el entitlement es el mismo en cliente, servidor y guias (47.7006ms)
+✔ el paywall no vende nada que el servidor de gratis (1.9661ms)
+✔ el coach en vivo se cuenta como gratis, que es lo que es (34.7283ms)
+✔ cada tope prometido existe en la politica del servidor (1.0007ms)
+✔ la tienda solo se da por buena con los DOS paquetes (28.3198ms)
+✔ el respaldo del ahorro anual no se afirma sin precios (3.6715ms)
+✔ la letra legal no promete el «≈» que ya no existe (38.5475ms)
+✔ la letra legal menciona el tope mensual (16.5783ms)
+✔ la marca incluye el versionCode, no solo la versión de marketing (3.2632ms)
+✔ ni leer ni escribir la marca usan la versión de marketing a secas (0.5771ms)
+✔ la etiqueta de versión del perfil usa el mismo criterio (3.2873ms)
+✔ el aviso de tope depende del plan de quien lo recibe (2.8393ms)
+✔ a un Premium no se le ofrece Premium al toparse (0.841ms)
+✔ el cliente enseña el mensaje del servidor, no uno fijo (0.396ms)
+✔ solo se confía en el cuerpo si trae un código nuestro (0.419ms)
+✔ el respaldo del cliente ya no manda a Premium en un 429 (0.6308ms)
+✔ tres entrenos el MISMO día son un día, no tres (12.5163ms)
+✔ tres entrenos en días distintos son tres (0.8972ms)
+✔ la proteína se cuenta por día cubierto, no por comidas registradas (1.2436ms)
+✔ un día que no llega a la meta no cuenta (2.6689ms)
+✔ una meta de proteína en cero no da todos los días por cubiertos (1.6011ms)
+✔ proteína nula en un registro no rompe la suma (1.3193ms)
+✔ no hacer NADA en toda la semana no cobra la misión de descanso (1.109ms)
+✔ entrenar y dejar un día libre sí cobra el descanso (0.8579ms)
+✔ entrenar TODOS los días transcurridos no es descansar (2.6441ms)
+✔ el lunes recién entrenado todavía no cuenta como descanso (1.2664ms)
+✔ una semana vacía no regala ninguna misión (3.3616ms)
+✔ a quien entrenó ayer no se le dice nada (8.5895ms)
+✔ un número absurdo no rompe nada (1.1543ms)
+✔ el título dice el número exacto de días (0.6984ms)
+✔ en modo recuperación nunca hay pique, en ningún tramo (1.336ms)
+✔ en modo recuperación no aparece NADIE con quien compararse (2.7231ms)
+✔ los mensajes neutros hablan de la persona, no de su cuerpo (1.0812ms)
+✔ faltar un día no se bromea (0.9728ms)
+✔ a partir de tres días sí entra el pique (0.7009ms)
+✔ el humor va sobre constancia, nunca sobre cuerpos (1.5282ms)
+✔ nunca insulta ni da órdenes (1.8001ms)
+✔ la misma semilla da siempre el mismo mensaje (0.8636ms)
+✔ semillas distintas recorren varios mensajes (0.772ms)
+✔ una semilla negativa o enorme no se sale del array (0.6924ms)
+✔ ningún tramo se queda sin mensaje, con o sin humor (1.4069ms)
+✔ ninguna pantalla nombra el modelo de IA (91.7636ms)
+✔ las pantallas de carga dicen QUÉ pasa, no CON QUÉ (10.3856ms)
+✔ la política de privacidad SÍ sigue nombrando al proveedor (2.5139ms)
+✔ ninguna salida del tramo responde sin devolver la reserva (3.0942ms)
+✔ y hay varias salidas que sí pasan por salir() (0.5765ms)
+✔ la falta de OPENAI_API_KEY devuelve la reserva (0.6626ms)
+✔ cuadrarReserva se marca como hecha ANTES de llamar a la base (0.3974ms)
+✔ un remanente de cero NO se trata como presupuesto agotado (0.6561ms)
+✔ conectado y con internet es usable (2.2006ms)
+✔ sin conexión no es usable (0.4661ms)
+✔ wifi sin salida a internet NO cuenta como conexión (0.3559ms)
+✔ mientras se comprueba el alcance no se asume lo peor (0.3518ms)
+✔ cada grant y cada revoke apunta a una función que el archivo crea (250.5742ms)
+✔ los permisos van DESPUÉS de crear la función (115.8207ms)
+✔ reservar_ai tiene sus permisos sobre la firma buena (133.1488ms)
+✔ las firmas que comprueba la CI existen en setup.sql (132.6996ms)
+✔ la prueba de concurrencia ejecuta la función REAL (13.1742ms)
+✔ la concurrencia usa un request_id distinto por llamada (7.9853ms)
+✔ cuenta días por fecha, no por horas (3.0864ms)
+✔ una fecha corrupta no rompe el cálculo (0.6594ms)
+✔ el mismo día del entreno se respeta el día ya guardado (0.9698ms)
+✔ al día siguiente avanza uno (0.4412ms)
+✔ tres días después, el plan avanzó dos desde el guardado (0.4997ms)
+✔ el ciclo da la vuelta sin salirse del plan (0.6866ms)
+✔ volver tras diez días NUNCA cae en día de descanso (0.6407ms)
+✔ cuando salta un descanso lo dice (0.4407ms)
+✔ una pausa corta SÍ respeta el descanso (0.6773ms)
+✔ el umbral de salto es el declarado, sin sorpresas (2.3373ms)
+✔ un plan entero de descanso no cuelga el bucle (0.7612ms)
+✔ sin plan devuelve algo válido en vez de reventar (0.4532ms)
+✔ un contador corrupto se normaliza al rango del plan (0.7584ms)
+✔ quien nunca entrenó se queda en el día 1, no en el 11 (0.4235ms)
+✔ menos de una semana no cambia las cargas (0.4882ms)
+✔ a más tiempo fuera, menos carga (0.5435ms)
+✔ solo tras un mes se sugiere rehacer el plan (0.546ms)
+✔ la nota dice qué hacer, no solo que llevas tiempo fuera (2.429ms)
+✔ el estado del día trae la reincorporación ya calculada (0.5033ms)
+✔ la recuperación activa NO cuenta como día de entrenamiento (0.3758ms)
+✔ volver de una pausa tampoco cae en recuperación activa (0.4299ms)
+✔ el salto se anuncia también cuando lo que se salta es recuperación activa (0.3522ms)
+✔ una pausa corta SÍ respeta la recuperación activa (0.2445ms)
+✔ un plan sin ningún día de entrenamiento no cuelga (0.2478ms)
+✔ con la rodilla lesionada no se programa sentadilla (6.8247ms)
+✔ con el hombro lesionado no se programa press militar (0.8495ms)
+✔ con hernia discal no se programa peso muerto (0.8859ms)
+✔ en embarazo no se programa nada boca arriba ni de impacto (1.4011ms)
+✔ lo que NO choca se queda tal cual (2.3759ms)
+✔ no se sustituye por algo que también está vetado (0.5264ms)
+✔ sin material no se programa barra ni máquina (0.8445ms)
+✔ en casa con material básico las mancuernas sí valen (0.6482ms)
+✔ a partir de los 65 no se programan técnicas de intensidad (0.742ms)
+✔ sin tamizaje legible tampoco hay técnicas de intensidad (1.3354ms)
+✔ sin tamizaje legible se aplica el criterio más estricto (0.7986ms)
+✔ un día que se queda sin ejercicios pasa a descanso (0.9239ms)
+✔ los días de descanso no se tocan (0.6358ms)
+✔ el reconocimiento por nombre es conservador (0.6418ms)
+✔ un ejercicio inocuo no exige nada (0.5681ms)
+✔ un nombre vacío no rompe (0.6216ms)
+✔ los dos caminos del plan pasan por el validador (5.1215ms)
+✔ las tablas de veto viven en un solo sitio (3.058ms)
+✔ 100kg con barra de 20 → 40 por lado = 25+15 (3.3608ms)
+✔ solo la barra cuando target == barra (0.6738ms)
+✔ objetivo menor que la barra → null (0.3973ms)
+✔ 62.5kg con barra de 20 → 21.25 por lado = 20+1.25 (0.69ms)
+✔ peso no representable reporta leftover (0.5421ms)
+✔ cargas pesadas usan múltiples discos de 25 (0.664ms)
+✔ formatPlates arma el texto legible (0.8379ms)
+✔ un Premium completa el análisis corporal con UNA foto (12.3357ms)
+✔ un Premium completa el análisis corporal con las TRES fotos (1.2073ms)
+✔ en la prueba gratis también se completa con tres fotos (5.3549ms)
+✔ las validaciones NO gastan el cupo del análisis (1.3342ms)
+✔ las validaciones tampoco gastan el cupo compartido de la prueba (1.8701ms)
+✔ el análisis corporal sigue siendo uno al día (2.9641ms)
+✔ quien no paga no entra al análisis corporal (2.8417ms)
+✔ el análisis de postura da los 10 usos que se anuncian, no 4 (7.2087ms)
+✔ la postura no le roba cupo a los escaneos de comida (2.0534ms)
+✔ etiquetar imágenes como texto barato NO relaja nada (1.1463ms)
+✔ una foto declarada como texto se cobra como escaneo (1.216ms)
+✔ declarar una feature cara con pocas imágenes no la abarata (0.7037ms)
+✔ un header inventado cae en general, no en el más generoso (0.5926ms)
+✔ sin header tampoco se elige el cupo más grande (0.7016ms)
+✔ todo tope es un número real (2.1096ms)
+✔ cada feature de la política tiene su rango de costo (1.2078ms)
+✔ scan_check rankea por encima de food_scan (0.5305ms)
+✔ combinar dos políticas endurece, nunca relaja (2.5621ms)
+✔ ninguna feature premium tiene cupo gratis (1.9303ms)
+✔ la prueba nunca da más que Premium (1.0636ms)
+✔ angleAt detecta un ángulo recto (90°) (3.4372ms)
+✔ angleAt detecta una línea recta (180°) (0.4374ms)
+✔ distance es euclidiana (0.3835ms)
+✔ cuenta una repetición en el ciclo abajo→arriba (0.6879ms)
+✔ la histéresis evita conteos dobles por vibración (0.5667ms)
+✔ cuenta 3 repeticiones seguidas (0.6229ms)
+✔ kneeAngle calcula desde el lado visible (0.9277ms)
+✔ squatForm detecta valgo de rodilla (0.7295ms)
+✔ squatForm marca buena forma cuando todo está alineado (0.7619ms)
+✔ getPoseExercise cae a genérico para id desconocido (1.3962ms)
+✔ movenetToPose mapea los 17 keypoints a las articulaciones correctas (3.4948ms)
+✔ movenetToPose ignora ojos y orejas (no los mapea) (0.809ms)
+✔ sin pose no inventa a nadie (4.0857ms)
+✔ keypoints por debajo del umbral de confianza no cuentan como persona (0.82ms)
+✔ torso visible pero sin piernas es cuerpo parcial, no listo (0.6249ms)
+✔ cuerpo completo bien encuadrado da ready (4.4876ms)
+✔ persona diminuta en el cuadro es too_far (3.0965ms)
+✔ persona que toca los bordes es too_close (0.745ms)
+✔ las flexiones se miden en horizontal: un cuerpo tumbado no es "muy lejos" (0.5857ms)
+✔ el curl de bíceps no exige tobillos (0.772ms)
+✔ un ejercicio desconocido cae en cuerpo completo, no en "lo que sea" (1.6483ms)
+✔ solo ready habilita el arranque (0.944ms)
+✔ cada estado explica qué hacer, no solo qué falla (0.5371ms)
+✔ detección limpia no dispara el aviso (0.6021ms)
+✔ la cámara perdiendo a la persona la mitad del tiempo sí avisa (9.03ms)
+✔ sin frames procesados se avisa: no medir no es medir bien (0.3569ms)
+✔ se lleva las tres correcciones MÁS REPETIDAS, no las últimas (1.2437ms)
+✔ sin correcciones no se inventa ninguna (0.3978ms)
+✔ syncLocalPremium distingue de dónde viene el veredicto (7.294ms)
+✔ una negativa del dispositivo no quita un Premium ya concedido (1.0056ms)
+✔ el servidor SÍ puede quitarlo (0.5869ms)
+✔ checkPremium y restorePurchases no se marcan como servidor (1.9704ms)
+✔ no diagnostica meseta con evidencia escasa (3.6109ms)
+✔ detecta progreso por rendimiento estimado, no solo peso (0.6252ms)
+✔ dolor nuevo impide recomendar intensidad (0.4229ms)
+✔ dropset queda acotado a aislamiento, hipertrofia y suficiente historial (0.9368ms)
+✔ sin NINGÚN dato de recuperación no se propone dropset (0.6435ms)
+✔ epley1RM: 1 rep devuelve el peso (3.6039ms)
+✔ epley1RM: fórmula de Epley para varias reps (0.4635ms)
+✔ epley1RM: entradas inválidas devuelven 0 (0.2616ms)
+✔ bestFromSets toma el máximo de cada métrica (0.4218ms)
+✔ detectNewPRs: sin histórico previo NO es PR (línea base) (0.5397ms)
+✔ detectNewPRs: detecta PR de peso y e1RM (0.3754ms)
+✔ detectNewPRs: sin mejora no marca PR (0.4905ms)
+✔ sin ninguna sesión no se inventa una readiness (4.0014ms)
+✔ un campo sin ningún dato queda undefined, no en 3 (0.7017ms)
+✔ los nulos NO diluyen la señal de los que sí tienen dato (0.4003ms)
+✔ un dolor nuevo en cualquier sesión basta para señalarlo (0.4027ms)
+✔ sin ningún dolor declarado no se señala (0.4941ms)
+✔ la cobertura dice cuánto sabemos de verdad (0.6115ms)
+✔ con menos de dos semanas no se afirma nada (0.5713ms)
+✔ sin plan de entreno tampoco: no hay contra qué medir (2.6652ms)
+✔ cumplir todo da 100 (0.9247ms)
+✔ la mitad da 50, que es lo que dispara la rama del motor (3.346ms)
+✔ entrenar de más no da más de 100 (1.107ms)
+✔ las sesiones fuera de la ventana no cuentan (0.4649ms)
+✔ una fecha corrupta no rompe el cálculo (0.4659ms)
+✔ los cuatro campos arrancan sin respuesta (2.1509ms)
+✔ no se escribe fila si no contesto nada (0.9519ms)
+✔ el neutro para adaptar la sesion NO se persiste (0.5018ms)
+✔ los nulls no diluyen la senal de quien si contesto (0.8854ms)
+✔ un campo sin ningun dato queda undefined, no en 3 (2.8141ms)
+✔ sin trastorno declarado la app no oculta nada (2.3998ms)
+✔ con trastorno declarado se ocultan calorías, peso y cuerpo (0.4642ms)
+✔ la autorización médica NO reabre las métricas corporales por sí sola (0.3453ms)
+✔ un tamizaje ilegible NO activa el modo (0.4958ms)
+✔ otras condiciones de riesgo alto no activan el modo (0.4635ms)
+✔ el aviso dice que los datos siguen ahí, no que se borraron (0.7679ms)
+✔ con el modo activo, las tres áreas quedan bloqueadas (2.6498ms)
+✔ sin el modo no se bloquea nada (0.5261ms)
+✔ cada ruta sensible declara qué área protege (3.7572ms)
+✔ las cuatro rutas usan el guardia, y por su área correcta (9.0856ms)
+✔ el guardia envuelve; no es un if dentro del componente (4.0796ms)
+✔ el guardia explica, no expulsa en silencio (5.6562ms)
+✔ el expediente sale SIN peso, meta, proyección, macros ni % de grasa (0.7547ms)
+✔ los campos se QUITAN, no se ponen en null (0.4258ms)
+✔ lo que NO es corporal sigue llegando al coach (0.4102ms)
+✔ sin el modo, el expediente va entero (0.5855ms)
+✔ el filtro vive donde se arma el expediente, no en cada consumidor (2.5211ms)
+✔ los campos filtrados existen de verdad en el snapshot (2.8468ms)
+✔ sin recompensas corporales desaparece la misión de proteína (0.4525ms)
+✔ pero quedan las de entrenar y descansar (0.5334ms)
+✔ sin el modo están todas (0.3896ms)
+✔ la comida se sigue guardando; lo que se retira es el premio (5.129ms)
+✔ sinRecompensasCorporales ya la lee alguien (5.1252ms)
+✔ el modo se hidrata al abrir la app (1.0783ms)
+✔ no se puede guardar peso ni fijar meta con el modo activo (2.5615ms)
+✔ el botón de anotar peso ya no vive fuera de la rama del modo (2.6686ms)
+✔ el perfil ya conoce el modo (4.831ms)
+✔ la portada no ofrece escanear el cuerpo con el modo activo (3.6029ms)
+✔ el coach de reglas no recibe cifras de proteína con el modo activo (2.5715ms)
+✔ el store arranca en cargando, no en conocido (9.7977ms)
+✔ el estado tiene los tres valores, y desconocido es distinto de sano (3.0852ms)
+✔ app/(tabs)/index.tsx usa el hook, no la bandera cruda (7.4749ms)
+✔ app/(tabs)/camera.tsx usa el hook, no la bandera cruda (3.4738ms)
+✔ app/(tabs)/progress.tsx usa el hook, no la bandera cruda (4.0414ms)
+✔ app/(tabs)/profile.tsx usa el hook, no la bandera cruda (8.4885ms)
+✔ Components/GuardiaRecuperacion.tsx usa el hook, no la bandera cruda (3.0414ms)
+✔ mientras no se sepa, el hook devuelve TODO oculto (3.1608ms)
+✔ el guardia bloquea mientras carga y cuando no se pudo leer (3.3257ms)
+✔ el guardia no confunde "en pausa" con "espera un momento" (5.7809ms)
+✔ guardar el tamizaje publica el modo en el acto (3.0261ms)
+✔ si no se pudo leer la salud, se marca desconocida (3.0891ms)
+✔ cerrar sesión olvida TODO lo de la persona anterior (3.4612ms)
+✔ el consejo del día de la cámara respeta el modo (5.292ms)
+✔ la app pide el reset con un destino, no a ciegas (6.9086ms)
+✔ el destino es una URL del dominio propio (2.6171ms)
+✔ la página existe y está en la carpeta que se publica (0.7401ms)
+✔ la página no lleva ninguna credencial secreta (2.7108ms)
+✔ la página no deja la sesión guardada en el navegador (1.0031ms)
+✔ la página exige las mismas reglas que la app (1.069ms)
+✔ un enlace caducado o ya usado se explica, no se queda en blanco (0.8274ms)
+✔ sin sesión válida no se enseña el formulario (0.4756ms)
+✔ ninguna pantalla enruta mirando las palabras del mensaje de error (15.9227ms)
+✔ el error de IA lleva el código del servidor (7.0736ms)
+✔ las dos pantallas usan los ayudantes, no su propia heurística (13.3148ms)
+✔ el mensaje de tope comprueba la prueba ANTES que Premium (2.6675ms)
+✔ esPrueba sigue implicando isPremium (si deja de hacerlo, el orden importa al revés) (1.9762ms)
+✔ la galería solo se menciona si hay galería (5.0213ms)
+✔ las pantallas con fotos del cuerpo nunca se graban (1.9372ms)
+✔ el tamizaje de salud y el chat del coach nunca se graban (0.3911ms)
+✔ la pestaña Coach está cubierta por sí misma, no por el chat (0.3321ms)
+✔ los escáneres y el registro de comida nunca se graban (0.4284ms)
+✔ las rutas con parámetros o subrutas también quedan cubiertas (0.3386ms)
+✔ las pantallas sin datos sensibles SÍ se pueden grabar (0.2666ms)
+✔ la portada y el perfil NO se graban (0.4345ms)
+✔ una ruta nueva NO se graba mientras nadie diga lo contrario (0.378ms)
+✔ el piso nunca baja de 1200 kcal absolutas (2.6302ms)
+✔ el piso usa el BMR si es mayor que el mínimo absoluto (0.4098ms)
+✔ clampCaloriesToSafe SUBE una meta peligrosamente baja (0.3511ms)
+✔ clampCaloriesToSafe NO toca una meta segura (0.4756ms)
+✔ clampFatPct mantiene rango fisiológico (1.0533ms)
+✔ la edad mínima legal es 18 (0.5402ms)
+✔ síntoma de alarma bloquea aunque exista autorización antigua (6.2394ms)
+✔ riesgo alto sin autorización bloquea; riesgo moderado permite con cautela (0.6498ms)
+✔ la vista previa explica series y técnica antes de aplicar (2.3033ms)
+✔ riesgo alto autorizado recibe su propio aviso, no el de una persona sana (1.0155ms)
+✔ el nivel alto autorizado sigue permitiendo entrenar (0.6473ms)
+✔ eliminar el PRIMER ejercicio no se describe como una sustitución (3.87ms)
+✔ reordenar sin cambiar nada no reporta cambios (0.5709ms)
+✔ un ejercicio nuevo se reporta como añadido, no como sustitución (0.8093ms)
+✔ cambiar series de un ejercicio reordenado se atribuye al ejercicio correcto (1.8529ms)
+✔ las cuatro condiciones nuevas bloquean sin autorización médica (2.0373ms)
+✔ la hipertensión CONTROLADA sigue siendo moderada, no bloquea (0.582ms)
+✔ el trastorno alimentario NO se trata como un trámite de autorización (0.8562ms)
+✔ con autorización del equipo tratante, el trastorno alimentario permite entrenar (0.6557ms)
+✔ declarar una condición NUEVA de riesgo alto invalida la autorización previa (0.718ms)
+✔ toda condición de riesgo alto tiene su directiva para la IA (1.547ms)
+[parseAI] "plan" no cumple el esquema: ["days: invalid_type"]
+✔ "false" como texto NO se convierte en true (5.9212ms)
+✔ booleanos en varias formas que devuelven los modelos (1.2194ms)
+✔ un valor irreconocible cae al respaldo SEGURO (no analizar) (0.9153ms)
+✔ un plan de 6 días se rechaza (6.9399ms)
+✔ un plan de 7 días se acepta (1.272ms)
+✔ un ejercicio con 0 series se rechaza (5.7185ms)
+✔ un día de entrenamiento sin ejercicios se rechaza (0.9516ms)
+✔ un día de descanso con ejercicios queda limpio, no contradictorio (0.6977ms)
+✔ una comida sin calorías se rechaza en vez de guardarse como 0 kcal (2.2168ms)
+✔ una comida con valores absurdos se rechaza (0.9163ms)
+✔ una comida normal pasa (0.5415ms)
+✔ parseAI adjunta la FORMA de una negativa del modelo (4.4629ms)
+✔ parseAI distingue una respuesta que ni siquiera es JSON (0.6681ms)
+✔ los campos de salud se reconocen como sensibles (2.1295ms)
+✔ el peso, los macros y la grasa estimada no salen (0.6786ms)
+✔ lo que NO es sensible sigue llegando (0.4789ms)
+✔ lo sensible anidado tampoco sale (0.7593ms)
+✔ un objeto muy anidado no cuelga el envio (2.106ms)
+✔ los correos y las imagenes en base64 se recortan del texto (1.0312ms)
+✔ del usuario solo viaja el id (2.5846ms)
+✔ el mensaje de la excepcion tambien se limpia (0.8677ms)
+✔ si la limpieza falla, el evento NO se manda (0.9116ms)
+✔ el muestreo de trazas no es del 20% (3.3648ms)
+✔ la sesión guarda el grado de finalización (2.4636ms)
+✔ el estado solo admite los tres valores (0.6465ms)
+✔ la RPC recibe cuántas series tenía el día (0.3466ms)
+✔ la RPC devuelve el grado, no solo el id (0.3442ms)
+✔ los umbrales son 80 y 40 (0.5128ms)
+✔ sin saber las series planeadas se comporta como antes (0.7082ms)
+✔ el porcentaje no pasa de 100 (1.4175ms)
+✔ la firma sin grado se elimina (0.655ms)
+✔ el día solo avanza si la sesión quedó completa (0.9943ms)
+✔ la pantalla manda las series que tenía el día (0.8217ms)
+✔ se manda el plan ADAPTADO, que es el que se enseñó (0.5213ms)
+✔ una sesión parcial se guarda igual (0.5009ms)
+✔ el tipo del resultado documenta qué hace cada grado (0.3936ms)
+✔ 20 minutos conserva prioridades sin mutar el plan original (6.3174ms)
+✔ baja energía autoregula solo hoy con menos volumen y RIR conservador (1.0607ms)
+✔ un día normal conserva toda la sesión (0.5633ms)
+✔ el plugin está registrado en app.json (3.695ms)
+✔ solo se compilan las dos ABIs de teléfonos reales (1.8334ms)
+✔ la propiedad se sustituye, no se duplica (1.1632ms)
+✔ sigue habiendo un plugin de firma y otro de memoria (2.3056ms)
+✔ xpToLevel: 0 XP es nivel 1 (4.39ms)
+✔ xpToLevel: 100 XP es nivel 2, 400 XP es nivel 3 (0.4054ms)
+✔ xpForNextLevel: nivel 2 requiere 400 (0.3426ms)
+✔ xpProgress: el progreso está entre 0 y 1 (0.566ms)
+✔ primera vez (sin fecha previa) arranca racha en 1 (2.9736ms)
+✔ mismo día no cambia la racha (0.5963ms)
+✔ día siguiente: la racha sube (0.4117ms)
+✔ un día de descanso de por medio NO rompe la racha (0.3857ms)
+✔ 3+ días sin actividad SÍ rompe la racha (sin comodines) (0.5638ms)
+✔ streak-freeze salva la racha en un gap grande y se marca usado (0.7138ms)
+✔ el freeze NO revive una racha tras una ausencia larguísima (0.4907ms)
+✔ premium puede todo (2.189ms)
+✔ free NO tiene ninguna función de IA (0.4869ms)
+✔ los topes gratis de IA están todos en cero (0.3654ms)
+✔ los bloqueos traen una razón legible (0.4571ms)
+✔ el paywall no vende nada que el plan gratis ya incluya (0.5114ms)
+✔ el paywall no promete nada ilimitado (0.5588ms)
+✔ el paywall no compara contra cero (0.5064ms)
+✔ cada tope que promete el paywall sale de PREMIUM_LIMITS (1.7812ms)
+✔ lo que se anuncia como gratis no requiere pagar (1.023ms)
+✔ ningún KeyboardAvoidingView usa behavior height en Android (13.6964ms)
+✔ en Android el comportamiento es undefined, no otro modo (9.1439ms)
+✔ las pantallas completas SÍ ajustan en Android (3.218ms)
+✔ bodyScansPerDay coincide con body_scan.premiumLimit del proxy (3.7407ms)
+✔ coachPosturePerDay coincide con coach.premiumLimit del proxy (0.391ms)
+✔ coachMessagesPerDay coincide con coach_chat.premiumLimit del proxy (0.2292ms)
+✔ foodScansPerDay coincide con food_scan.premiumLimit del proxy (0.2227ms)
+✔ fridgeScansPerDay coincide con fridge_scan.premiumLimit del proxy (0.3841ms)
+✔ planRegensPerDay coincide con plan.premiumLimit del proxy (0.3187ms)
+✔ el paywall no promete ningún tope que el servidor no reconozca (0.3928ms)
+✔ ningún tope de prueba supera al de premium (0.497ms)
+✔ ningún tope gratis supera al de prueba (0.5935ms)
+✔ la tabla de precios del proxy coincide con lib/aiMetrics.ts (1.2671ms)
+✔ la prueba gratis tiene menos presupuesto que premium (0.788ms)
+✔ el presupuesto premium deja margen sobre el ingreso neto (0.359ms)
+✔ adquirir a alguien cuesta menos que atenderlo un mes (0.4948ms)
+✔ un error leyendo el tamizaje anterior retira la autorización médica (5.8485ms)
+✔ sin el secreto puesto, las compras de sandbox se rechazan (2.7938ms)
+✔ el borrado cubre los consentimientos, el gasto y las compras (2.2802ms)
+✔ y no ha perdido ninguna de las que ya cubría (2.3426ms)
+✔ user_profiles se borra el ÚLTIMO (2.4063ms)
+✔ un día de pierna calienta la pierna, no cualquier cosa (4.4607ms)
+✔ el calentamiento es dinámico y la vuelta a la calma estática (0.8835ms)
+✔ hernia discal: fuera toda flexión lumbar, al calentar y al estirar (0.7978ms)
+✔ embarazo: nada boca arriba, nada de impacto (0.8497ms)
+✔ rodilla lesionada: fuera la flexión profunda (0.7277ms)
+✔ hombro lesionado: fuera lo que pasa por encima de la cabeza (0.7203ms)
+✔ varias lesiones a la vez acumulan vetos, no se pisan (0.5179ms)
+✔ si no se pudo leer la salud, se cae a lo más conservador (0.953ms)
+✔ NUNCA devuelve una lista vacía de calentamiento (1.3446ms)
+✔ las series de aproximación nombran el ejercicio real del día (2.2083ms)
+✔ sin ejercicio no se inventa una serie de aproximación (0.5501ms)
+✔ un grupo muscular desconocido no rompe: queda el calentamiento general (0.5147ms)
+✔ la vuelta a la calma tampoco queda nunca vacía (0.4769ms)
+✔ un entitlement en periodo de prueba se reconoce como prueba (4.1854ms)
+✔ un precio introductorio NO es prueba: paga menos, pero paga (0.4569ms)
+✔ si RevenueCat no dice el periodo, no se toca is_trial (0.3693ms)
+✔ sin Premium, la prueba queda en false y no en null (0.268ms)
+✔ sync-premium escribe is_trial, no solo is_premium (2.9548ms)
+✔ la lista de eventos que cambian estado no esta duplicada (0.9975ms)
+✔ el evento guarda si cambio el estado (0.4557ms)
+✔ un fallo de la RPC devuelve 5xx para que RevenueCat reintente (0.2762ms)
+✔ un duplicado o un evento fuera de orden siguen siendo 200 (0.4078ms)
+✔ existe el interruptor para rechazar sandbox en produccion (0.4981ms)
+✔ apply_rc_event se concede explicitamente a service_role (0.6587ms)
+✔ las llamadas salientes tienen tiempo limite (3.0256ms)
+✔ si OpenAI no responde se devuelven la reserva y el cupo (1.4953ms)
+✔ normaliza nombres y conserva todas las métricas de la serie (4.3393ms)
+✔ una serie dañada se rechaza; nunca desaparece silenciosamente (2.0661ms)
+✔ un ejercicio repetido en el día se renumera; no se pierde ninguna serie (1.0515ms)
+✔ la renumeración no colisiona con ejercicios distintos (0.8494ms)
+ℹ tests 908
+ℹ suites 0
+ℹ pass 908
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 106567.0207
+
+[1m── Estado de las revisiones externas[0m
+Estado de publicación (informativo, no bloquea — usa --gate para exigirlo):
+- Revisión clínica: pendiente (falta status: approved, reviewer_name, approved_at, commit revisado, alcance).
+- Revisión de nutrición: pendiente (falta status: approved, reviewer_name, approved_at, commit revisado, alcance).
+- Revisión legal/privacidad: pendiente (falta status: approved, reviewer_name, approved_at, commit revisado, alcance).
+- Observabilidad: falta SENTRY_ORG; los errores llegarán sin simbolicar.
+- Observabilidad: falta SENTRY_PROJECT; los errores llegarán sin simbolicar.
+- Observabilidad: falta SENTRY_AUTH_TOKEN; los errores llegarán sin simbolicar.
+
+[1m── Generando el proyecto nativo[0m
+env: load .env
+env: export EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_AI_PROXY_URL EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_POSTHOG_KEY EXPO_PUBLIC_POSTHOG_HOST EXPO_PUBLIC_RC_API_KEY_ANDROID
+[33m› [1m[@sentry/react-native/expo][22m Missing config for [1morganization, project[22m. Environment variables will be used as a fallback during the build. https://docs.sentry.io/platforms/react-native/manual-setup/[0m
+! Git branch has uncommitted file changes
+› It's recommended to commit all changes before proceeding in case you want to revert generated changes.
+Git status is dirty but the command will continue because the terminal is not interactive.
+- Clearing android
+✔ Cleared android code
+- Creating native directory (./android)
+✔ Created native directory
+- Updating package.json
+✔ Updated package.json
+- Running prebuild
+» android: userInterfaceStyle: Install expo-system-ui in your project to enable this feature.
+- Running prebuild
+✔ Finished prebuild
+  (package.json restaurado: prebuild lo reescribe en cada pasada)
+
+[1m── Compilando el AAB[0m
+> Task :gradle-plugin:settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileJava NO-SOURCE
+> Task :gradle-plugin:shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:processResources NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:processResources NO-SOURCE
+> Task :gradle-plugin:shared:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:jar UP-TO-DATE
+> Task :gradle-plugin:shared:jar UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:settings-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-dev-launcher-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-dev-launcher-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-dev-launcher-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-module-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileKotlin UP-TO-DATE
+> Task :expo-module-gradle-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:react-native-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:jar UP-TO-DATE
+> Task :expo-dev-launcher-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-dev-launcher-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-dev-launcher-gradle-plugin:classes UP-TO-DATE
+> Task :expo-dev-launcher-gradle-plugin:jar UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-module-gradle-plugin:classes UP-TO-DATE
+> Task :expo-module-gradle-plugin:jar UP-TO-DATE
+
+> Configure project :
+[32m[ExpoRootProject][0m Using the following versions:
+  - buildTools:  [32m36.0.0[0m
+  - minSdk:      [32m24[0m
+  - compileSdk:  [32m36[0m
+  - targetSdk:   [32m36[0m
+  - ndk:         [32m27.1.12297006[0m
+  - kotlin:      [32m2.1.20[0m
+  - ksp:         [32m2.1.20-2.0.1[0m
+
+> Configure project :app
+ ℹ️  [33mApplying gradle plugin[0m '[32mexpo-dev-launcher-gradle-plugin[0m'
+
+> Configure project :expo
+
+Using expo modules
+  - [32mexpo-constants[0m (18.0.14)
+  - [32mexpo-dev-client[0m (6.0.21)
+  - [32mexpo-dev-launcher[0m (6.0.21)
+  - [32mexpo-dev-menu[0m (7.0.19)
+  - [32mexpo-dev-menu-interface[0m (2.0.0)
+  - [32mexpo-json-utils[0m (0.15.0)
+  - [32mexpo-manifests[0m (1.0.11)
+  - [32mexpo-modules-core[0m (3.0.30)
+  - [32mexpo-updates-interface[0m (2.0.0)
+  - [33m[📦][0m [32mexpo-application[0m (7.0.8)
+  - [33m[📦][0m [32mexpo-asset[0m (12.0.13)
+  - [33m[📦][0m [32mexpo-blur[0m (15.0.8)
+  - [33m[📦][0m [32mexpo-camera[0m (17.0.10)
+  - [33m[📦][0m [32mexpo-device[0m (8.0.10)
+  - [33m[📦][0m [32mexpo-file-system[0m (19.0.24)
+  - [33m[📦][0m [32mexpo-font[0m (14.0.12)
+  - [33m[📦][0m [32mexpo-haptics[0m (15.0.8)
+  - [33m[📦][0m [32mexpo-image-loader[0m (6.0.0)
+  - [33m[📦][0m [32mexpo-image-manipulator[0m (14.0.8)
+  - [33m[📦][0m [32mexpo-image-picker[0m (17.0.11)
+  - [33m[📦][0m [32mexpo-keep-awake[0m (15.0.8)
+  - [33m[📦][0m [32mexpo-linear-gradient[0m (15.0.8)
+  - [33m[📦][0m [32mexpo-linking[0m (8.0.12)
+  - [33m[📦][0m [32mexpo-localization[0m (17.0.9)
+  - [33m[📦][0m [32mexpo-notifications[0m (0.32.17)
+  - [33m[📦][0m [32mexpo-secure-store[0m (15.0.8)
+  - [33m[📦][0m [32mexpo-sharing[0m (14.0.8)
+  - [33m[📦][0m [32mexpo-speech[0m (14.0.8)
+  - [33m[📦][0m [32mexpo-splash-screen[0m (31.0.13)
+
+
+> Configure project :react-native-fast-tflite
+[NitroModules] 🔥 NitroTflite is boosted by nitro!
+
+> Configure project :react-native-nitro-modules
+[NitroModules] 🔥 Your app is boosted by nitro modules!
+
+> Configure project :react-native-vision-camera
+[VisionCamera] Thank you for using VisionCamera ❤️
+[VisionCamera] If you enjoy using VisionCamera, please consider sponsoring this project: https://github.com/sponsors/mrousavy
+[VisionCamera] node_modules found at C:\GymUp\node_modules
+[VisionCamera] VisionCamera_enableFrameProcessors is set to true!
+[VisionCamera] react-native-worklets-core found, Frame Processors are enabled!
+[VisionCamera] VisionCamera_enableCodeScanner is set to false!
+
+> Task :expo:generatePackagesList
+> Task :expo:preBuild
+
+> Task :expo-constants:createExpoConfig
+The NODE_ENV environment variable is required but was not specified. Ensure the project is bundled with Expo CLI or NODE_ENV is set. Using only .env.local and .env
+env: load .env
+env: export EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_AI_PROXY_URL EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_POSTHOG_KEY EXPO_PUBLIC_POSTHOG_HOST EXPO_PUBLIC_RC_API_KEY_ANDROID
+[33m› [1m[@sentry/react-native/expo][22m Missing config for [1morganization, project[22m. Environment variables will be used as a fallback during the build. https://docs.sentry.io/platforms/react-native/manual-setup/[0m
+
+> Task :expo-constants:preBuild
+> Task :expo-dev-client:preBuild UP-TO-DATE
+> Task :expo-dev-launcher:preBuild UP-TO-DATE
+> Task :expo-dev-menu:preBuild UP-TO-DATE
+> Task :expo-dev-menu-interface:preBuild UP-TO-DATE
+> Task :expo-json-utils:preBuild UP-TO-DATE
+> Task :expo-manifests:preBuild UP-TO-DATE
+> Task :expo-modules-core:preBuild UP-TO-DATE
+> Task :expo-updates-interface:preBuild UP-TO-DATE
+
+> Task :posthog-react-native-session-replay:generateCodegenSchemaFromJavaScript
+No modules to process in combine-js-to-schema-cli. If this is unexpected, please check if you set up your NativeComponent correctly. See combine-js-to-schema.js for how codegen finds modules.
+
+> Task :posthog-react-native-session-replay:generateCodegenArtifactsFromSchema
+> Task :posthog-react-native-session-replay:preBuild
+
+> Task :app:createBundleReleaseJsAndAssets
+env: load .env
+env: export EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_AI_PROXY_URL EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_POSTHOG_KEY EXPO_PUBLIC_POSTHOG_HOST EXPO_PUBLIC_RC_API_KEY_ANDROID
+
+> Task :posthog_react-native-plugin:generateCodegenSchemaFromJavaScript
+No modules to process in combine-js-to-schema-cli. If this is unexpected, please check if you set up your NativeComponent correctly. See combine-js-to-schema.js for how codegen finds modules.
+
+> Task :app:createBundleReleaseJsAndAssets
+[33m› [1m[@sentry/react-native/expo][22m Missing config for [1morganization, project[22m. Environment variables will be used as a fallback during the build. https://docs.sentry.io/platforms/react-native/manual-setup/[0m
+
+> Task :posthog_react-native-plugin:generateCodegenArtifactsFromSchema
+> Task :posthog_react-native-plugin:preBuild
+> Task :react-native-async-storage_async-storage:generateCodegenSchemaFromJavaScript
+> Task :react-native-async-storage_async-storage:generateCodegenArtifactsFromSchema
+> Task :react-native-async-storage_async-storage:preBuild
+> Task :react-native-community_netinfo:preBuild UP-TO-DATE
+> Task :react-native-fast-tflite:preBuild UP-TO-DATE
+> Task :react-native-gesture-handler:generateCodegenSchemaFromJavaScript
+> Task :react-native-gesture-handler:generateCodegenArtifactsFromSchema
+> Task :react-native-gesture-handler:preBuild
+> Task :react-native-get-random-values:preBuild UP-TO-DATE
+> Task :react-native-nitro-modules:generateCodegenSchemaFromJavaScript
+> Task :react-native-nitro-modules:generateCodegenArtifactsFromSchema
+> Task :react-native-nitro-modules:prepareHeaders
+> Task :react-native-nitro-modules:preBuild
+> Task :react-native-purchases:preBuild UP-TO-DATE
+> Task :react-native-safe-area-context:generateCodegenSchemaFromJavaScript
+> Task :react-native-safe-area-context:generateCodegenArtifactsFromSchema
+> Task :react-native-safe-area-context:preBuild
+> Task :react-native-screens:generateCodegenSchemaFromJavaScript
+> Task :react-native-screens:generateCodegenArtifactsFromSchema
+> Task :react-native-screens:preBuild
+> Task :react-native-svg:generateCodegenSchemaFromJavaScript
+> Task :react-native-svg:generateCodegenArtifactsFromSchema
+> Task :react-native-svg:preBuild
+
+> Task :react-native-vision-camera:generateCodegenSchemaFromJavaScript
+No modules to process in combine-js-to-schema-cli. If this is unexpected, please check if you set up your NativeComponent correctly. See combine-js-to-schema.js for how codegen finds modules.
+
+> Task :react-native-vision-camera:generateCodegenArtifactsFromSchema
+
+> Task :app:createBundleReleaseJsAndAssets
+Starting Metro Bundler
+
+> Task :react-native-vision-camera:prepareHeaders
+> Task :react-native-vision-camera:preBuild
+> Task :react-native-worklets-core:generateCodegenSchemaFromJavaScript
+
+> Task :app:createBundleReleaseJsAndAssets
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+
+> Task :react-native-worklets-core:generateCodegenArtifactsFromSchema
+> Task :react-native-worklets-core:prepareHeaders
+> Task :react-native-worklets-core:preBuild
+> Task :sentry_react-native:generateCodegenSchemaFromJavaScript
+> Task :sentry_react-native:generateCodegenArtifactsFromSchema
+> Task :sentry_react-native:preBuild
+
+> Task :vision-camera-resize-plugin:generateCodegenSchemaFromJavaScript
+No modules to process in combine-js-to-schema-cli. If this is unexpected, please check if you set up your NativeComponent correctly. See combine-js-to-schema.js for how codegen finds modules.
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+
+> Task :vision-camera-resize-plugin:generateCodegenArtifactsFromSchema
+> Task :vision-camera-resize-plugin:preBuild
+> Task :expo:preReleaseBuild
+> Task :expo:generateReleaseResValues FROM-CACHE
+> Task :expo:generateReleaseResources FROM-CACHE
+> Task :expo:packageReleaseResources FROM-CACHE
+> Task :expo-constants:preReleaseBuild
+> Task :expo-constants:generateReleaseResValues FROM-CACHE
+> Task :expo-constants:generateReleaseResources FROM-CACHE
+> Task :expo-constants:packageReleaseResources FROM-CACHE
+> Task :expo-dev-client:preReleaseBuild UP-TO-DATE
+> Task :expo-dev-client:generateReleaseResValues FROM-CACHE
+> Task :expo-dev-client:generateReleaseResources FROM-CACHE
+> Task :expo-dev-client:packageReleaseResources FROM-CACHE
+> Task :expo-dev-launcher:preReleaseBuild UP-TO-DATE
+> Task :expo-dev-launcher:generateReleaseResValues FROM-CACHE
+> Task :expo-dev-launcher:generateReleaseResources FROM-CACHE
+> Task :expo-dev-launcher:packageReleaseResources FROM-CACHE
+> Task :expo-dev-menu:preReleaseBuild UP-TO-DATE
+> Task :expo-dev-menu:generateReleaseResValues FROM-CACHE
+> Task :expo-dev-menu:generateReleaseResources FROM-CACHE
+> Task :expo-dev-menu:packageReleaseResources FROM-CACHE
+> Task :expo-dev-menu-interface:preReleaseBuild UP-TO-DATE
+> Task :expo-dev-menu-interface:generateReleaseResValues FROM-CACHE
+> Task :expo-dev-menu-interface:generateReleaseResources FROM-CACHE
+> Task :expo-dev-menu-interface:packageReleaseResources FROM-CACHE
+> Task :expo-json-utils:preReleaseBuild UP-TO-DATE
+> Task :expo-json-utils:generateReleaseResValues FROM-CACHE
+> Task :expo-json-utils:generateReleaseResources FROM-CACHE
+> Task :expo-json-utils:packageReleaseResources FROM-CACHE
+> Task :expo-manifests:preReleaseBuild UP-TO-DATE
+> Task :expo-manifests:generateReleaseResValues FROM-CACHE
+> Task :expo-manifests:generateReleaseResources FROM-CACHE
+> Task :expo-manifests:packageReleaseResources FROM-CACHE
+> Task :expo-modules-core:preReleaseBuild UP-TO-DATE
+> Task :expo-modules-core:generateReleaseResValues FROM-CACHE
+> Task :expo-modules-core:generateReleaseResources FROM-CACHE
+> Task :expo-modules-core:packageReleaseResources FROM-CACHE
+> Task :expo-updates-interface:preReleaseBuild UP-TO-DATE
+> Task :expo-updates-interface:generateReleaseResValues FROM-CACHE
+> Task :expo-updates-interface:generateReleaseResources FROM-CACHE
+> Task :expo-updates-interface:packageReleaseResources FROM-CACHE
+> Task :posthog-react-native-session-replay:preReleaseBuild
+> Task :posthog-react-native-session-replay:generateReleaseResValues FROM-CACHE
+> Task :posthog-react-native-session-replay:generateReleaseResources FROM-CACHE
+> Task :posthog-react-native-session-replay:packageReleaseResources FROM-CACHE
+> Task :posthog_react-native-plugin:preReleaseBuild
+> Task :posthog_react-native-plugin:generateReleaseResValues FROM-CACHE
+> Task :posthog_react-native-plugin:generateReleaseResources FROM-CACHE
+> Task :posthog_react-native-plugin:packageReleaseResources FROM-CACHE
+> Task :react-native-async-storage_async-storage:preReleaseBuild
+> Task :react-native-async-storage_async-storage:generateReleaseResValues FROM-CACHE
+> Task :react-native-async-storage_async-storage:generateReleaseResources FROM-CACHE
+> Task :react-native-async-storage_async-storage:packageReleaseResources FROM-CACHE
+> Task :react-native-community_netinfo:preReleaseBuild UP-TO-DATE
+> Task :react-native-community_netinfo:generateReleaseResValues FROM-CACHE
+> Task :react-native-community_netinfo:generateReleaseResources FROM-CACHE
+> Task :react-native-community_netinfo:packageReleaseResources FROM-CACHE
+> Task :react-native-fast-tflite:preReleaseBuild UP-TO-DATE
+> Task :react-native-fast-tflite:generateReleaseResValues FROM-CACHE
+> Task :react-native-fast-tflite:generateReleaseResources FROM-CACHE
+> Task :react-native-fast-tflite:packageReleaseResources FROM-CACHE
+> Task :react-native-gesture-handler:preReleaseBuild
+> Task :react-native-gesture-handler:generateReleaseResValues FROM-CACHE
+> Task :react-native-gesture-handler:generateReleaseResources FROM-CACHE
+> Task :react-native-gesture-handler:packageReleaseResources FROM-CACHE
+> Task :react-native-get-random-values:preReleaseBuild UP-TO-DATE
+> Task :react-native-get-random-values:generateReleaseResValues FROM-CACHE
+> Task :react-native-get-random-values:generateReleaseResources FROM-CACHE
+> Task :react-native-get-random-values:packageReleaseResources FROM-CACHE
+> Task :react-native-nitro-modules:preReleaseBuild
+> Task :react-native-nitro-modules:generateReleaseResValues FROM-CACHE
+> Task :react-native-nitro-modules:generateReleaseResources FROM-CACHE
+> Task :react-native-nitro-modules:packageReleaseResources FROM-CACHE
+> Task :react-native-purchases:preReleaseBuild UP-TO-DATE
+> Task :react-native-purchases:generateReleaseResValues FROM-CACHE
+> Task :react-native-purchases:generateReleaseResources FROM-CACHE
+> Task :react-native-purchases:packageReleaseResources FROM-CACHE
+> Task :react-native-safe-area-context:preReleaseBuild
+> Task :react-native-safe-area-context:generateReleaseResValues FROM-CACHE
+> Task :react-native-safe-area-context:generateReleaseResources FROM-CACHE
+> Task :react-native-safe-area-context:packageReleaseResources FROM-CACHE
+> Task :react-native-screens:preReleaseBuild
+> Task :react-native-screens:generateReleaseResValues FROM-CACHE
+> Task :react-native-screens:generateReleaseResources FROM-CACHE
+> Task :react-native-screens:packageReleaseResources FROM-CACHE
+> Task :react-native-svg:preReleaseBuild
+> Task :react-native-svg:generateReleaseResValues FROM-CACHE
+> Task :react-native-svg:generateReleaseResources FROM-CACHE
+> Task :react-native-svg:packageReleaseResources FROM-CACHE
+> Task :react-native-vision-camera:preReleaseBuild
+> Task :react-native-vision-camera:generateReleaseResValues FROM-CACHE
+> Task :react-native-vision-camera:generateReleaseResources FROM-CACHE
+> Task :react-native-vision-camera:packageReleaseResources FROM-CACHE
+> Task :react-native-worklets-core:preReleaseBuild
+> Task :react-native-worklets-core:generateReleaseResValues FROM-CACHE
+> Task :react-native-worklets-core:generateReleaseResources FROM-CACHE
+> Task :react-native-worklets-core:packageReleaseResources FROM-CACHE
+> Task :sentry_react-native:preReleaseBuild
+> Task :sentry_react-native:generateReleaseResValues FROM-CACHE
+> Task :sentry_react-native:generateReleaseResources FROM-CACHE
+> Task :sentry_react-native:packageReleaseResources FROM-CACHE
+> Task :vision-camera-resize-plugin:preReleaseBuild
+> Task :vision-camera-resize-plugin:generateReleaseResValues FROM-CACHE
+> Task :vision-camera-resize-plugin:generateReleaseResources FROM-CACHE
+> Task :vision-camera-resize-plugin:packageReleaseResources FROM-CACHE
+> Task :expo:extractDeepLinksRelease FROM-CACHE
+> Task :expo:processReleaseManifest FROM-CACHE
+> Task :expo-constants:extractDeepLinksRelease FROM-CACHE
+> Task :expo-constants:processReleaseManifest FROM-CACHE
+> Task :expo-dev-client:extractDeepLinksRelease FROM-CACHE
+> Task :expo-dev-client:processReleaseManifest FROM-CACHE
+> Task :expo-dev-launcher:extractDeepLinksRelease FROM-CACHE
+> Task :expo-dev-launcher:processReleaseManifest FROM-CACHE
+> Task :expo-dev-menu:extractDeepLinksRelease FROM-CACHE
+> Task :expo-dev-menu:processReleaseManifest FROM-CACHE
+> Task :expo-dev-menu-interface:extractDeepLinksRelease FROM-CACHE
+> Task :expo-dev-menu-interface:processReleaseManifest FROM-CACHE
+> Task :expo-json-utils:extractDeepLinksRelease FROM-CACHE
+> Task :expo-json-utils:processReleaseManifest FROM-CACHE
+> Task :expo-manifests:extractDeepLinksRelease FROM-CACHE
+> Task :expo-manifests:processReleaseManifest FROM-CACHE
+> Task :expo-modules-core:extractDeepLinksRelease FROM-CACHE
+> Task :expo-modules-core:processReleaseManifest FROM-CACHE
+> Task :expo-updates-interface:extractDeepLinksRelease FROM-CACHE
+> Task :expo-updates-interface:processReleaseManifest FROM-CACHE
+> Task :posthog-react-native-session-replay:extractDeepLinksRelease FROM-CACHE
+> Task :posthog-react-native-session-replay:processReleaseManifest FROM-CACHE
+> Task :posthog_react-native-plugin:extractDeepLinksRelease FROM-CACHE
+> Task :posthog_react-native-plugin:processReleaseManifest FROM-CACHE
+> Task :react-native-async-storage_async-storage:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-async-storage_async-storage:processReleaseManifest FROM-CACHE
+> Task :react-native-community_netinfo:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-community_netinfo:processReleaseManifest FROM-CACHE
+> Task :react-native-fast-tflite:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-fast-tflite:processReleaseManifest FROM-CACHE
+> Task :react-native-gesture-handler:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-gesture-handler:processReleaseManifest FROM-CACHE
+> Task :react-native-get-random-values:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-get-random-values:processReleaseManifest FROM-CACHE
+> Task :react-native-nitro-modules:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-nitro-modules:processReleaseManifest FROM-CACHE
+> Task :react-native-purchases:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-purchases:processReleaseManifest FROM-CACHE
+> Task :react-native-safe-area-context:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-safe-area-context:processReleaseManifest FROM-CACHE
+> Task :react-native-screens:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-screens:processReleaseManifest FROM-CACHE
+> Task :react-native-svg:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-svg:processReleaseManifest FROM-CACHE
+> Task :react-native-vision-camera:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-vision-camera:processReleaseManifest FROM-CACHE
+> Task :react-native-worklets-core:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-worklets-core:processReleaseManifest FROM-CACHE
+> Task :sentry_react-native:extractDeepLinksRelease FROM-CACHE
+> Task :sentry_react-native:processReleaseManifest FROM-CACHE
+> Task :vision-camera-resize-plugin:extractDeepLinksRelease FROM-CACHE
+> Task :vision-camera-resize-plugin:processReleaseManifest FROM-CACHE
+> Task :expo:writeReleaseAarMetadata
+> Task :expo-constants:writeReleaseAarMetadata
+> Task :expo-dev-client:writeReleaseAarMetadata
+> Task :expo-dev-launcher:writeReleaseAarMetadata
+> Task :expo-dev-menu:writeReleaseAarMetadata
+> Task :expo-dev-menu-interface:writeReleaseAarMetadata
+> Task :expo-json-utils:writeReleaseAarMetadata
+> Task :expo-manifests:writeReleaseAarMetadata
+> Task :expo-modules-core:writeReleaseAarMetadata
+> Task :expo-updates-interface:writeReleaseAarMetadata
+> Task :posthog-react-native-session-replay:writeReleaseAarMetadata
+> Task :posthog_react-native-plugin:writeReleaseAarMetadata
+> Task :react-native-async-storage_async-storage:writeReleaseAarMetadata
+> Task :react-native-community_netinfo:writeReleaseAarMetadata
+> Task :react-native-fast-tflite:writeReleaseAarMetadata
+> Task :react-native-gesture-handler:writeReleaseAarMetadata
+> Task :react-native-get-random-values:writeReleaseAarMetadata
+> Task :react-native-nitro-modules:writeReleaseAarMetadata
+> Task :react-native-purchases:writeReleaseAarMetadata
+> Task :react-native-safe-area-context:writeReleaseAarMetadata
+> Task :react-native-screens:writeReleaseAarMetadata
+> Task :react-native-svg:writeReleaseAarMetadata
+> Task :react-native-vision-camera:writeReleaseAarMetadata
+> Task :react-native-worklets-core:writeReleaseAarMetadata
+> Task :sentry_react-native:writeReleaseAarMetadata
+> Task :vision-camera-resize-plugin:writeReleaseAarMetadata
+> Task :expo:compileReleaseLibraryResources FROM-CACHE
+> Task :expo:parseReleaseLocalResources FROM-CACHE
+> Task :expo:generateReleaseRFile FROM-CACHE
+> Task :expo-constants:compileReleaseLibraryResources FROM-CACHE
+> Task :expo-constants:parseReleaseLocalResources FROM-CACHE
+> Task :expo-constants:generateReleaseRFile FROM-CACHE
+> Task :expo-dev-client:compileReleaseLibraryResources FROM-CACHE
+> Task :expo-dev-client:parseReleaseLocalResources FROM-CACHE
+> Task :expo-dev-client:generateReleaseRFile FROM-CACHE
+> Task :expo-dev-launcher:compileReleaseLibraryResources FROM-CACHE
+> Task :expo-dev-launcher:parseReleaseLocalResources FROM-CACHE
+> Task :expo-dev-launcher:generateReleaseRFile FROM-CACHE
+> Task :expo-dev-menu:compileReleaseLibraryResources FROM-CACHE
+> Task :expo-dev-menu:parseReleaseLocalResources FROM-CACHE
+> Task :expo-dev-menu:generateReleaseRFile FROM-CACHE
+> Task :expo-dev-menu-interface:compileReleaseLibraryResources FROM-CACHE
+> Task :expo-dev-menu-interface:parseReleaseLocalResources FROM-CACHE
+> Task :expo-dev-menu-interface:generateReleaseRFile FROM-CACHE
+> Task :expo-json-utils:compileReleaseLibraryResources FROM-CACHE
+> Task :expo-json-utils:parseReleaseLocalResources FROM-CACHE
+> Task :expo-json-utils:generateReleaseRFile FROM-CACHE
+> Task :expo-manifests:compileReleaseLibraryResources FROM-CACHE
+> Task :expo-manifests:parseReleaseLocalResources FROM-CACHE
+> Task :expo-manifests:generateReleaseRFile FROM-CACHE
+> Task :expo-modules-core:compileReleaseLibraryResources FROM-CACHE
+> Task :expo-modules-core:parseReleaseLocalResources FROM-CACHE
+> Task :expo-modules-core:generateReleaseRFile FROM-CACHE
+> Task :expo-updates-interface:compileReleaseLibraryResources FROM-CACHE
+> Task :expo-updates-interface:parseReleaseLocalResources FROM-CACHE
+> Task :expo-updates-interface:generateReleaseRFile FROM-CACHE
+> Task :posthog-react-native-session-replay:compileReleaseLibraryResources FROM-CACHE
+> Task :posthog-react-native-session-replay:parseReleaseLocalResources FROM-CACHE
+> Task :posthog-react-native-session-replay:generateReleaseRFile FROM-CACHE
+> Task :posthog_react-native-plugin:compileReleaseLibraryResources FROM-CACHE
+> Task :posthog_react-native-plugin:parseReleaseLocalResources FROM-CACHE
+> Task :posthog_react-native-plugin:generateReleaseRFile FROM-CACHE
+> Task :react-native-async-storage_async-storage:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-async-storage_async-storage:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-async-storage_async-storage:generateReleaseRFile FROM-CACHE
+> Task :react-native-community_netinfo:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-community_netinfo:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-community_netinfo:generateReleaseRFile FROM-CACHE
+> Task :react-native-fast-tflite:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-fast-tflite:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-fast-tflite:generateReleaseRFile FROM-CACHE
+> Task :react-native-gesture-handler:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-gesture-handler:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-gesture-handler:generateReleaseRFile FROM-CACHE
+> Task :react-native-get-random-values:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-get-random-values:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-get-random-values:generateReleaseRFile FROM-CACHE
+> Task :react-native-nitro-modules:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-nitro-modules:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-nitro-modules:generateReleaseRFile FROM-CACHE
+> Task :react-native-purchases:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-purchases:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-purchases:generateReleaseRFile FROM-CACHE
+> Task :react-native-safe-area-context:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-safe-area-context:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-safe-area-context:generateReleaseRFile FROM-CACHE
+> Task :react-native-screens:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-screens:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-screens:generateReleaseRFile FROM-CACHE
+> Task :react-native-svg:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-svg:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-svg:generateReleaseRFile FROM-CACHE
+> Task :react-native-vision-camera:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-vision-camera:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-vision-camera:generateReleaseRFile FROM-CACHE
+> Task :react-native-worklets-core:compileReleaseLibraryResources FROM-CACHE
+> Task :react-native-worklets-core:parseReleaseLocalResources FROM-CACHE
+> Task :react-native-worklets-core:generateReleaseRFile FROM-CACHE
+> Task :sentry_react-native:compileReleaseLibraryResources FROM-CACHE
+> Task :sentry_react-native:parseReleaseLocalResources FROM-CACHE
+> Task :sentry_react-native:generateReleaseRFile FROM-CACHE
+> Task :vision-camera-resize-plugin:compileReleaseLibraryResources FROM-CACHE
+> Task :vision-camera-resize-plugin:parseReleaseLocalResources FROM-CACHE
+> Task :vision-camera-resize-plugin:generateReleaseRFile FROM-CACHE
+> Task :posthog_react-native-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :posthog_react-native-plugin:generateReleaseBuildConfig FROM-CACHE
+> Task :posthog_react-native-plugin:compileReleaseKotlin FROM-CACHE
+> Task :posthog_react-native-plugin:javaPreCompileRelease FROM-CACHE
+> Task :posthog_react-native-plugin:compileReleaseJavaWithJavac FROM-CACHE
+> Task :posthog_react-native-plugin:bundleLibRuntimeToDirRelease
+> Task :posthog-react-native-session-replay:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :posthog-react-native-session-replay:generateReleaseBuildConfig FROM-CACHE
+> Task :posthog-react-native-session-replay:compileReleaseKotlin FROM-CACHE
+> Task :posthog-react-native-session-replay:javaPreCompileRelease FROM-CACHE
+> Task :posthog-react-native-session-replay:compileReleaseJavaWithJavac FROM-CACHE
+> Task :posthog-react-native-session-replay:bundleLibRuntimeToDirRelease
+> Task :react-native-fast-tflite:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-fast-tflite:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-nitro-modules:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-nitro-modules:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-nitro-modules:compileReleaseKotlin FROM-CACHE
+> Task :react-native-nitro-modules:javaPreCompileRelease FROM-CACHE
+> Task :react-native-nitro-modules:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-nitro-modules:bundleLibCompileToJarRelease
+> Task :react-native-fast-tflite:compileReleaseKotlin FROM-CACHE
+> Task :react-native-fast-tflite:javaPreCompileRelease FROM-CACHE
+> Task :react-native-fast-tflite:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-fast-tflite:bundleLibRuntimeToDirRelease
+> Task :react-native-gesture-handler:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-gesture-handler:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-svg:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-svg:javaPreCompileRelease FROM-CACHE
+> Task :react-native-svg:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-svg:bundleLibCompileToJarRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  1.0% (1/1)
+
+> Task :react-native-gesture-handler:compileReleaseKotlin FROM-CACHE
+> Task :react-native-gesture-handler:javaPreCompileRelease FROM-CACHE
+> Task :react-native-gesture-handler:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-gesture-handler:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓░░░░░░░░░░░░░ 21.3% ( 6/15)
+
+> Task :react-native-nitro-modules:bundleLibRuntimeToDirRelease
+> Task :react-native-safe-area-context:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-safe-area-context:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-safe-area-context:compileReleaseKotlin FROM-CACHE
+> Task :react-native-safe-area-context:javaPreCompileRelease FROM-CACHE
+> Task :react-native-safe-area-context:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-safe-area-context:bundleLibRuntimeToDirRelease
+> Task :react-native-screens:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-screens:generateReleaseBuildConfig FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓░░░░░░░░░░░░░ 21.8% ( 21/157)
+Android node_modules\expo-router\entry.js ▓▓▓░░░░░░░░░░░░░ 21.8% ( 52/214)
+
+> Task :react-native-screens:compileReleaseKotlin FROM-CACHE
+> Task :react-native-screens:javaPreCompileRelease FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓░░░░░░░░░░░░░ 21.8% ( 87/245)
+
+> Task :react-native-screens:compileReleaseJavaWithJavac FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓░░░░░░░░░░░░░ 21.8% (117/289)
+
+> Task :react-native-screens:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓░░░░░░░░░░░░ 26.0% (178/349)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 33.3% (237/411)
+
+> Task :react-native-vision-camera:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-vision-camera:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-worklets-core:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-worklets-core:javaPreCompileRelease FROM-CACHE
+> Task :react-native-worklets-core:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-worklets-core:bundleLibCompileToJarRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.4% (282/471)
+
+> Task :react-native-vision-camera:compileReleaseKotlin FROM-CACHE
+> Task :react-native-vision-camera:javaPreCompileRelease FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓░░░░░░░░░░ 40.1% (331/561)
+
+> Task :react-native-vision-camera:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-vision-camera:bundleLibCompileToJarRelease
+> Task :vision-camera-resize-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :vision-camera-resize-plugin:generateReleaseBuildConfig FROM-CACHE
+> Task :vision-camera-resize-plugin:compileReleaseKotlin FROM-CACHE
+> Task :vision-camera-resize-plugin:javaPreCompileRelease FROM-CACHE
+> Task :vision-camera-resize-plugin:compileReleaseJavaWithJavac FROM-CACHE
+> Task :vision-camera-resize-plugin:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓░░░░░░░░░░ 40.3% (383/603)
+
+> Task :react-native-vision-camera:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓░░░░░░░░ 51.1% (446/624)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 61.9% (511/659)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 61.9% (522/718)
+
+> Task :react-native-async-storage_async-storage:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-async-storage_async-storage:javaPreCompileRelease FROM-CACHE
+> Task :react-native-async-storage_async-storage:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-async-storage_async-storage:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 61.9% (542/740)
+
+> Task :react-native-community_netinfo:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-community_netinfo:javaPreCompileRelease FROM-CACHE
+> Task :react-native-community_netinfo:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-community_netinfo:bundleLibRuntimeToDirRelease
+> Task :sentry_react-native:generateReleaseBuildConfig FROM-CACHE
+> Task :sentry_react-native:javaPreCompileRelease FROM-CACHE
+> Task :sentry_react-native:compileReleaseJavaWithJavac FROM-CACHE
+> Task :sentry_react-native:bundleLibRuntimeToDirRelease
+> Task :expo:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo:generateReleaseBuildConfig FROM-CACHE
+> Task :expo-constants:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-constants:generateReleaseBuildConfig FROM-CACHE
+> Task :expo-modules-core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-modules-core:generateReleaseBuildConfig FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 61.9% (574/804)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 61.9% (653/832)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 64.3% (681/850)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 64.8% (729/985)
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 64.8% ( 780/1027)
+
+> Task :expo-modules-core:compileReleaseKotlin FROM-CACHE
+> Task :expo-modules-core:javaPreCompileRelease FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 64.8% ( 822/1071)
+
+> Task :expo-modules-core:compileReleaseJavaWithJavac FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 64.8% ( 878/1131)
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+
+> Task :expo-modules-core:bundleLibCompileToJarRelease
+> Task :expo-constants:compileReleaseKotlin FROM-CACHE
+> Task :expo-constants:javaPreCompileRelease FROM-CACHE
+> Task :expo-constants:compileReleaseJavaWithJavac FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 71.4% (1016/1206)
+
+> Task :expo-constants:bundleLibCompileToJarRelease
+> Task :expo-dev-client:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-dev-client:dataBindingMergeDependencyArtifactsRelease
+> Task :expo-dev-client:dataBindingGenBaseClassesRelease FROM-CACHE
+> Task :expo-dev-client:generateReleaseBuildConfig FROM-CACHE
+> Task :expo-dev-client:compileReleaseKotlin NO-SOURCE
+> Task :expo-dev-client:javaPreCompileRelease FROM-CACHE
+> Task :expo-dev-client:compileReleaseJavaWithJavac FROM-CACHE
+> Task :expo-dev-client:bundleLibCompileToJarRelease
+> Task :expo-dev-launcher:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-dev-launcher:dataBindingMergeDependencyArtifactsRelease
+> Task :expo-dev-launcher:dataBindingGenBaseClassesRelease FROM-CACHE
+> Task :expo-dev-launcher:generateReleaseBuildConfig FROM-CACHE
+> Task :expo-dev-launcher:checkApolloVersions
+> Task :expo-dev-launcher:generateServiceApolloOptions FROM-CACHE
+> Task :expo-dev-launcher:generateServiceApolloSources FROM-CACHE
+> Task :expo-dev-menu:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-dev-menu:generateReleaseBuildConfig FROM-CACHE
+> Task :expo-dev-menu-interface:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-dev-menu-interface:generateReleaseBuildConfig FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+
+> Task :expo-dev-menu-interface:compileReleaseKotlin FROM-CACHE
+> Task :expo-dev-menu-interface:javaPreCompileRelease FROM-CACHE
+> Task :expo-dev-menu-interface:compileReleaseJavaWithJavac FROM-CACHE
+> Task :expo-dev-menu-interface:bundleLibCompileToJarRelease
+> Task :expo-json-utils:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-json-utils:generateReleaseBuildConfig FROM-CACHE
+> Task :expo-json-utils:compileReleaseKotlin FROM-CACHE
+> Task :expo-json-utils:javaPreCompileRelease FROM-CACHE
+> Task :expo-json-utils:compileReleaseJavaWithJavac FROM-CACHE
+> Task :expo-json-utils:bundleLibCompileToJarRelease
+> Task :expo-manifests:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-manifests:generateReleaseBuildConfig FROM-CACHE
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.1% (1075/1266)
+
+> Task :expo-manifests:compileReleaseKotlin FROM-CACHE
+> Task :expo-manifests:javaPreCompileRelease FROM-CACHE
+> Task :expo-manifests:compileReleaseJavaWithJavac FROM-CACHE
+> Task :expo-manifests:bundleLibCompileToJarRelease
+> Task :expo-dev-menu:compileReleaseKotlin FROM-CACHE
+> Task :expo-dev-menu:javaPreCompileRelease FROM-CACHE
+> Task :expo-dev-menu:compileReleaseJavaWithJavac FROM-CACHE
+> Task :expo-dev-menu:bundleLibCompileToJarRelease
+> Task :expo-updates-interface:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-updates-interface:generateReleaseBuildConfig FROM-CACHE
+> Task :expo-updates-interface:compileReleaseKotlin FROM-CACHE
+> Task :expo-updates-interface:javaPreCompileRelease FROM-CACHE
+> Task :expo-updates-interface:compileReleaseJavaWithJavac FROM-CACHE
+> Task :expo-updates-interface:bundleLibCompileToJarRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.1% (1094/1496)
+
+> Task :expo-dev-launcher:compileReleaseKotlin FROM-CACHE
+> Task :expo-dev-launcher:javaPreCompileRelease FROM-CACHE
+> Task :expo-dev-launcher:compileReleaseJavaWithJavac FROM-CACHE
+> Task :expo-dev-launcher:bundleLibCompileToJarRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.1% (1096/1559)
+
+> Task :expo:compileReleaseKotlin FROM-CACHE
+> Task :expo:javaPreCompileRelease FROM-CACHE
+> Task :expo:compileReleaseJavaWithJavac FROM-CACHE
+> Task :expo:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.1% (1123/1616)
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+
+> Task :react-native-get-random-values:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-get-random-values:javaPreCompileRelease FROM-CACHE
+> Task :react-native-get-random-values:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-get-random-values:bundleLibRuntimeToDirRelease
+> Task :react-native-purchases:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-purchases:generateReleaseBuildConfig FROM-CACHE
+> Task :react-native-purchases:compileReleaseKotlin FROM-CACHE
+> Task :react-native-purchases:javaPreCompileRelease FROM-CACHE
+> Task :react-native-purchases:compileReleaseJavaWithJavac FROM-CACHE
+> Task :react-native-purchases:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.1% (1191/1662)
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.1% (1266/1708)
+
+> Task :react-native-svg:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.1% (1364/1791)
+
+> Task :react-native-worklets-core:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.1% (1450/1817)
+
+> Task :expo-dev-launcher:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 72.1% (1526/1826)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 74.5% (1599/1853)
+
+> Task :expo-dev-menu:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 75.3% (1619/1869)
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+| @babel/plugin-transform-template-literals: The 'loose' option has been deprecated, use the `ignoreToPrimitiveHint` and `mutableTemplateObject` assumptions instead (https://babeljs.io/assumptions).
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 76.7% (1687/1926)
+
+> Task :expo-dev-menu-interface:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 78.6% (1731/1953)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 85.1% (1807/1960)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 88.6% (1868/1984)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 89.1% (1894/2007)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 91.7% (1940/2057)
+
+> Task :expo-modules-core:bundleLibRuntimeToDirRelease
+
+> Task :app:createBundleReleaseJsAndAssets
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 91.7% (1993/2086)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 94.2% (2056/2118)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 95.2% (2124/2206)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (2252/2252)
+Android Bundled 185565ms node_modules\expo-router\entry.js (2252 modules)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (2252/2252)
+Writing bundle output to: android\app\build\generated\assets\createBundleReleaseJsAndAssets\index.android.bundle
+Writing sourcemap output to: android\app\build\intermediates\sourcemaps\react\release\index.android.bundle.packager.map
+Copying 63 asset files
+Done writing bundle output
+Done writing sourcemap output
+
+> Task :expo-constants:bundleLibRuntimeToDirRelease
+> Task :expo-dev-client:bundleLibRuntimeToDirRelease
+> Task :expo-manifests:bundleLibRuntimeToDirRelease
+> Task :expo-json-utils:bundleLibRuntimeToDirRelease
+> Task :expo-updates-interface:bundleLibRuntimeToDirRelease
+> Task :expo:bundleLibCompileToJarRelease
+> Task :posthog-react-native-session-replay:bundleLibCompileToJarRelease
+> Task :posthog_react-native-plugin:bundleLibCompileToJarRelease
+> Task :react-native-async-storage_async-storage:bundleLibCompileToJarRelease
+> Task :react-native-community_netinfo:bundleLibCompileToJarRelease
+> Task :react-native-fast-tflite:bundleLibCompileToJarRelease
+> Task :react-native-gesture-handler:bundleLibCompileToJarRelease
+> Task :react-native-get-random-values:bundleLibCompileToJarRelease
+> Task :react-native-purchases:bundleLibCompileToJarRelease
+> Task :react-native-safe-area-context:bundleLibCompileToJarRelease
+> Task :react-native-screens:bundleLibCompileToJarRelease
+> Task :sentry_react-native:bundleLibCompileToJarRelease
+> Task :vision-camera-resize-plugin:bundleLibCompileToJarRelease
+> Task :expo:mergeReleaseShaders
+> Task :expo:compileReleaseShaders NO-SOURCE
+> Task :expo:generateReleaseAssets UP-TO-DATE
+> Task :expo:mergeReleaseAssets
+> Task :expo-constants:mergeReleaseShaders
+> Task :expo-constants:compileReleaseShaders NO-SOURCE
+> Task :expo-constants:generateReleaseAssets UP-TO-DATE
+> Task :expo-constants:mergeReleaseAssets
+> Task :expo-dev-client:mergeReleaseShaders
+> Task :expo-dev-client:compileReleaseShaders NO-SOURCE
+> Task :expo-dev-client:generateReleaseAssets UP-TO-DATE
+> Task :expo-dev-client:mergeReleaseAssets
+> Task :expo-dev-launcher:mergeReleaseShaders
+> Task :expo-dev-launcher:compileReleaseShaders NO-SOURCE
+> Task :expo-dev-launcher:generateReleaseAssets UP-TO-DATE
+> Task :expo-dev-launcher:mergeReleaseAssets
+> Task :expo-dev-menu:mergeReleaseShaders
+> Task :expo-dev-menu:compileReleaseShaders NO-SOURCE
+> Task :expo-dev-menu:generateReleaseAssets UP-TO-DATE
+> Task :expo-dev-menu:mergeReleaseAssets
+> Task :expo-dev-menu-interface:mergeReleaseShaders
+> Task :expo-dev-menu-interface:compileReleaseShaders NO-SOURCE
+> Task :expo-dev-menu-interface:generateReleaseAssets UP-TO-DATE
+> Task :expo-dev-menu-interface:mergeReleaseAssets
+> Task :expo-json-utils:mergeReleaseShaders
+> Task :expo-json-utils:compileReleaseShaders NO-SOURCE
+> Task :expo-json-utils:generateReleaseAssets UP-TO-DATE
+> Task :expo-json-utils:mergeReleaseAssets
+> Task :expo-manifests:mergeReleaseShaders
+> Task :expo-manifests:compileReleaseShaders NO-SOURCE
+> Task :expo-manifests:generateReleaseAssets UP-TO-DATE
+> Task :expo-manifests:mergeReleaseAssets
+> Task :expo-modules-core:mergeReleaseShaders
+> Task :expo-modules-core:compileReleaseShaders NO-SOURCE
+> Task :expo-modules-core:generateReleaseAssets UP-TO-DATE
+> Task :expo-modules-core:mergeReleaseAssets
+> Task :expo-updates-interface:mergeReleaseShaders
+> Task :expo-updates-interface:compileReleaseShaders NO-SOURCE
+> Task :expo-updates-interface:generateReleaseAssets UP-TO-DATE
+> Task :expo-updates-interface:mergeReleaseAssets
+> Task :posthog-react-native-session-replay:mergeReleaseShaders
+> Task :posthog-react-native-session-replay:compileReleaseShaders NO-SOURCE
+> Task :posthog-react-native-session-replay:generateReleaseAssets UP-TO-DATE
+> Task :posthog-react-native-session-replay:mergeReleaseAssets
+> Task :posthog_react-native-plugin:mergeReleaseShaders
+> Task :posthog_react-native-plugin:compileReleaseShaders NO-SOURCE
+> Task :posthog_react-native-plugin:generateReleaseAssets UP-TO-DATE
+> Task :posthog_react-native-plugin:mergeReleaseAssets
+> Task :react-native-async-storage_async-storage:mergeReleaseShaders
+> Task :react-native-async-storage_async-storage:compileReleaseShaders NO-SOURCE
+> Task :react-native-async-storage_async-storage:generateReleaseAssets UP-TO-DATE
+> Task :react-native-async-storage_async-storage:mergeReleaseAssets
+> Task :react-native-community_netinfo:mergeReleaseShaders
+> Task :react-native-community_netinfo:compileReleaseShaders NO-SOURCE
+> Task :react-native-community_netinfo:generateReleaseAssets UP-TO-DATE
+> Task :react-native-community_netinfo:mergeReleaseAssets
+> Task :react-native-fast-tflite:mergeReleaseShaders
+> Task :react-native-fast-tflite:compileReleaseShaders NO-SOURCE
+> Task :react-native-fast-tflite:generateReleaseAssets UP-TO-DATE
+> Task :react-native-fast-tflite:mergeReleaseAssets
+> Task :react-native-gesture-handler:mergeReleaseShaders
+> Task :react-native-gesture-handler:compileReleaseShaders NO-SOURCE
+> Task :react-native-gesture-handler:generateReleaseAssets UP-TO-DATE
+> Task :react-native-gesture-handler:mergeReleaseAssets
+> Task :react-native-get-random-values:mergeReleaseShaders
+> Task :react-native-get-random-values:compileReleaseShaders NO-SOURCE
+> Task :react-native-get-random-values:generateReleaseAssets UP-TO-DATE
+> Task :react-native-get-random-values:mergeReleaseAssets
+> Task :react-native-nitro-modules:mergeReleaseShaders
+> Task :react-native-nitro-modules:compileReleaseShaders NO-SOURCE
+> Task :react-native-nitro-modules:generateReleaseAssets UP-TO-DATE
+> Task :react-native-nitro-modules:mergeReleaseAssets
+> Task :react-native-purchases:mergeReleaseShaders
+> Task :react-native-purchases:compileReleaseShaders NO-SOURCE
+> Task :react-native-purchases:generateReleaseAssets UP-TO-DATE
+> Task :react-native-purchases:mergeReleaseAssets
+> Task :react-native-safe-area-context:mergeReleaseShaders
+> Task :react-native-safe-area-context:compileReleaseShaders NO-SOURCE
+> Task :react-native-safe-area-context:generateReleaseAssets UP-TO-DATE
+> Task :react-native-safe-area-context:mergeReleaseAssets
+> Task :react-native-screens:mergeReleaseShaders
+> Task :react-native-screens:compileReleaseShaders NO-SOURCE
+> Task :react-native-screens:generateReleaseAssets UP-TO-DATE
+> Task :react-native-screens:mergeReleaseAssets
+> Task :react-native-svg:mergeReleaseShaders
+> Task :react-native-svg:compileReleaseShaders NO-SOURCE
+> Task :react-native-svg:generateReleaseAssets UP-TO-DATE
+> Task :react-native-svg:mergeReleaseAssets
+> Task :react-native-vision-camera:mergeReleaseShaders
+> Task :react-native-vision-camera:compileReleaseShaders NO-SOURCE
+> Task :react-native-vision-camera:generateReleaseAssets UP-TO-DATE
+> Task :react-native-vision-camera:mergeReleaseAssets
+> Task :react-native-worklets-core:mergeReleaseShaders
+> Task :react-native-worklets-core:compileReleaseShaders NO-SOURCE
+> Task :react-native-worklets-core:generateReleaseAssets UP-TO-DATE
+> Task :react-native-worklets-core:mergeReleaseAssets
+> Task :sentry_react-native:mergeReleaseShaders
+> Task :sentry_react-native:compileReleaseShaders NO-SOURCE
+> Task :sentry_react-native:generateReleaseAssets UP-TO-DATE
+> Task :sentry_react-native:mergeReleaseAssets
+> Task :vision-camera-resize-plugin:mergeReleaseShaders
+> Task :vision-camera-resize-plugin:compileReleaseShaders NO-SOURCE
+> Task :vision-camera-resize-plugin:generateReleaseAssets UP-TO-DATE
+> Task :vision-camera-resize-plugin:mergeReleaseAssets
+> Task :posthog_react-native-plugin:bundleLibRuntimeToJarRelease
+> Task :posthog-react-native-session-replay:bundleLibRuntimeToJarRelease
+> Task :react-native-fast-tflite:bundleLibRuntimeToJarRelease
+> Task :react-native-gesture-handler:bundleLibRuntimeToJarRelease
+> Task :react-native-nitro-modules:bundleLibRuntimeToJarRelease
+> Task :react-native-safe-area-context:bundleLibRuntimeToJarRelease
+> Task :react-native-screens:bundleLibRuntimeToJarRelease
+> Task :vision-camera-resize-plugin:bundleLibRuntimeToJarRelease
+> Task :react-native-vision-camera:bundleLibRuntimeToJarRelease
+> Task :react-native-async-storage_async-storage:bundleLibRuntimeToJarRelease
+> Task :react-native-community_netinfo:bundleLibRuntimeToJarRelease
+> Task :sentry_react-native:bundleLibRuntimeToJarRelease
+> Task :expo:bundleLibRuntimeToJarRelease
+> Task :react-native-get-random-values:bundleLibRuntimeToJarRelease
+> Task :react-native-purchases:bundleLibRuntimeToJarRelease
+> Task :react-native-svg:bundleLibRuntimeToJarRelease
+> Task :react-native-worklets-core:bundleLibRuntimeToJarRelease
+> Task :expo-dev-launcher:bundleLibRuntimeToJarRelease
+> Task :expo-dev-menu:bundleLibRuntimeToJarRelease
+> Task :expo-dev-menu-interface:bundleLibRuntimeToJarRelease
+> Task :expo-modules-core:bundleLibRuntimeToJarRelease
+> Task :expo-constants:bundleLibRuntimeToJarRelease
+> Task :expo-dev-client:bundleLibRuntimeToJarRelease
+> Task :expo-manifests:bundleLibRuntimeToJarRelease
+> Task :expo-json-utils:bundleLibRuntimeToJarRelease
+> Task :expo-updates-interface:bundleLibRuntimeToJarRelease
+> Task :expo:processReleaseJavaRes
+> Task :expo-constants:processReleaseJavaRes
+> Task :expo-dev-client:processReleaseJavaRes NO-SOURCE
+> Task :expo-dev-launcher:processReleaseJavaRes
+> Task :expo-dev-menu:processReleaseJavaRes
+> Task :expo-dev-menu-interface:processReleaseJavaRes
+> Task :expo-json-utils:processReleaseJavaRes
+> Task :expo-manifests:processReleaseJavaRes
+> Task :expo-modules-core:processReleaseJavaRes
+> Task :expo-updates-interface:processReleaseJavaRes
+> Task :posthog-react-native-session-replay:processReleaseJavaRes
+> Task :posthog_react-native-plugin:processReleaseJavaRes
+> Task :react-native-async-storage_async-storage:processReleaseJavaRes NO-SOURCE
+> Task :react-native-community_netinfo:processReleaseJavaRes NO-SOURCE
+> Task :react-native-fast-tflite:processReleaseJavaRes
+> Task :react-native-gesture-handler:processReleaseJavaRes
+> Task :react-native-get-random-values:processReleaseJavaRes NO-SOURCE
+> Task :react-native-nitro-modules:processReleaseJavaRes
+> Task :react-native-purchases:processReleaseJavaRes
+> Task :react-native-safe-area-context:processReleaseJavaRes
+> Task :react-native-screens:processReleaseJavaRes
+> Task :react-native-svg:processReleaseJavaRes NO-SOURCE
+> Task :react-native-vision-camera:processReleaseJavaRes
+> Task :react-native-worklets-core:processReleaseJavaRes NO-SOURCE
+> Task :sentry_react-native:processReleaseJavaRes NO-SOURCE
+> Task :vision-camera-resize-plugin:processReleaseJavaRes
+> Task :react-native-nitro-modules:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-nitro-modules:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-nitro-modules:configureCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-nitro-modules:buildCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-nitro-modules:externalNativeBuildRelease
+> Task :react-native-nitro-modules:generateJsonModelRelease
+> Task :react-native-nitro-modules:prefabReleaseConfigurePackage
+> Task :react-native-worklets-core:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-worklets-core:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-worklets-core:configureCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-worklets-core:buildCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-worklets-core:externalNativeBuildRelease
+> Task :react-native-worklets-core:generateJsonModelRelease
+> Task :react-native-worklets-core:prefabReleaseConfigurePackage
+> Task :app:createBundleReleaseJsAndAssets_SentryUpload_com.juanescobar.gymup@1.4.0+26_26 SKIPPED
+> Task :app:generateAutolinkingNewArchitectureFiles
+> Task :app:generateAutolinkingPackageList
+> Task :app:generateCodegenSchemaFromJavaScript SKIPPED
+> Task :app:generateCodegenArtifactsFromSchema SKIPPED
+> Task :app:generateReactNativeEntryPoint
+> Task :app:preBuild
+> Task :app:preReleaseBuild
+> Task :react-native-vision-camera:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :app:generateReleaseResValues FROM-CACHE
+> Task :react-native-vision-camera:configureCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-vision-camera:generateJsonModelRelease
+> Task :react-native-vision-camera:prefabReleaseConfigurePackage
+> Task :app:mapReleaseSourceSetPaths
+> Task :app:generateReleaseResources FROM-CACHE
+> Task :react-native-nitro-modules:prefabReleasePackage
+> Task :app:mergeReleaseResources FROM-CACHE
+> Task :app:createReleaseCompatibleScreenManifests
+> Task :app:extractDeepLinksRelease FROM-CACHE
+> Task :react-native-worklets-core:prefabReleasePackage
+
+> Task :app:processReleaseMainManifest
+C:\GymUp\android\app\src\main\AndroidManifest.xml:5:3-92 Warning:
+	uses-permission#android.permission.READ_PHONE_STATE was tagged at AndroidManifest.xml:5 to remove other declarations but no other declaration present
+C:\GymUp\android\app\src\main\AndroidManifest.xml:7:3-95 Warning:
+	uses-permission#android.permission.SYSTEM_ALERT_WINDOW was tagged at AndroidManifest.xml:7 to remove other declarations but no other declaration present
+C:\GymUp\android\app\src\main\AndroidManifest.xml Warning:
+	activity#expo.modules.imagepicker.ExpoCropImageActivity@android:exported was tagged at AndroidManifest.xml:0 to replace other declarations but no other declaration present
+C:\GymUp\android\app\src\main\AndroidManifest.xml Warning:
+	provider#expo.modules.filesystem.FileSystemFileProvider@android:authorities was tagged at AndroidManifest.xml:0 to replace other declarations but no other declaration present
+
+> Task :app:processReleaseManifest
+> Task :app:processApplicationManifestReleaseForBundle
+> Task :app:checkReleaseAarMetadata
+> Task :app:packageReleaseResources FROM-CACHE
+> Task :app:parseReleaseLocalResources FROM-CACHE
+> Task :app:processReleaseManifestForPackage
+> Task :app:processReleaseResources
+> Task :react-native-vision-camera:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :app:bundleReleaseResources
+> Task :app:extractReleaseVersionControlInfo
+> Task :app:checkReleaseDuplicateClasses
+> Task :app:buildKotlinToolingMetadata
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateReleaseBuildConfig
+> Task :app:javaPreCompileRelease FROM-CACHE
+> Task :app:desugarReleaseFileDependencies FROM-CACHE
+> Task :app:mergeReleaseStartupProfile
+> Task :app:mergeExtDexRelease FROM-CACHE
+> Task :app:mergeReleaseShaders
+> Task :app:compileReleaseShaders NO-SOURCE
+> Task :app:generateReleaseAssets UP-TO-DATE
+> Task :app:mergeReleaseAssets
+
+> Task :app:configureCMakeRelWithDebInfo[arm64-v8a]
+C/C++: CMake Warning in C:/GymUp/node_modules/vision-camera-resize-plugin/android/build/generated/source/codegen/jni/CMakeLists.txt:
+C/C++:   The object file directory
+C/C++:     C:/GymUp/android/app/.cxx/RelWithDebInfo/5l68748f/arm64-v8a/RNVisionCameraResizePluginSpec_autolinked_build/CMakeFiles/react_codegen_RNVisionCameraResizePluginSpec.dir/./
+C/C++:   has 170 characters.  The maximum full path to an object file is 250
+C/C++:   characters (see CMAKE_OBJECT_PATH_MAX).  Object file
+C/C++:     react/renderer/components/RNVisionCameraResizePluginSpec/RNVisionCameraResizePluginSpecJSI-generated.cpp.o
+C/C++:   cannot be safely placed under this directory.  The build may not work
+C/C++:   correctly.
+
+> Task :app:compileReleaseKotlin
+w: file:///C:/GymUp/android/app/src/main/java/com/juanescobar/gymup/MainApplication.kt:9:8 'class ReactNativeHost : Any' is deprecated. Deprecated in Java.
+w: file:///C:/GymUp/android/app/src/main/java/com/juanescobar/gymup/MainApplication.kt:21:16 This declaration overrides a deprecated member but is not marked as deprecated itself. Add the '@Deprecated' annotation or suppress the diagnostic.
+w: file:///C:/GymUp/android/app/src/main/java/com/juanescobar/gymup/MainApplication.kt:21:33 'class ReactNativeHost : Any' is deprecated. Deprecated in Java.
+
+> Task :react-native-vision-camera:buildCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-worklets-core:mergeReleaseJniLibFolders
+> Task :react-native-worklets-core:mergeReleaseNativeLibs
+> Task :react-native-worklets-core:copyReleaseJniLibsProjectOnly
+> Task :react-native-vision-camera:externalNativeBuildRelease
+> Task :react-native-vision-camera:prefabReleasePackage
+> Task :expo:mergeReleaseJniLibFolders
+> Task :expo:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo:copyReleaseJniLibsProjectOnly
+> Task :expo-constants:mergeReleaseJniLibFolders
+> Task :expo-constants:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-constants:copyReleaseJniLibsProjectOnly
+> Task :expo-dev-client:mergeReleaseJniLibFolders
+> Task :expo-dev-client:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-dev-client:copyReleaseJniLibsProjectOnly
+> Task :expo-dev-launcher:mergeReleaseJniLibFolders
+> Task :expo-dev-launcher:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-dev-launcher:copyReleaseJniLibsProjectOnly
+> Task :expo-dev-menu:mergeReleaseJniLibFolders
+> Task :expo-dev-menu:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-dev-menu:copyReleaseJniLibsProjectOnly
+> Task :expo-dev-menu-interface:mergeReleaseJniLibFolders
+> Task :expo-dev-menu-interface:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-dev-menu-interface:copyReleaseJniLibsProjectOnly
+> Task :expo-json-utils:mergeReleaseJniLibFolders
+> Task :expo-json-utils:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-json-utils:copyReleaseJniLibsProjectOnly
+> Task :expo-manifests:mergeReleaseJniLibFolders
+> Task :expo-manifests:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-manifests:copyReleaseJniLibsProjectOnly
+> Task :expo-modules-core:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :expo-modules-core:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :expo-modules-core:configureCMakeRelWithDebInfo[armeabi-v7a]
+> Task :expo-modules-core:buildCMakeRelWithDebInfo[armeabi-v7a]
+> Task :expo-modules-core:mergeReleaseJniLibFolders
+> Task :app:compileReleaseJavaWithJavac
+> Task :expo-modules-core:mergeReleaseNativeLibs
+> Task :app:dexBuilderRelease
+> Task :expo-modules-core:copyReleaseJniLibsProjectOnly
+> Task :app:mergeReleaseGlobalSynthetics FROM-CACHE
+> Task :app:processReleaseJavaRes
+> Task :app:mergeDexRelease
+> Task :app:mergeReleaseJavaResource
+> Task :app:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :expo-updates-interface:mergeReleaseJniLibFolders
+> Task :expo-updates-interface:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-updates-interface:copyReleaseJniLibsProjectOnly
+> Task :posthog-react-native-session-replay:mergeReleaseJniLibFolders
+> Task :posthog-react-native-session-replay:mergeReleaseNativeLibs NO-SOURCE
+> Task :posthog-react-native-session-replay:copyReleaseJniLibsProjectOnly
+> Task :posthog_react-native-plugin:mergeReleaseJniLibFolders
+> Task :posthog_react-native-plugin:mergeReleaseNativeLibs NO-SOURCE
+> Task :posthog_react-native-plugin:copyReleaseJniLibsProjectOnly
+> Task :react-native-async-storage_async-storage:mergeReleaseJniLibFolders
+> Task :react-native-async-storage_async-storage:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-async-storage_async-storage:copyReleaseJniLibsProjectOnly
+> Task :react-native-community_netinfo:mergeReleaseJniLibFolders
+> Task :react-native-community_netinfo:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-community_netinfo:copyReleaseJniLibsProjectOnly
+> Task :react-native-fast-tflite:extractAARHeaders
+> Task :react-native-fast-tflite:extractSOFiles
+> Task :react-native-fast-tflite:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-fast-tflite:cleanEmptyDirectories
+> Task :react-native-fast-tflite:buildCMakeRelWithDebInfo[arm64-v8a]
+C/C++: ninja: Entering directory `C:\GymUp\node_modules\react-native-fast-tflite\android\.cxx\RelWithDebInfo\6tg6w5u5\arm64-v8a'
+C/C++: C:/GymUp/node_modules/react-native-fast-tflite/cpp/TfliteHelpers.cpp:23:11: warning: enumeration value 'kTfLiteOutputShapeNotKnown' not handled in switch [-Wswitch]
+C/C++:    23 |   switch (status) {
+C/C++:       |           ^~~~~~
+C/C++: 1 warning generated.
+C/C++: C:/GymUp/node_modules/react-native-fast-tflite/cpp/HybridTfliteModel.cpp:95:25: warning: comparison of integers of different signs: 'int32_t' (aka 'int') and 'size_t' (aka 'unsigned long') [-Wsign-compare]
+C/C++:    95 |   for (int32_t i = 0; i < inputCount; i++) {
+C/C++:       |                       ~ ^ ~~~~~~~~~~
+C/C++: 1 warning generated.
+
+> Task :react-native-fast-tflite:configureCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-fast-tflite:buildCMakeRelWithDebInfo[armeabi-v7a]
+C/C++: ninja: Entering directory `C:\GymUp\node_modules\react-native-fast-tflite\android\.cxx\RelWithDebInfo\6tg6w5u5\armeabi-v7a'
+C/C++: C:/GymUp/node_modules/react-native-fast-tflite/cpp/TfliteHelpers.cpp:23:11: warning: enumeration value 'kTfLiteOutputShapeNotKnown' not handled in switch [-Wswitch]
+C/C++:    23 |   switch (status) {
+C/C++:       |           ^~~~~~
+C/C++: 1 warning generated.
+C/C++: C:/GymUp/node_modules/react-native-fast-tflite/cpp/HybridTfliteModel.cpp:95:25: warning: comparison of integers of different signs: 'int32_t' (aka 'int') and 'size_t' (aka 'unsigned int') [-Wsign-compare]
+C/C++:    95 |   for (int32_t i = 0; i < inputCount; i++) {
+C/C++:       |                       ~ ^ ~~~~~~~~~~
+C/C++: 1 warning generated.
+
+> Task :react-native-fast-tflite:mergeReleaseJniLibFolders
+> Task :react-native-fast-tflite:mergeReleaseNativeLibs
+> Task :react-native-fast-tflite:copyReleaseJniLibsProjectOnly
+> Task :react-native-gesture-handler:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-gesture-handler:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-gesture-handler:configureCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-gesture-handler:buildCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-gesture-handler:mergeReleaseJniLibFolders
+> Task :react-native-gesture-handler:mergeReleaseNativeLibs
+> Task :react-native-gesture-handler:copyReleaseJniLibsProjectOnly
+> Task :react-native-get-random-values:mergeReleaseJniLibFolders
+> Task :react-native-get-random-values:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-get-random-values:copyReleaseJniLibsProjectOnly
+> Task :react-native-nitro-modules:mergeReleaseJniLibFolders
+> Task :react-native-nitro-modules:mergeReleaseNativeLibs
+> Task :react-native-nitro-modules:copyReleaseJniLibsProjectOnly
+> Task :react-native-purchases:mergeReleaseJniLibFolders
+> Task :react-native-purchases:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-purchases:copyReleaseJniLibsProjectOnly
+> Task :react-native-safe-area-context:mergeReleaseJniLibFolders
+> Task :react-native-safe-area-context:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-safe-area-context:copyReleaseJniLibsProjectOnly
+> Task :react-native-screens:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-screens:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-screens:configureCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-screens:buildCMakeRelWithDebInfo[armeabi-v7a]
+> Task :react-native-screens:mergeReleaseJniLibFolders
+> Task :react-native-screens:mergeReleaseNativeLibs
+> Task :react-native-screens:copyReleaseJniLibsProjectOnly
+> Task :react-native-svg:mergeReleaseJniLibFolders
+> Task :react-native-svg:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-svg:copyReleaseJniLibsProjectOnly
+> Task :react-native-vision-camera:mergeReleaseJniLibFolders
+> Task :react-native-vision-camera:mergeReleaseNativeLibs
+> Task :react-native-vision-camera:copyReleaseJniLibsProjectOnly
+> Task :sentry_react-native:mergeReleaseJniLibFolders
+> Task :sentry_react-native:mergeReleaseNativeLibs NO-SOURCE
+> Task :sentry_react-native:copyReleaseJniLibsProjectOnly
+> Task :vision-camera-resize-plugin:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :vision-camera-resize-plugin:buildCMakeRelWithDebInfo[arm64-v8a]
+> Task :vision-camera-resize-plugin:configureCMakeRelWithDebInfo[armeabi-v7a]
+> Task :vision-camera-resize-plugin:buildCMakeRelWithDebInfo[armeabi-v7a]
+> Task :vision-camera-resize-plugin:mergeReleaseJniLibFolders
+> Task :vision-camera-resize-plugin:mergeReleaseNativeLibs
+> Task :vision-camera-resize-plugin:copyReleaseJniLibsProjectOnly
+> Task :expo:prepareReleaseArtProfile
+> Task :expo-constants:prepareReleaseArtProfile
+> Task :expo-dev-client:prepareReleaseArtProfile
+> Task :expo-dev-launcher:prepareReleaseArtProfile
+> Task :expo-dev-menu:prepareReleaseArtProfile
+> Task :expo-dev-menu-interface:prepareReleaseArtProfile
+> Task :expo-json-utils:prepareReleaseArtProfile
+> Task :expo-manifests:prepareReleaseArtProfile
+> Task :expo-modules-core:prepareReleaseArtProfile
+> Task :expo-updates-interface:prepareReleaseArtProfile
+> Task :posthog-react-native-session-replay:prepareReleaseArtProfile
+> Task :posthog_react-native-plugin:prepareReleaseArtProfile
+> Task :react-native-async-storage_async-storage:prepareReleaseArtProfile
+> Task :react-native-community_netinfo:prepareReleaseArtProfile
+> Task :react-native-fast-tflite:prepareReleaseArtProfile
+> Task :react-native-gesture-handler:prepareReleaseArtProfile
+> Task :react-native-get-random-values:prepareReleaseArtProfile
+> Task :react-native-nitro-modules:prepareReleaseArtProfile
+> Task :react-native-purchases:prepareReleaseArtProfile
+> Task :react-native-safe-area-context:prepareReleaseArtProfile
+> Task :react-native-screens:prepareReleaseArtProfile
+> Task :react-native-svg:prepareReleaseArtProfile
+> Task :react-native-vision-camera:prepareReleaseArtProfile
+> Task :react-native-worklets-core:prepareReleaseArtProfile
+> Task :sentry_react-native:prepareReleaseArtProfile
+> Task :vision-camera-resize-plugin:prepareReleaseArtProfile
+> Task :expo:createFullJarRelease
+> Task :expo:extractProguardFiles
+> Task :expo-constants:createFullJarRelease
+> Task :expo-constants:extractProguardFiles
+> Task :expo-modules-core:createFullJarRelease
+> Task :expo-modules-core:extractProguardFiles
+> Task :expo-modules-core:generateReleaseLintModel
+> Task :expo-modules-core:prepareLintJarForPublish
+> Task :expo-constants:generateReleaseLintModel
+> Task :expo-constants:prepareLintJarForPublish
+> Task :expo-dev-client:createFullJarRelease
+> Task :expo-dev-client:extractProguardFiles
+> Task :expo-dev-client:generateReleaseLintModel
+> Task :expo-dev-client:prepareLintJarForPublish
+> Task :expo-dev-launcher:createFullJarRelease
+> Task :expo-dev-launcher:extractProguardFiles
+> Task :expo-dev-menu:createFullJarRelease
+> Task :expo-dev-menu:extractProguardFiles
+> Task :expo-dev-menu-interface:createFullJarRelease
+> Task :expo-dev-menu-interface:extractProguardFiles
+> Task :expo-dev-menu-interface:generateReleaseLintModel
+> Task :expo-dev-menu-interface:prepareLintJarForPublish
+> Task :expo-json-utils:createFullJarRelease
+> Task :expo-json-utils:extractProguardFiles
+> Task :expo-json-utils:generateReleaseLintModel
+> Task :expo-json-utils:prepareLintJarForPublish
+> Task :expo-manifests:createFullJarRelease
+> Task :expo-manifests:extractProguardFiles
+> Task :expo-manifests:generateReleaseLintModel
+> Task :expo-manifests:prepareLintJarForPublish
+> Task :expo-dev-menu:generateReleaseLintModel
+> Task :expo-dev-menu:prepareLintJarForPublish
+> Task :expo-updates-interface:createFullJarRelease
+> Task :expo-updates-interface:extractProguardFiles
+> Task :expo-updates-interface:generateReleaseLintModel
+> Task :expo-updates-interface:prepareLintJarForPublish
+> Task :expo-dev-launcher:generateReleaseLintModel
+> Task :expo-dev-launcher:prepareLintJarForPublish
+> Task :expo:generateReleaseLintModel
+> Task :expo:prepareLintJarForPublish
+> Task :posthog-react-native-session-replay:createFullJarRelease
+> Task :posthog-react-native-session-replay:extractProguardFiles
+> Task :posthog-react-native-session-replay:generateReleaseLintModel
+> Task :posthog-react-native-session-replay:prepareLintJarForPublish
+> Task :posthog_react-native-plugin:createFullJarRelease
+> Task :posthog_react-native-plugin:extractProguardFiles
+> Task :posthog_react-native-plugin:generateReleaseLintModel
+> Task :posthog_react-native-plugin:prepareLintJarForPublish
+> Task :react-native-async-storage_async-storage:createFullJarRelease
+> Task :react-native-async-storage_async-storage:extractProguardFiles
+> Task :react-native-async-storage_async-storage:generateReleaseLintModel
+> Task :react-native-async-storage_async-storage:prepareLintJarForPublish
+> Task :react-native-community_netinfo:createFullJarRelease
+> Task :react-native-community_netinfo:extractProguardFiles
+> Task :react-native-community_netinfo:generateReleaseLintModel
+> Task :react-native-community_netinfo:prepareLintJarForPublish
+> Task :react-native-fast-tflite:createFullJarRelease
+> Task :react-native-fast-tflite:extractProguardFiles
+> Task :react-native-nitro-modules:createFullJarRelease
+> Task :react-native-nitro-modules:extractProguardFiles
+> Task :react-native-nitro-modules:generateReleaseLintModel
+> Task :react-native-nitro-modules:prepareLintJarForPublish
+> Task :react-native-fast-tflite:generateReleaseLintModel
+> Task :react-native-fast-tflite:prepareLintJarForPublish
+> Task :react-native-gesture-handler:createFullJarRelease
+> Task :react-native-gesture-handler:extractProguardFiles
+> Task :react-native-svg:createFullJarRelease
+> Task :react-native-svg:extractProguardFiles
+> Task :react-native-svg:generateReleaseLintModel
+> Task :react-native-svg:prepareLintJarForPublish
+> Task :react-native-gesture-handler:generateReleaseLintModel
+> Task :react-native-gesture-handler:prepareLintJarForPublish
+> Task :react-native-get-random-values:createFullJarRelease
+> Task :react-native-get-random-values:extractProguardFiles
+> Task :react-native-get-random-values:generateReleaseLintModel
+> Task :react-native-get-random-values:prepareLintJarForPublish
+> Task :react-native-purchases:createFullJarRelease
+> Task :react-native-purchases:extractProguardFiles
+> Task :react-native-purchases:generateReleaseLintModel
+> Task :react-native-purchases:prepareLintJarForPublish
+> Task :react-native-safe-area-context:createFullJarRelease
+> Task :react-native-safe-area-context:extractProguardFiles
+> Task :react-native-safe-area-context:generateReleaseLintModel
+> Task :react-native-safe-area-context:prepareLintJarForPublish
+> Task :react-native-screens:createFullJarRelease
+> Task :react-native-screens:extractProguardFiles
+> Task :react-native-screens:generateReleaseLintModel
+> Task :react-native-screens:prepareLintJarForPublish
+> Task :react-native-vision-camera:createFullJarRelease
+> Task :react-native-vision-camera:extractProguardFiles
+> Task :react-native-worklets-core:createFullJarRelease
+> Task :react-native-worklets-core:extractProguardFiles
+> Task :react-native-worklets-core:generateReleaseLintModel
+> Task :react-native-worklets-core:prepareLintJarForPublish
+> Task :react-native-vision-camera:generateReleaseLintModel
+> Task :react-native-vision-camera:prepareLintJarForPublish
+> Task :sentry_react-native:createFullJarRelease
+> Task :sentry_react-native:extractProguardFiles
+> Task :sentry_react-native:generateReleaseLintModel
+> Task :sentry_react-native:prepareLintJarForPublish
+> Task :vision-camera-resize-plugin:createFullJarRelease
+> Task :vision-camera-resize-plugin:extractProguardFiles
+> Task :vision-camera-resize-plugin:generateReleaseLintModel
+> Task :vision-camera-resize-plugin:prepareLintJarForPublish
+> Task :posthog_react-native-plugin:stripReleaseDebugSymbols NO-SOURCE
+> Task :posthog_react-native-plugin:copyReleaseJniLibsProjectAndLocalJars
+> Task :posthog_react-native-plugin:extractDeepLinksForAarRelease FROM-CACHE
+> Task :posthog_react-native-plugin:extractReleaseAnnotations FROM-CACHE
+> Task :posthog_react-native-plugin:mergeReleaseGeneratedProguardFiles
+> Task :posthog_react-native-plugin:mergeReleaseConsumerProguardFiles
+> Task :posthog_react-native-plugin:mergeReleaseJavaResource
+> Task :posthog_react-native-plugin:syncReleaseLibJars FROM-CACHE
+> Task :posthog_react-native-plugin:bundleReleaseLocalLintAar
+> Task :posthog-react-native-session-replay:stripReleaseDebugSymbols NO-SOURCE
+> Task :posthog-react-native-session-replay:copyReleaseJniLibsProjectAndLocalJars
+> Task :posthog-react-native-session-replay:extractDeepLinksForAarRelease FROM-CACHE
+> Task :posthog-react-native-session-replay:extractReleaseAnnotations FROM-CACHE
+> Task :posthog-react-native-session-replay:mergeReleaseGeneratedProguardFiles
+> Task :posthog-react-native-session-replay:mergeReleaseConsumerProguardFiles
+> Task :posthog-react-native-session-replay:mergeReleaseJavaResource
+> Task :posthog-react-native-session-replay:syncReleaseLibJars FROM-CACHE
+> Task :posthog-react-native-session-replay:bundleReleaseLocalLintAar
+> Task :react-native-fast-tflite:stripReleaseDebugSymbols
+> Task :react-native-fast-tflite:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-fast-tflite:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-fast-tflite:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-fast-tflite:mergeReleaseGeneratedProguardFiles
+> Task :react-native-fast-tflite:mergeReleaseConsumerProguardFiles
+> Task :react-native-fast-tflite:mergeReleaseJavaResource
+> Task :react-native-fast-tflite:syncReleaseLibJars FROM-CACHE
+> Task :react-native-fast-tflite:bundleReleaseLocalLintAar
+> Task :react-native-gesture-handler:stripReleaseDebugSymbols
+> Task :react-native-gesture-handler:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-gesture-handler:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-gesture-handler:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-gesture-handler:mergeReleaseGeneratedProguardFiles
+> Task :react-native-gesture-handler:mergeReleaseConsumerProguardFiles
+> Task :react-native-gesture-handler:mergeReleaseJavaResource
+> Task :react-native-gesture-handler:syncReleaseLibJars FROM-CACHE
+> Task :react-native-gesture-handler:bundleReleaseLocalLintAar
+> Task :react-native-nitro-modules:stripReleaseDebugSymbols
+> Task :react-native-nitro-modules:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-nitro-modules:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-nitro-modules:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-nitro-modules:mergeReleaseGeneratedProguardFiles
+> Task :react-native-nitro-modules:mergeReleaseConsumerProguardFiles
+> Task :react-native-nitro-modules:mergeReleaseJavaResource
+> Task :react-native-nitro-modules:syncReleaseLibJars FROM-CACHE
+> Task :react-native-nitro-modules:bundleReleaseLocalLintAar
+> Task :react-native-safe-area-context:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-safe-area-context:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-safe-area-context:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-safe-area-context:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-safe-area-context:mergeReleaseGeneratedProguardFiles
+> Task :react-native-safe-area-context:mergeReleaseConsumerProguardFiles
+> Task :react-native-safe-area-context:mergeReleaseJavaResource
+> Task :react-native-safe-area-context:syncReleaseLibJars FROM-CACHE
+> Task :react-native-safe-area-context:bundleReleaseLocalLintAar
+> Task :react-native-screens:stripReleaseDebugSymbols
+> Task :react-native-screens:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-screens:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-screens:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-screens:mergeReleaseGeneratedProguardFiles
+> Task :react-native-screens:mergeReleaseConsumerProguardFiles
+> Task :react-native-screens:mergeReleaseJavaResource
+> Task :react-native-screens:syncReleaseLibJars FROM-CACHE
+> Task :react-native-screens:bundleReleaseLocalLintAar
+> Task :vision-camera-resize-plugin:stripReleaseDebugSymbols
+> Task :vision-camera-resize-plugin:copyReleaseJniLibsProjectAndLocalJars
+> Task :vision-camera-resize-plugin:extractDeepLinksForAarRelease FROM-CACHE
+> Task :vision-camera-resize-plugin:extractReleaseAnnotations FROM-CACHE
+> Task :vision-camera-resize-plugin:mergeReleaseGeneratedProguardFiles
+> Task :vision-camera-resize-plugin:mergeReleaseConsumerProguardFiles
+> Task :vision-camera-resize-plugin:mergeReleaseJavaResource
+> Task :vision-camera-resize-plugin:syncReleaseLibJars FROM-CACHE
+> Task :vision-camera-resize-plugin:bundleReleaseLocalLintAar
+> Task :react-native-vision-camera:stripReleaseDebugSymbols
+> Task :react-native-vision-camera:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-vision-camera:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-vision-camera:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-vision-camera:mergeReleaseGeneratedProguardFiles
+> Task :react-native-vision-camera:mergeReleaseConsumerProguardFiles
+> Task :react-native-vision-camera:mergeReleaseJavaResource
+> Task :react-native-vision-camera:syncReleaseLibJars FROM-CACHE
+> Task :react-native-vision-camera:bundleReleaseLocalLintAar
+> Task :react-native-async-storage_async-storage:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-async-storage_async-storage:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-async-storage_async-storage:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-async-storage_async-storage:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-async-storage_async-storage:mergeReleaseGeneratedProguardFiles
+> Task :react-native-async-storage_async-storage:mergeReleaseConsumerProguardFiles
+> Task :react-native-async-storage_async-storage:mergeReleaseJavaResource
+> Task :react-native-async-storage_async-storage:syncReleaseLibJars FROM-CACHE
+> Task :react-native-async-storage_async-storage:bundleReleaseLocalLintAar
+> Task :react-native-community_netinfo:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-community_netinfo:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-community_netinfo:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-community_netinfo:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-community_netinfo:mergeReleaseGeneratedProguardFiles
+> Task :react-native-community_netinfo:mergeReleaseConsumerProguardFiles
+> Task :react-native-community_netinfo:mergeReleaseJavaResource
+> Task :react-native-community_netinfo:syncReleaseLibJars FROM-CACHE
+> Task :react-native-community_netinfo:bundleReleaseLocalLintAar
+> Task :sentry_react-native:stripReleaseDebugSymbols NO-SOURCE
+> Task :sentry_react-native:copyReleaseJniLibsProjectAndLocalJars
+> Task :sentry_react-native:extractDeepLinksForAarRelease FROM-CACHE
+> Task :sentry_react-native:extractReleaseAnnotations FROM-CACHE
+> Task :sentry_react-native:mergeReleaseGeneratedProguardFiles
+> Task :sentry_react-native:mergeReleaseConsumerProguardFiles
+> Task :sentry_react-native:mergeReleaseJavaResource
+> Task :sentry_react-native:syncReleaseLibJars FROM-CACHE
+> Task :sentry_react-native:bundleReleaseLocalLintAar
+> Task :expo:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo:extractReleaseAnnotations FROM-CACHE
+> Task :expo:mergeReleaseGeneratedProguardFiles
+> Task :expo:mergeReleaseConsumerProguardFiles
+> Task :expo:mergeReleaseJavaResource
+> Task :expo:syncReleaseLibJars FROM-CACHE
+> Task :expo:bundleReleaseLocalLintAar
+> Task :react-native-get-random-values:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-get-random-values:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-get-random-values:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-get-random-values:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-get-random-values:mergeReleaseGeneratedProguardFiles
+> Task :react-native-get-random-values:mergeReleaseConsumerProguardFiles
+> Task :react-native-get-random-values:mergeReleaseJavaResource
+> Task :react-native-get-random-values:syncReleaseLibJars FROM-CACHE
+> Task :react-native-get-random-values:bundleReleaseLocalLintAar
+> Task :react-native-purchases:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-purchases:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-purchases:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-purchases:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-purchases:mergeReleaseGeneratedProguardFiles
+> Task :react-native-purchases:mergeReleaseConsumerProguardFiles
+> Task :react-native-purchases:mergeReleaseJavaResource
+> Task :react-native-purchases:syncReleaseLibJars FROM-CACHE
+> Task :react-native-purchases:bundleReleaseLocalLintAar
+> Task :react-native-svg:stripReleaseDebugSymbols NO-SOURCE
+> Task :react-native-svg:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-svg:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-svg:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-svg:mergeReleaseGeneratedProguardFiles
+> Task :react-native-svg:mergeReleaseConsumerProguardFiles
+> Task :react-native-svg:mergeReleaseJavaResource
+> Task :react-native-svg:syncReleaseLibJars FROM-CACHE
+> Task :react-native-svg:bundleReleaseLocalLintAar
+> Task :react-native-worklets-core:stripReleaseDebugSymbols
+> Task :react-native-worklets-core:copyReleaseJniLibsProjectAndLocalJars
+> Task :react-native-worklets-core:extractDeepLinksForAarRelease FROM-CACHE
+> Task :react-native-worklets-core:extractReleaseAnnotations FROM-CACHE
+> Task :react-native-worklets-core:mergeReleaseGeneratedProguardFiles
+> Task :react-native-worklets-core:mergeReleaseConsumerProguardFiles
+> Task :react-native-worklets-core:mergeReleaseJavaResource
+> Task :react-native-worklets-core:syncReleaseLibJars FROM-CACHE
+> Task :react-native-worklets-core:bundleReleaseLocalLintAar
+> Task :expo-dev-launcher:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-dev-launcher:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-dev-launcher:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo-dev-launcher:extractReleaseAnnotations FROM-CACHE
+> Task :expo-dev-launcher:mergeReleaseGeneratedProguardFiles
+> Task :expo-dev-launcher:mergeReleaseConsumerProguardFiles
+> Task :expo-dev-launcher:mergeReleaseJavaResource
+> Task :expo-dev-launcher:syncReleaseLibJars FROM-CACHE
+> Task :expo-dev-launcher:bundleReleaseLocalLintAar
+> Task :expo-dev-menu:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-dev-menu:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-dev-menu:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo-dev-menu:extractReleaseAnnotations FROM-CACHE
+> Task :expo-dev-menu:mergeReleaseGeneratedProguardFiles
+> Task :expo-dev-menu:mergeReleaseConsumerProguardFiles
+> Task :expo-dev-menu:mergeReleaseJavaResource
+> Task :expo-dev-menu:syncReleaseLibJars FROM-CACHE
+> Task :expo-dev-menu:bundleReleaseLocalLintAar
+> Task :expo-dev-menu-interface:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-dev-menu-interface:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-dev-menu-interface:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo-dev-menu-interface:extractReleaseAnnotations FROM-CACHE
+> Task :expo-dev-menu-interface:mergeReleaseGeneratedProguardFiles
+> Task :expo-dev-menu-interface:mergeReleaseConsumerProguardFiles
+> Task :expo-dev-menu-interface:mergeReleaseJavaResource
+> Task :expo-dev-menu-interface:syncReleaseLibJars FROM-CACHE
+> Task :expo-dev-menu-interface:bundleReleaseLocalLintAar
+> Task :expo-modules-core:stripReleaseDebugSymbols
+> Task :expo-modules-core:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-modules-core:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo-modules-core:extractReleaseAnnotations FROM-CACHE
+> Task :expo-modules-core:mergeReleaseGeneratedProguardFiles
+> Task :expo-modules-core:mergeReleaseConsumerProguardFiles
+> Task :expo-modules-core:mergeReleaseJavaResource
+> Task :expo-modules-core:syncReleaseLibJars FROM-CACHE
+> Task :expo-modules-core:bundleReleaseLocalLintAar
+> Task :expo-constants:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-constants:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-constants:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo-constants:extractReleaseAnnotations FROM-CACHE
+> Task :expo-constants:mergeReleaseGeneratedProguardFiles
+> Task :expo-constants:mergeReleaseConsumerProguardFiles
+> Task :expo-constants:mergeReleaseJavaResource
+> Task :expo-constants:syncReleaseLibJars FROM-CACHE
+> Task :expo-constants:bundleReleaseLocalLintAar
+> Task :expo-dev-client:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-dev-client:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-dev-client:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo-dev-client:extractReleaseAnnotations FROM-CACHE
+> Task :expo-dev-client:mergeReleaseGeneratedProguardFiles
+> Task :expo-dev-client:mergeReleaseConsumerProguardFiles
+> Task :expo-dev-client:mergeReleaseJavaResource
+> Task :expo-dev-client:syncReleaseLibJars FROM-CACHE
+> Task :expo-dev-client:bundleReleaseLocalLintAar
+> Task :expo-manifests:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-manifests:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-manifests:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo-manifests:extractReleaseAnnotations FROM-CACHE
+> Task :expo-manifests:mergeReleaseGeneratedProguardFiles
+> Task :expo-manifests:mergeReleaseConsumerProguardFiles
+> Task :expo-manifests:mergeReleaseJavaResource
+> Task :expo-manifests:syncReleaseLibJars FROM-CACHE
+> Task :expo-manifests:bundleReleaseLocalLintAar
+> Task :expo-json-utils:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-json-utils:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-json-utils:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo-json-utils:extractReleaseAnnotations FROM-CACHE
+> Task :expo-json-utils:mergeReleaseGeneratedProguardFiles
+> Task :expo-json-utils:mergeReleaseConsumerProguardFiles
+> Task :expo-json-utils:mergeReleaseJavaResource
+> Task :expo-json-utils:syncReleaseLibJars FROM-CACHE
+> Task :expo-json-utils:bundleReleaseLocalLintAar
+> Task :expo-updates-interface:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-updates-interface:copyReleaseJniLibsProjectAndLocalJars
+> Task :expo-updates-interface:extractDeepLinksForAarRelease FROM-CACHE
+> Task :expo-updates-interface:extractReleaseAnnotations FROM-CACHE
+> Task :expo-updates-interface:mergeReleaseGeneratedProguardFiles
+> Task :expo-updates-interface:mergeReleaseConsumerProguardFiles
+> Task :expo-updates-interface:mergeReleaseJavaResource
+> Task :expo-updates-interface:syncReleaseLibJars FROM-CACHE
+> Task :expo-updates-interface:bundleReleaseLocalLintAar
+> Task :expo-constants:writeReleaseLintModelMetadata
+> Task :expo-dev-client:writeReleaseLintModelMetadata
+> Task :expo-dev-launcher:writeReleaseLintModelMetadata
+> Task :expo-dev-menu:writeReleaseLintModelMetadata
+> Task :expo-dev-menu-interface:writeReleaseLintModelMetadata
+> Task :expo-json-utils:writeReleaseLintModelMetadata
+> Task :expo-manifests:writeReleaseLintModelMetadata
+> Task :expo-modules-core:writeReleaseLintModelMetadata
+> Task :expo-updates-interface:writeReleaseLintModelMetadata
+> Task :expo:lintVitalAnalyzeRelease
+> Task :expo:writeReleaseLintModelMetadata
+> Task :expo-constants:lintVitalAnalyzeRelease FROM-CACHE
+> Task :expo-dev-client:lintVitalAnalyzeRelease FROM-CACHE
+> Task :expo-dev-launcher:lintVitalAnalyzeRelease FROM-CACHE
+> Task :expo-dev-menu:lintVitalAnalyzeRelease FROM-CACHE
+> Task :expo-dev-menu-interface:lintVitalAnalyzeRelease FROM-CACHE
+> Task :expo-json-utils:lintVitalAnalyzeRelease FROM-CACHE
+> Task :expo-manifests:lintVitalAnalyzeRelease FROM-CACHE
+> Task :expo-modules-core:lintVitalAnalyzeRelease FROM-CACHE
+> Task :expo-updates-interface:lintVitalAnalyzeRelease FROM-CACHE
+> Task :posthog-react-native-session-replay:lintVitalAnalyzeRelease FROM-CACHE
+> Task :posthog-react-native-session-replay:writeReleaseLintModelMetadata
+> Task :posthog_react-native-plugin:lintVitalAnalyzeRelease FROM-CACHE
+> Task :posthog_react-native-plugin:writeReleaseLintModelMetadata
+> Task :react-native-async-storage_async-storage:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-async-storage_async-storage:writeReleaseLintModelMetadata
+> Task :react-native-community_netinfo:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-community_netinfo:writeReleaseLintModelMetadata
+> Task :react-native-nitro-modules:writeReleaseLintModelMetadata
+> Task :react-native-fast-tflite:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-fast-tflite:writeReleaseLintModelMetadata
+> Task :react-native-svg:writeReleaseLintModelMetadata
+> Task :react-native-gesture-handler:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-gesture-handler:writeReleaseLintModelMetadata
+> Task :react-native-get-random-values:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-get-random-values:writeReleaseLintModelMetadata
+> Task :react-native-nitro-modules:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-purchases:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-purchases:writeReleaseLintModelMetadata
+> Task :react-native-safe-area-context:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-safe-area-context:writeReleaseLintModelMetadata
+> Task :react-native-screens:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-screens:writeReleaseLintModelMetadata
+> Task :react-native-svg:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-worklets-core:writeReleaseLintModelMetadata
+> Task :react-native-vision-camera:lintVitalAnalyzeRelease FROM-CACHE
+> Task :react-native-vision-camera:writeReleaseLintModelMetadata
+> Task :react-native-worklets-core:lintVitalAnalyzeRelease FROM-CACHE
+> Task :sentry_react-native:lintVitalAnalyzeRelease FROM-CACHE
+> Task :sentry_react-native:writeReleaseLintModelMetadata
+> Task :vision-camera-resize-plugin:lintVitalAnalyzeRelease FROM-CACHE
+> Task :vision-camera-resize-plugin:writeReleaseLintModelMetadata
+> Task :expo:generateReleaseLintVitalModel
+> Task :expo-constants:generateReleaseLintVitalModel
+> Task :expo-dev-client:generateReleaseLintVitalModel
+> Task :expo-dev-launcher:generateReleaseLintVitalModel
+> Task :expo-dev-menu:generateReleaseLintVitalModel
+> Task :expo-dev-menu-interface:generateReleaseLintVitalModel
+> Task :expo-json-utils:generateReleaseLintVitalModel
+> Task :expo-manifests:generateReleaseLintVitalModel
+> Task :expo-modules-core:generateReleaseLintVitalModel
+> Task :expo-updates-interface:generateReleaseLintVitalModel
+> Task :posthog-react-native-session-replay:generateReleaseLintVitalModel
+> Task :posthog_react-native-plugin:generateReleaseLintVitalModel
+> Task :react-native-async-storage_async-storage:generateReleaseLintVitalModel
+> Task :react-native-community_netinfo:generateReleaseLintVitalModel
+> Task :react-native-fast-tflite:generateReleaseLintVitalModel
+> Task :react-native-gesture-handler:generateReleaseLintVitalModel
+> Task :react-native-get-random-values:generateReleaseLintVitalModel
+> Task :react-native-nitro-modules:generateReleaseLintVitalModel
+> Task :react-native-purchases:generateReleaseLintVitalModel
+> Task :react-native-safe-area-context:generateReleaseLintVitalModel
+> Task :react-native-screens:generateReleaseLintVitalModel
+> Task :react-native-svg:generateReleaseLintVitalModel
+> Task :react-native-vision-camera:generateReleaseLintVitalModel
+> Task :react-native-worklets-core:generateReleaseLintVitalModel
+> Task :sentry_react-native:generateReleaseLintVitalModel
+> Task :vision-camera-resize-plugin:generateReleaseLintVitalModel
+
+> Task :app:configureCMakeRelWithDebInfo[armeabi-v7a]
+C/C++: CMake Warning in C:/GymUp/node_modules/vision-camera-resize-plugin/android/build/generated/source/codegen/jni/CMakeLists.txt:
+C/C++:   The object file directory
+C/C++:     C:/GymUp/android/app/.cxx/RelWithDebInfo/5l68748f/armeabi-v7a/RNVisionCameraResizePluginSpec_autolinked_build/CMakeFiles/react_codegen_RNVisionCameraResizePluginSpec.dir/./
+C/C++:   has 172 characters.  The maximum full path to an object file is 250
+C/C++:   characters (see CMAKE_OBJECT_PATH_MAX).  Object file
+C/C++:     react/renderer/components/RNVisionCameraResizePluginSpec/RNVisionCameraResizePluginSpecJSI-generated.cpp.o
+C/C++:   cannot be safely placed under this directory.  The build may not work
+C/C++:   correctly.
+
+> Task :app:buildCMakeRelWithDebInfo[armeabi-v7a]
+> Task :app:mergeReleaseJniLibFolders
+> Task :app:writeReleaseAppMetadata
+> Task :app:mergeReleaseArtProfile
+> Task :app:compileReleaseArtProfile
+> Task :app:collectReleaseDependencies
+> Task :app:configureReleaseDependencies
+> Task :app:mergeReleaseNativeLibs
+
+> Task :app:createBundleReleaseJsAndAssets_SentryCollectModules_com.juanescobar.gymup@1.4.0+26_26
+Sentry Logger [log]: Reading source map from C:\GymUp\android\app\build\generated\sourcemaps\react\release\index.android.bundle.map
+Sentry Logger [log]: Saving modules to C:\GymUp/android/app/src/main/assets/modules.json
+Sentry Logger [log]: Resolving modules from paths C:\GymUp/node_modules
+Sentry Logger [log]: Modules collected and saved to: C:\GymUp/android/app/src/main/assets/modules.json
+
+> Task :app:extractProguardFiles
+> Task :app:generateReleaseLintVitalReportModel
+> Task :app:stripReleaseDebugSymbols
+> Task :app:buildReleasePreBundle
+> Task :app:lintVitalAnalyzeRelease
+> Task :app:extractReleaseNativeSymbolTables FROM-CACHE
+> Task :app:createBundleReleaseJsAndAssets_SentryUploadCleanUp SKIPPED
+> Task :app:parseReleaseIntegrityConfig FROM-CACHE
+> Task :app:validateSigningRelease
+> Task :app:lintVitalReportRelease
+> Task :app:lintVitalRelease
+> Task :app:packageReleaseBundle
+> Task :app:createBundleReleaseJsAndAssets_SentryCollectModulesCleanUp
+> Task :app:signReleaseBundle
+> Task :app:produceReleaseBundleIdeListingFile
+> Task :app:createReleaseBundleListingFileRedirect
+> Task :app:bundleRelease
+
+[Incubating] Problems report is available at: file:///C:/GymUp/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 33m 18s
+1135 actionable tasks: 683 executed, 424 from cache, 28 up-to-date
+
+[32m✔ AAB listo[0m  (58.4 MB)
+  C:\GymUp\android\app\build\outputs\bundle\release\app-release.aab
+
+  Súbelo a Play Console como versión 1.4.0 (26).
+  Después, sube el versionCode en app.json para el siguiente build.
+
+(node:3184) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+BUILD_EXIT=0

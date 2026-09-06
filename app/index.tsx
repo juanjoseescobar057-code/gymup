@@ -43,6 +43,9 @@ export default function Index() {
   // notificaciones, y la vieja podía navegar a las pestañas encima de lo que
   // la nueva estuviera haciendo. Solo manda el intento vigente.
   const intentoRef = useRef(0);
+  // Una vez que se ha entrado a las pestañas, ningún vigilante rezagado puede
+  // volver a pintar la pantalla de error.
+  const navegadoRef = useRef(false);
 
   async function checkProfile() {
     const mio = ++intentoRef.current;
@@ -50,7 +53,7 @@ export default function Index() {
     setConnectionError(false);
     terminadoRef.current = false;
     const vigilante = setTimeout(() => {
-      if (vigente() && !terminadoRef.current) setConnectionError(true);
+      if (!navegadoRef.current && vigente() && !terminadoRef.current) setConnectionError(true);
     }, ARRANQUE_MAX_MS);
     try {
       const { data: { session }, error: errSesion } = await supabase.auth.getSession();
@@ -144,10 +147,16 @@ export default function Index() {
       // horas). Antes se programaban tres avisos fijos ignorando la tabla.
       setupDailyNotifications(session.user.id).catch(() => {});
 
-      // Un arranque lento pero BUENO puede pasarse de los 15 s y encontrarse
-      // la pantalla de "No pudimos conectar" delante. Si llegamos hasta aquí
-      // sí hay perfil: se retira el error en vez de navegar por debajo de él.
-      if (!vigente()) return;
+      // ASIMETRÍA A PROPÓSITO: el éxito NO comprueba `vigente()`, los fallos sí.
+      //
+      // Con el guardia puesto también aquí, un arranque lento pero BUENO que
+      // terminara después de tocar Reintentar se descartaba entero: dejaba el
+      // perfil ya escrito en el store y la pantalla clavada en "No pudimos
+      // conectar", sin forma de entrar salvo matar la app. Si hemos llegado
+      // hasta aquí hay perfil cargado y fresco, y entrar es lo correcto venga
+      // del intento que venga. Un fallo viejo, en cambio, no puede pintar un
+      // error encima de un arranque nuevo que va bien.
+      navegadoRef.current = true;
       setConnectionError(false);
       setOnboardingComplete(true);
       router.replace('/(tabs)' as any);

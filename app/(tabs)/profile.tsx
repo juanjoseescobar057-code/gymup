@@ -435,8 +435,11 @@ export default function ProfileScreen() {
                 // intenta el signOut ya se cancelaron las notificaciones y se
                 // borró el token push de este teléfono. Tus DATOS siguen
                 // intactos —que es lo que preocupa— pero los avisos no.
-                'Parece un problema de conexión. Tu sesión sigue abierta y tus datos están intactos, ' +
-                'pero los recordatorios diarios quedaron en pausa: vuelven al reintentar o al reabrir la app.'
+                // "vuelven al reintentar" también era falso: reintentar vuelve
+                // a cancelarlos antes de intentar el signOut. Lo único cierto
+                // es que se reprograman al abrir la app con sesión.
+                'Parece un problema de conexión. Tu sesión sigue abierta y tus datos están intactos. ' +
+                'Los recordatorios diarios quedaron en pausa y se reprograman la próxima vez que abras la app.'
               );
               return;
             }

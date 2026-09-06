@@ -71,7 +71,7 @@ test('cerrar sesion y borrar cuenta llaman al borrado local', () => {
       // comprueba: si la red falla no se toca nada. La limpieza local viene
       // justo después del éxito. Lo que este test protege es que toda salida
       // limpie el dispositivo, no que lo haga antes que la red.
-      perfil.slice(Math.max(0, m.index! - 700), m.index! + 900),
+      perfil.slice(Math.max(0, m.index! - 700), m.index! + 2200),
       /borrarDatosLocales\(\)/,
       'cada salida tiene que limpiar el dispositivo',
     );

@@ -29,7 +29,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { revisarEnv } from './envConsistencia.mjs';
+import { revisarEnv, parseEnv } from './envConsistencia.mjs';
 import { versionesRequeridas, revisarSdk, mensajeFaltantes, rutaConEspacios } from './entornoAndroid.mjs';
 import { PLANTILLA_NATIVA } from './plantillaNativa.mjs';
 
@@ -168,37 +168,47 @@ const veredictoEnv = revisarEnv(localesEnv);
 if (!veredictoEnv.ok) morir(veredictoEnv.mensaje);
 console.log(`  ✔ ${veredictoEnv.mensaje}`);
 
-// ── 2b. Las credenciales de Sentry, desde .env ──
+// ── 2b. `.env` es PÚBLICO: solo EXPO_PUBLIC_* ──
 //
-// Este script solo miraba `process.env`, así que las tres variables del upload
-// de source maps había que exportarlas a mano en CADA terminal desde la que se
-// compilara. Quien las pusiera en `.env` —el sitio evidente, y el único que ya
-// está en .gitignore— vería el build terminar bien y los errores seguirían
-// llegando sin simbolicar, sin que nada lo dijera.
+// `.env` está RASTREADO en git a propósito (ver el commit que lo añadió): lo
+// que contiene son valores públicos por diseño, que además viajan dentro del
+// APK y cualquiera puede extraer. Que aparezca en .gitignore no lo desrastrea
+// —.gitignore no aplica a lo ya versionado— y esa contradicción es una trampa:
+// invita a guardar ahí un secreto de verdad creyéndolo ignorado.
 //
-// Solo estas tres claves, y solo si no vienen ya del entorno: no se vuelca el
-// .env entero para no cambiar por la puerta de atrás el resto del build.
-const CLAVES_SENTRY = ['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN'];
+// Un secreto en este archivo se sube a GitHub en el siguiente commit. Así que
+// la regla se comprueba, no se confía: cualquier clave sin el prefijo
+// EXPO_PUBLIC_ aborta el build.
 const rutaEnv = path.join(raiz, '.env');
 if (fs.existsSync(rutaEnv)) {
-  const texto = fs.readFileSync(rutaEnv, 'utf8');
-  for (const clave of CLAVES_SENTRY) {
-    if (process.env[clave]) continue;
-    // Formato de .env: CLAVE=valor, con comillas opcionales y sin expansión.
-    const m = texto.match(new RegExp(`^\\s*${clave}\\s*=\\s*(.*)$`, 'm'));
-    const valor = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
-    if (valor) process.env[clave] = valor;
+  const intrusas = Object.keys(parseEnv(fs.readFileSync(rutaEnv, 'utf8')))
+    .filter((k) => !k.startsWith('EXPO_PUBLIC_'));
+  if (intrusas.length) {
+    morir(
+      `.env está RASTREADO en git y solo puede contener variables EXPO_PUBLIC_*.\n` +
+        `  Sobran: ${intrusas.join(', ')}\n` +
+        '  Si alguna es un secreto, sácala de ahí, rótala (ya está en la historia de git\n' +
+        '  si llegaste a hacer commit) y ponla como variable de entorno del sistema.',
+    );
   }
 }
+console.log('  ✔ .env solo lleva variables públicas');
 
-const sentryCompleto = CLAVES_SENTRY.every((c) => process.env[c]);
-if (sentryCompleto) {
+// ── 2c. Sentry: decir en voz alta si los errores serán legibles ──
+//
+// Las tres van en el ENTORNO, nunca en un archivo del repo: el token es un
+// secreto real. Antes esto no se decía y el build terminaba en verde con el
+// upload apagado, así que los errores de producción llegaban minificados sin
+// que nada lo advirtiera.
+const CLAVES_SENTRY = ['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN'];
+const faltanSentry = CLAVES_SENTRY.filter((c) => !process.env[c]);
+if (faltanSentry.length === 0) {
   console.log('  ✔ Sentry: se subirán los source maps (errores legibles en producción)');
 } else {
-  const faltan = CLAVES_SENTRY.filter((c) => !process.env[c]);
   console.log(
-    `  ⚠ Sentry: falta ${faltan.join(', ')} — los errores llegarán SIN simbolicar.\n` +
-      '    Añádelas a .env (ya está en .gitignore) y vuelve a compilar.',
+    `  ⚠ Sentry: falta ${faltanSentry.join(', ')} — los errores llegarán SIN simbolicar,\n` +
+      '    o sea "index.android.bundle:1:284729" en vez de "app/actividad.tsx:51".\n' +
+      '    Ponlas como variables de entorno del sistema (setx en Windows) y recompila.',
   );
 }
 

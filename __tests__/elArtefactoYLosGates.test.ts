@@ -80,31 +80,55 @@ test('el upload de source maps se enciende solo cuando hay credenciales', () => 
   assert.match(build, /process\.env\.SENTRY_AUTH_TOKEN && process\.env\.SENTRY_ORG/);
 });
 
-test('las credenciales de Sentry se leen de .env, no solo del entorno', () => {
-  // El script solo miraba `process.env`, así que había que exportarlas a mano
-  // en cada terminal. Quien las pusiera en .env —el sitio evidente, y el único
-  // ya ignorado por git— veía el build acabar bien y los errores seguían
-  // llegando sin simbolicar, sin que nada lo dijera.
+test('.env está rastreado, así que el build prohíbe que lleve nada que no sea público', () => {
+  // .env SÍ está versionado, a propósito: lo que lleva son valores que además
+  // viajan dentro del APK. Pero también aparece en .gitignore, y .gitignore no
+  // desrastrea nada: la contradicción invita a guardar ahí un secreto creyendo
+  // que está ignorado. Un secreto ahí se sube a GitHub en el siguiente commit.
   const build = leer('scripts', 'build-android.mjs');
-  assert.match(build, /const CLAVES_SENTRY = \['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN'\]/);
-  assert.match(build, /if \(process\.env\[clave\]\) continue;/, 'el entorno tiene que ganarle al archivo');
-  // Solo esas tres: volcar el .env entero cambiaría el resto del build por la
-  // puerta de atrás.
-  assert.ok(!/for \(const \[k, v\] of Object\.entries\(.*env.*\)\)/.test(build));
-  // Y lo dice en voz alta en las dos direcciones.
-  assert.match(build, /se subirán los source maps/);
-  assert.match(build, /los errores llegarán SIN simbolicar/);
+  assert.match(build, /\.filter\(\(k\) => !k\.startsWith\('EXPO_PUBLIC_'\)\)/);
+  assert.match(build, /if \(intrusas\.length\) \{\s*morir\(/, 'avisar no basta: tiene que abortar');
+  // Y el propio .env del repo cumple la regla hoy.
+  const claves = leer('.env')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'))
+    .map((l) => l.split('=')[0].trim())
+    .filter(Boolean);
+  assert.ok(claves.length > 0, 'no pude leer las claves de .env');
+  for (const k of claves) {
+    assert.ok(k.startsWith('EXPO_PUBLIC_'), `.env lleva ${k}, que no es pública y está en git`);
+  }
 });
 
-test('el ejemplo de .env documenta las tres, y ninguna viaja en el bundle', () => {
+test('el build dice en voz alta si los errores de producción serán legibles', () => {
+  const build = leer('scripts', 'build-android.mjs');
+  assert.match(build, /const CLAVES_SENTRY = \['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN'\]/);
+  assert.match(build, /se subirán los source maps/);
+  assert.match(build, /los errores llegarán SIN simbolicar/);
+  // El token es un secreto: va en el entorno, nunca leído de un archivo del repo.
+  assert.ok(
+    !/readFileSync\([^)]*\)[\s\S]{0,200}SENTRY_AUTH_TOKEN/.test(build),
+    'el token de Sentry vuelve a leerse de un archivo del repositorio',
+  );
   const ejemplo = leer('.env.example');
-  for (const clave of ['SENTRY_ORG', 'SENTRY_PROJECT', 'SENTRY_AUTH_TOKEN']) {
-    assert.match(ejemplo, new RegExp(`^${clave}=`, 'm'), `falta ${clave} en .env.example`);
-    assert.ok(
-      !new RegExp(`EXPO_PUBLIC_${clave}`).test(ejemplo),
-      `${clave} con prefijo EXPO_PUBLIC_ acabaría dentro del APK`,
-    );
-  }
+  assert.ok(!/^SENTRY_AUTH_TOKEN=/m.test(ejemplo), '.env.example invita a poner el token en un archivo');
+  assert.match(ejemplo, /setx SENTRY_AUTH_TOKEN/, 'hay que decir dónde SÍ va');
+});
+
+test('el escáner de secretos ve también lo que no se versiona', () => {
+  // Solo miraba `git ls-files`, así que era estructuralmente incapaz de ver un
+  // volcado de conversación ignorado con claves reales dentro. No bloquea
+  // —no puede llegar a GitHub— pero tiene que verse.
+  const scan = leer('scripts', 'check-secrets.mjs');
+  assert.match(scan, /'--others', '--ignored', '--exclude-standard'/);
+  assert.match(scan, /AVISO — secretos en archivos que NO se versionan/);
+  // Y los patrones que faltaban, incluido el que este mismo repo pide poner a mano.
+  assert.match(scan, /Sentry auth token/);
+  assert.match(scan, /RevenueCat secret key/);
+  assert.match(scan, /Supabase service_role key/);
+  // Lo rastreado sigue bloqueando de verdad.
+  assert.match(scan, /if \(graves\.length\) \{[\s\S]{0,200}process\.exit\(1\)/);
 });
 
 test('release:check puede bloquear de verdad', () => {
